@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+title: "CKS MCP Server"
+message: >
+  If you use the CKS MCP Server in your research, please cite it
+  using the metadata provided in this file.
+type: software
+authors:
+  - family-names: "Hruznov"
+    given-names: "Vladyslav"
+repository-code: "https://github.com/Deus-corp/cks-mcp"
+url: "https://github.com/Deus-corp/cks-mcp"
+license: MIT
+version: "0.1.0"
+date-released: "2026-07-15"
