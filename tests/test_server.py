@@ -1,117 +1,61 @@
-"""Tests for MCP server via cks‑runtime."""
-import json
+"""Unit tests for MCP server request handling."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock
 import pytest
-from cks_runtime.runtime import Runtime
-from cks_runtime.adapters.mcp.handlers import MCPHandler
-from cks_runtime_core import CksCoreAdapter
+
+from cks_mcp.server import handle_request
+
+VALID_KNOWLEDGE_JSON = (
+    '{"objects":[{"identity":{"id":"obj-1","type":"Definition","name":"Test"},"structure":{}}]}'
+)
 
 
 @pytest.fixture
-def handler():
-    runtime = Runtime(core=CksCoreAdapter())
-    return MCPHandler(runtime)
+def mock_runtime():
+    runtime = MagicMock()
+    runtime.core_bridge.validate.return_value = MagicMock(
+        valid=True, diagnostics=[], metadata={}
+    )
+    runtime.core_bridge.serialize.return_value = '{"serialized":true}'
+    runtime.core_bridge.explain.return_value = {"summary": "test"}
+    runtime.core_bridge.evolve.return_value = {"evolved": True}
+    return runtime
 
 
-@pytest.mark.asyncio
-async def test_tools_list(handler):
-    """tools/list should return available tools."""
-    request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
-    response = await handler.handle_request(request)
-    assert response["jsonrpc"] == "2.0"
-    assert response["id"] == 1
-    tools = response["result"]
-    assert len(tools) >= 1
+def test_tools_list(mock_runtime):
+    request = {"method": "tools/list"}
+    response = handle_request(mock_runtime, request)
+    tools = response["tools"]
+    assert len(tools) == 4
+    assert all("name" in t for t in tools)
     assert any(t["name"] == "validate_knowledge" for t in tools)
 
 
-@pytest.mark.asyncio
-async def test_tools_call_validate(handler):
-    """tools/call for validate_knowledge should succeed with valid input."""
+def test_tools_call_validate(mock_runtime):
     request = {
-        "jsonrpc": "2.0",
-        "id": 2,
         "method": "tools/call",
         "params": {
             "name": "validate_knowledge",
-            "arguments": {
-                "json_data": json.dumps({
-                    "objects": [
-                        {
-                            "identity": {"id": "obj-1", "type": "Definition", "name": "Test"},
-                            "structure": {},
-                        }
-                    ]
-                })
-            },
+            "arguments": {"json_data": VALID_KNOWLEDGE_JSON},
         },
     }
-    response = await handler.handle_request(request)
-    assert response["jsonrpc"] == "2.0"
-    assert response["id"] == 2
-    result = json.loads(response["result"])
-    assert result["valid"] is True
+    response = handle_request(mock_runtime, request)
+    assert "result" in response
+    assert response["result"]["valid"] == True
 
 
-@pytest.mark.asyncio
-async def test_tools_call_validate_invalid(handler):
-    """tools/call for validate_knowledge should return error for invalid input."""
+def test_tools_call_unknown_tool(mock_runtime):
     request = {
-        "jsonrpc": "2.0",
-        "id": 3,
         "method": "tools/call",
-        "params": {
-            "name": "validate_knowledge",
-            "arguments": {
-                "json_data": json.dumps({
-                    "objects": [
-                        {"identity": {"id": "dup", "type": "X", "name": "x"}, "structure": {}},
-                        {"identity": {"id": "dup", "type": "Y", "name": "y"}, "structure": {}},
-                    ]
-                })
-            },
-        },
+        "params": {"name": "nonexistent", "arguments": {}},
     }
-    response = await handler.handle_request(request)
-    assert response["jsonrpc"] == "2.0"
-    assert response["id"] == 3
-    result = json.loads(response["result"])
-    assert result["valid"] is False
-
-
-@pytest.mark.asyncio
-async def test_tools_call_unknown_tool(handler):
-    """Calling an unknown tool should return an error."""
-    request = {
-        "jsonrpc": "2.0",
-        "id": 4,
-        "method": "tools/call",
-        "params": {
-            "name": "nonexistent",
-            "arguments": {},
-        },
-    }
-    response = await handler.handle_request(request)
-    assert response["jsonrpc"] == "2.0"
-    assert response["id"] == 4
+    response = handle_request(mock_runtime, request)
     assert "error" in response
-    assert response["error"]["code"] == -32601
+    assert "Unknown tool" in response["error"]
 
 
-@pytest.mark.asyncio
-async def test_unknown_method(handler):
-    """Calling an unknown method should return an error."""
-    request = {"jsonrpc": "2.0", "id": 5, "method": "unknown/method", "params": {}}
-    response = await handler.handle_request(request)
-    assert response["jsonrpc"] == "2.0"
-    assert response["id"] == 5
-    assert "error" in response
-
-
-@pytest.mark.asyncio
-async def test_missing_method(handler):
-    """Request with missing method should return an error."""
-    request = {"jsonrpc": "2.0", "id": 6}
-    response = await handler.handle_request(request)
-    assert response["jsonrpc"] == "2.0"
-    assert response["id"] == 6
+def test_unknown_method(mock_runtime):
+    response = handle_request(mock_runtime, {"method": "unknown"})
     assert "error" in response

@@ -4,13 +4,26 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-20%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-9%20passing-brightgreen)
 
 `cks-mcp` is an MCP (Model Context Protocol) server that provides LLMs
 with structured, verifiable knowledge operations through the CKS
-ecosystem.  It exposes six tools—validate, query, compare, evolve,
-derive, and construct—each backed by the deterministic, immutable
-semantics of `cks-core`.
+ecosystem.  It exposes four tools—`validate_knowledge`, `serialize_knowledge`,
+`explain_knowledge`, and `evolve_knowledge`—each backed by the deterministic,
+immutable semantics of `cks-core` and the operational management of `cks-runtime`.
+
+---
+
+# Ecosystem
+
+CKS Core is the semantic foundation of the CKS ecosystem.
+Other projects build upon it:
+
+| Project | Description | Repository |
+|---------|-------------|------------|
+| **cks-core** | Canonical semantic engine | [Deus-corp/cks-core](https://github.com/Deus-corp/cks-core) |
+| **cks-runtime** | Operational environment – sessions, transactions, persistence | [Deus-corp/cks-runtime](https://github.com/Deus-corp/cks-runtime) |
+| **cks-mcp** | MCP server – exposes CKS to LLMs (this repository) | [Deus-corp/cks-mcp](https://github.com/Deus-corp/cks-mcp) |
 
 ---
 
@@ -30,13 +43,13 @@ generated knowledge auditable.
 pip install cks-mcp
 ```
 
-The server requires `cks-core` (installed automatically as a dependency).
+The server requires `cks-runtime` (which includes `cks-core`) as a dependency.
 
 ---
 
 # Quick Start
 
-Launch the server:
+## Launch the MCP server
 
 ```bash
 cks-mcp
@@ -45,6 +58,16 @@ cks-mcp
 An MCP client (Claude Desktop, any MCP-compatible LLM) can then connect
 and call tools.
 
+## Interactive LLM client (Groq / DeepSeek / local)
+
+```bash
+export GROQ_API_KEY=your_key_here
+python llm_client/cks_llm_client.py --provider groq
+```
+
+You can then type natural language requests; the LLM will automatically
+call the appropriate CKS tool.
+
 ---
 
 # Available Tools
@@ -52,11 +75,9 @@ and call tools.
 | Tool | Description |
 |------|-------------|
 | `validate_knowledge` | Validate a Knowledge Structure and return diagnostics. |
-| `query_relations`   | Find all relations for a given entity. |
-| `compare_structures`| Check semantic equivalence of two structures. |
-| `evolve_knowledge`  | Apply Genesis/Decay operators to evolve a structure. |
-| `derive_knowledge`  | Derive a new Knowledge Object from existing premises. |
-| `construct_knowledge`| Parse and construct a Knowledge Structure (coming soon). |
+| `serialize_knowledge` | Serialize a Knowledge Structure into canonical JSON. |
+| `explain_knowledge` | Produce a semantic explanation of a Knowledge Structure. |
+| `evolve_knowledge` | Apply Genesis/Decay operators to evolve a structure. |
 
 ---
 
@@ -64,8 +85,6 @@ and call tools.
 
 ```json
 {
-  "jsonrpc": "2.0",
-  "id": 1,
   "method": "tools/call",
   "params": {
     "name": "validate_knowledge",
@@ -80,9 +99,15 @@ Response:
 
 ```json
 {
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": "{\"valid\": true, \"error_count\": 0, \"warning_count\": 0, \"diagnostics\": []}"
+  "result": {
+    "valid": true,
+    "diagnostics": [],
+    "metadata": {
+      "validator": "ReferenceValidator",
+      "pipeline": ["structural", "semantic", "constraints"],
+      "min_severity": "error"
+    }
+  }
 }
 ```
 
@@ -94,14 +119,7 @@ Response:
 python -m pytest -v
 ```
 
-20 tests, all passing.
-
----
-
-# Ecosystem
-
-- **cks-core** — the canonical knowledge engine ([repo](https://github.com/Deus-corp/CKS))
-- **CKS Specifications** — formal theory behind the system ([DOI](https://zenodo.org/records/21332624))
+9 tests, all passing.
 
 ---
 

@@ -1,0 +1,1 @@
+{"method":"tools/call","params":{"name":"validate_knowledge","arguments":{"json_data":"{\"objects\":[{\"identity\":{\"id\":\"obj-1\",\"type\":\"Definition\",\"name\":\"Test\"},\"structure\":{}}]}"}}}
