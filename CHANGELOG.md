@@ -3,6 +3,19 @@
 
 ---
 
+### Changed
+- Tools now use the full `create_session` → `begin_transaction` → `commit_transaction` cycle from `cks-runtime`. Every call produces an immutable Version and collects Diagnostics.
+- Requires `cks-runtime>=0.4.2` and `cks-core>=1.2.0`.
+- Responses now include `version_id` and `session_id` for traceability.
+
+### Fixed
+- `test_server.py` now uses serializable mocks for session and version, eliminating `Object of type MagicMock is not JSON serializable` errors.
+
+### Updated
+- README reflects transactional tool behaviour and new response fields.
+
+---
+
 ## [0.2.1] - 2026-07-18
 
 ### Changed

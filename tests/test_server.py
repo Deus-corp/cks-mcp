@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock
+import json
 import pytest
 
 from cks_mcp.server import handle_request
@@ -13,6 +13,17 @@ VALID_KNOWLEDGE_JSON = (
 )
 
 
+class FakeSession:
+    def __init__(self):
+        self.session_id = "s1"
+        self.diagnostics = []
+
+
+class FakeVersion:
+    def __init__(self):
+        self.version_id = "v1"
+
+
 @pytest.fixture
 def mock_runtime():
     runtime = MagicMock()
@@ -20,8 +31,15 @@ def mock_runtime():
         valid=True, diagnostics=[], metadata={}
     )
     runtime.core_bridge.serialize.return_value = '{"serialized":true}'
-    runtime.core_bridge.explain.return_value = {"summary": "test"}
-    runtime.core_bridge.evolve.return_value = {"evolved": True}
+    runtime.core_bridge.explain.return_value = {
+        "object_count": 1,
+        "relation_count": 0,
+        "summary": {"test": True},
+    }
+    runtime.core_bridge.evolve.return_value = MagicMock()
+    runtime.create_session.return_value = FakeSession()
+    runtime.begin_transaction.return_value = MagicMock()
+    runtime.commit_transaction.return_value = FakeVersion()
     return runtime
 
 
@@ -65,6 +83,7 @@ def test_tools_call_validate(mock_runtime):
     content = response["result"]["content"][0]["text"]
     result = json.loads(content)
     assert result["valid"] == True
+    assert result["version_id"] == "v1"
 
 
 def test_tools_call_unknown_tool(mock_runtime):

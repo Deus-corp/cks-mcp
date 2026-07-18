@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-11%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-10%20passing-brightgreen)
 
 `cks-mcp` is an MCP (Model Context Protocol) server that provides LLMs
 with structured, verifiable knowledge operations through the CKS
@@ -34,6 +34,10 @@ a **canonical knowledge backbone**: every piece of information must be
 explicitly structured, validated against formal constraints, and
 traceable to its origin.  This minimises hallucinations and makes AI‑
 generated knowledge auditable.
+
+Every tool call now creates a **Runtime Session** and **Transaction**,
+producing an immutable **Version** and collecting **Diagnostics**.
+This guarantees full auditability and reproducibility.
 
 ---
 
@@ -95,18 +99,17 @@ call the appropriate CKS tool.
 }
 ```
 
-Response:
+Response (with version and session information):
 
 ```json
 {
   "result": {
-    "valid": true,
-    "diagnostics": [],
-    "metadata": {
-      "validator": "ReferenceValidator",
-      "pipeline": ["structural", "semantic", "constraints"],
-      "min_severity": "error"
-    }
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"valid\": true, \"version_id\": \"...\", \"session_id\": \"...\", \"diagnostics\": [], ...}"
+      }
+    ]
   }
 }
 ```
@@ -119,7 +122,7 @@ Response:
 python -m pytest -v
 ```
 
-11 tests, all passing.
+10 tests, all passing.
 
 ---
 

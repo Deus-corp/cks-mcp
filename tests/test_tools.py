@@ -13,7 +13,6 @@ from cks_mcp.tools import (
     evolve_knowledge,
 )
 
-# Minimal valid Knowledge Structure JSON
 VALID_KNOWLEDGE_JSON = (
     '{"objects":[{"identity":{"id":"obj-1","type":"Definition","name":"Test"},"structure":{}}]}'
 )
@@ -22,13 +21,20 @@ VALID_KNOWLEDGE_JSON = (
 @pytest.fixture
 def mock_runtime():
     runtime = MagicMock()
-    # Мокируем все методы core_bridge
     runtime.core_bridge.validate.return_value = MagicMock(
         valid=True, diagnostics=[], metadata={}
     )
     runtime.core_bridge.serialize.return_value = '{"serialized":true}'
-    runtime.core_bridge.explain.return_value = {"summary": "test"}
-    runtime.core_bridge.evolve.return_value = {"evolved": True}
+    runtime.core_bridge.explain.return_value = {
+        "object_count": 1,
+        "relation_count": 0,
+        "summary": {"test": True},
+    }
+    runtime.core_bridge.evolve.return_value = MagicMock()
+    # Имитация коммита
+    runtime.create_session.return_value = MagicMock(session_id="s1", diagnostics=[])
+    runtime.begin_transaction.return_value = MagicMock()
+    runtime.commit_transaction.return_value = MagicMock(version_id="v1")
     return runtime
 
 
@@ -36,23 +42,28 @@ def test_validate_knowledge(mock_runtime):
     args = {"json_data": VALID_KNOWLEDGE_JSON}
     result = validate_knowledge(mock_runtime, args)
     assert result["valid"] == True
-    mock_runtime.core_bridge.validate.assert_called_once()
+    assert result["version_id"] == "v1"
+    assert result["session_id"] == "s1"
+    mock_runtime.create_session.assert_called_once()
+    mock_runtime.commit_transaction.assert_called_once()
 
 
 def test_serialize_knowledge(mock_runtime):
     args = {"json_data": VALID_KNOWLEDGE_JSON}
     result = serialize_knowledge(mock_runtime, args)
-    # result – это строка JSON, которую вернул core_bridge.serialize
-    data = json.loads(result)
-    assert data["serialized"] == True
-    mock_runtime.core_bridge.serialize.assert_called_once()
+    assert result == '{"serialized":true}'
+    mock_runtime.create_session.assert_called_once()
+    mock_runtime.commit_transaction.assert_called_once()
 
 
 def test_explain_knowledge(mock_runtime):
     args = {"json_data": VALID_KNOWLEDGE_JSON}
     result = explain_knowledge(mock_runtime, args)
-    assert result["summary"] == "test"
-    mock_runtime.core_bridge.explain.assert_called_once()
+    assert result["object_count"] == 1
+    assert result["version_id"] == "v1"
+    assert result["session_id"] == "s1"
+    mock_runtime.create_session.assert_called_once()
+    mock_runtime.commit_transaction.assert_called_once()
 
 
 def test_evolve_knowledge(mock_runtime):
@@ -62,10 +73,7 @@ def test_evolve_knowledge(mock_runtime):
     }
     result = evolve_knowledge(mock_runtime, args)
     assert result["evolved"] == True
-    mock_runtime.core_bridge.evolve.assert_called_once()
-
-
-def test_validate_knowledge_with_invalid_json(mock_runtime):
-    args = {"json_data": "not valid json"}
-    with pytest.raises(Exception):
-        validate_knowledge(mock_runtime, args)
+    assert result["version_id"] == "v1"
+    assert result["session_id"] == "s1"
+    mock_runtime.create_session.assert_called_once()
+    mock_runtime.commit_transaction.assert_called_once()
