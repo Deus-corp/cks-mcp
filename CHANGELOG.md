@@ -3,6 +3,18 @@
 
 ---
 
+## [0.4.0] - 2026-07-18
+
+### Added
+- `validate_knowledge` now supports an optional `extensions` parameter (list of human-readable names like `"embedding_projection"`) to opt into additional validation rules for a single call.
+- Structured error response for unknown extension names instead of a raw traceback.
+- Integration tests for the extensions feature with real Runtime + CksCoreAdapter (5 new tests, total 17 passed).
+
+### Changed
+- Updated `validate_knowledge` tool description in MCP server schema to document the `extensions` parameter.
+
+---
+
 ## [0.3.3] - 2026-07-18
 
 ### Removed

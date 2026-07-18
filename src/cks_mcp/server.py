@@ -37,7 +37,11 @@ PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 TOOLS = {
     "validate_knowledge": {
         "name": "validate_knowledge",
-        "description": "Validate a Canonical Knowledge Structure. Returns validation result and diagnostics.",
+        "description": (
+            "Validate a Canonical Knowledge Structure. Returns validation result and diagnostics. "
+            "Optionally accepts 'extensions' to opt into additional, non-default validation rules "
+            "for this call only (see 'extensions' parameter)."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -45,10 +49,24 @@ TOOLS = {
                     "type": "string",
                     "description": "A valid CKS Knowledge Structure as a JSON string.",
                 },
+                "extensions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional list of opt-in validation extensions to apply for this call "
+                        "only (does not affect other calls). Currently available: "
+                        "'embedding_projection' -- requires every object of type "
+                        "'EmbeddingProjection' to carry exactly one 'represents' relation to a "
+                        "real object already present in this structure, and to reference its "
+                        "vector payload via 'store_ref' rather than embedding it inline. Use "
+                        "this to mechanically catch citations/references to sources that do not "
+                        "actually exist in the structure being validated."
+                    ),
+                },
             },
             "required": ["json_data"],
         },
-        "handler": validate_knowledge,
+        "handler": validate_knowledge,   # <-- ВОТ ЭТА СТРОКА
     },
     "serialize_knowledge": {
         "name": "serialize_knowledge",
