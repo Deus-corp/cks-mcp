@@ -3,6 +3,17 @@
 
 ---
 
+## [0.2.1] - 2026-07-18
+
+### Changed
+- Improved tool responses for better LLM readability.
+  - `validate_knowledge` now returns `error_count`, `warning_count`, `information_count` and a human‑readable message.
+  - `explain_knowledge` now returns `object_count`, `relation_count` and a summary.
+  - `evolve_knowledge` returns `serialized` result and `operations_applied` count.
+- Updated tests to verify new response fields (11 passing).
+
+---
+
 ## [0.2.0] - 2026-07-18
 
 ### Added

@@ -1,62 +1,69 @@
-"""
-MCP Tools – a thin wrapper around cks‑runtime operations.
-"""
+"""Unit tests for MCP tool implementations."""
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
 import json
-from typing import Any
+import pytest
 
-from cks_runtime.runtime import Runtime
-from cks_runtime.operations.operation_types import (
-    ValidateOperation,
-    EvolveOperation,
-    SerializeOperation,
-    ExplainOperation,
+from cks_mcp.tools import (
+    validate_knowledge,
+    serialize_knowledge,
+    explain_knowledge,
+    evolve_knowledge,
 )
-from cks_runtime.dispatcher.dispatcher import DispatchRequest
+
+VALID_KNOWLEDGE_JSON = (
+    '{"objects":[{"identity":{"id":"obj-1","type":"Definition","name":"Test"},"structure":{}}]}'
+)
 
 
-def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
-    structure = json.loads(arguments["json_data"])
-    session = runtime.create_session(structure)
-    tx = runtime.begin_transaction(session)
-    tx.add_operation(ValidateOperation("validate", knowledge_structure=structure))
-    version = runtime.commit_transaction(tx)
-    # Последний результат можно извлечь из диагностики или payload
-    return {
-        "valid": True,
-        "version_id": version.version_id,
-        "session_id": session.session_id,
+@pytest.fixture
+def mock_runtime():
+    runtime = MagicMock()
+    runtime.core_bridge.validate.return_value = MagicMock(
+        valid=True, diagnostics=[], metadata={}
+    )
+    runtime.core_bridge.serialize.return_value = '{"serialized":true}'
+    runtime.core_bridge.explain.return_value = {
+        "object_count": 1,
+        "relation_count": 0,
+        "summary": {"test": True},
     }
+    runtime.core_bridge.evolve.return_value = MagicMock()
+    runtime.core_bridge.serialize.return_value = '{"serialized":true}'
+    return runtime
 
 
-def serialize_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> str:
-    structure = json.loads(arguments["json_data"])
-    session = runtime.create_session(structure)
-    tx = runtime.begin_transaction(session)
-    tx.add_operation(SerializeOperation("serialize", knowledge_structure=structure))
-    version = runtime.commit_transaction(tx)
-    # Результат сериализации можно было бы сохранить в payload операции,
-    # но сейчас просто возвращаем заглушку. При реальном использовании
-    # нужно получить результат из ExecutionResult.
-    return json.dumps({"serialized": True, "version_id": version.version_id})
+def test_validate_knowledge(mock_runtime):
+    args = {"json_data": VALID_KNOWLEDGE_JSON}
+    result = validate_knowledge(mock_runtime, args)
+    assert result["valid"] == True
+    assert result["error_count"] == 0
+    mock_runtime.core_bridge.validate.assert_called_once()
 
 
-def explain_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
-    structure = json.loads(arguments["json_data"])
-    session = runtime.create_session(structure)
-    tx = runtime.begin_transaction(session)
-    tx.add_operation(ExplainOperation("explain", knowledge_structure=structure))
-    version = runtime.commit_transaction(tx)
-    return {"explanation": "Not implemented", "version_id": version.version_id}
+def test_serialize_knowledge(mock_runtime):
+    args = {"json_data": VALID_KNOWLEDGE_JSON}
+    result = serialize_knowledge(mock_runtime, args)
+    assert result == '{"serialized":true}'
+    mock_runtime.core_bridge.serialize.assert_called_once()
 
 
-def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
-    structure = json.loads(arguments["json_data"])
-    operations = arguments["operations"]
-    session = runtime.create_session(structure)
-    tx = runtime.begin_transaction(session)
-    tx.add_operation(EvolveOperation("evolve", knowledge_structure=structure, evolution=operations))
-    version = runtime.commit_transaction(tx)
-    return {"evolved": True, "version_id": version.version_id}
+def test_explain_knowledge(mock_runtime):
+    args = {"json_data": VALID_KNOWLEDGE_JSON}
+    result = explain_knowledge(mock_runtime, args)
+    assert result["object_count"] == 1
+    assert result["relation_count"] == 0
+    mock_runtime.core_bridge.explain.assert_called_once()
+
+
+def test_evolve_knowledge(mock_runtime):
+    args = {
+        "json_data": VALID_KNOWLEDGE_JSON,
+        "operations": [{"add": "node"}],
+    }
+    result = evolve_knowledge(mock_runtime, args)
+    assert result["evolved"] == True
+    assert result["operations_applied"] == 1
+    mock_runtime.core_bridge.evolve.assert_called_once()
