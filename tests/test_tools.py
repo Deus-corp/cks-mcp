@@ -69,7 +69,13 @@ def test_explain_knowledge(mock_runtime):
 def test_evolve_knowledge(mock_runtime):
     args = {
         "json_data": VALID_KNOWLEDGE_JSON,
-        "operations": [{"add": "node"}],
+        "operations": [
+            {
+                "type": "add_object",
+                "identity": {"id": "obj-2", "type": "Lemma", "name": "New"},
+                "structure": {},
+            }
+        ],
     }
     result = evolve_knowledge(mock_runtime, args)
     assert result["evolved"] == True

@@ -1,12 +1,11 @@
-# evolve.py
 import cks
+from cks.evolution import parse_operations
 from typing import Any
 from cks_runtime.runtime import Runtime
-from cks_runtime.operations.operation_types import EvolveOperation
 
 def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     structure = cks.parse(arguments["json_data"])
-    operations = arguments.get("operations", [])
+    operations = parse_operations(arguments.get("operations", []))
     session = runtime.create_session(structure)
     tx = runtime.begin_transaction(session)
     tx.add_operation(EvolveOperation("evolve", knowledge_structure=structure, evolution=operations))

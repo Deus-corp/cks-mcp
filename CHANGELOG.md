@@ -3,6 +3,19 @@
 
 ---
 
+## [0.3.1] - 2026-07-18
+
+### Fixed
+- `evolve_knowledge` now uses `cks.evolution.parse_operations` to convert JSON operation descriptors into proper `StructuralOperator` objects, fixing the `AttributeError: 'dict' object has no attribute 'apply'` crash.
+- Requires `cks-runtime>=0.4.4` and `cks-core>=1.2.1`.
+
+### Changed
+- Updated tests to use valid JSON operation descriptors for evolve.
+
+---
+
+## [0.3.0] - 2026-07-18
+
 ### Changed
 - Tools now use the full `create_session` → `begin_transaction` → `commit_transaction` cycle from `cks-runtime`. Every call produces an immutable Version and collects Diagnostics.
 - Requires `cks-runtime>=0.4.2` and `cks-core>=1.2.0`.
