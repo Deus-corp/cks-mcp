@@ -3,6 +3,13 @@
 
 ---
 
+## [0.3.3] - 2026-07-18
+
+### Removed
+- Deleted obsolete `src/cks_mcp/tools.py` – an outdated copy of test utilities that survived four releases.
+
+---
+
 ## [0.3.2] - 2026-07-18
 
 ### Fixed
