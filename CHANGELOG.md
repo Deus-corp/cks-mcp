@@ -3,6 +3,14 @@
 
 ---
 
+## [0.3.2] - 2026-07-18
+
+### Fixed
+- `validate_knowledge` now correctly returns `"valid": false` with structured diagnostics when a Knowledge Structure is invalid, instead of crashing or hardcoding `true`. It reads diagnostics from the session after the validation transaction (bugs #1, #2).
+- Updated tests to cover both valid and invalid structure scenarios.
+
+---
+
 ## [0.3.1] - 2026-07-18
 
 ### Fixed

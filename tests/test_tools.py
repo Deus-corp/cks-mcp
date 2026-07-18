@@ -38,7 +38,7 @@ def mock_runtime():
     return runtime
 
 
-def test_validate_knowledge(mock_runtime):
+def test_validate_knowledge_valid(mock_runtime):
     args = {"json_data": VALID_KNOWLEDGE_JSON}
     result = validate_knowledge(mock_runtime, args)
     assert result["valid"] == True
@@ -46,6 +46,41 @@ def test_validate_knowledge(mock_runtime):
     assert result["session_id"] == "s1"
     mock_runtime.create_session.assert_called_once()
     mock_runtime.commit_transaction.assert_called_once()
+
+
+def test_validate_knowledge_invalid(mock_runtime):
+    from cks_runtime.diagnostics.diagnostic import (
+        Diagnostic as RuntimeDiagnostic,
+        DiagnosticSeverity,
+        DiagnosticSource,
+    )
+
+    # Настоящий список для диагностик
+    session = MagicMock(diagnostics=[], session_id="s1")
+    mock_runtime.create_session.return_value = session
+    tx = MagicMock(session=session)
+    mock_runtime.begin_transaction.return_value = tx
+
+    def fake_commit(tx):
+        tx.session.diagnostics.append(
+            RuntimeDiagnostic(
+                code="ERR-001",
+                severity=DiagnosticSeverity.ERROR,
+                source=DiagnosticSource.CORE,
+                message="Invalid structure",
+                metadata={"key": "value"},
+            )
+        )
+        return MagicMock(version_id="v2")
+
+    mock_runtime.commit_transaction.side_effect = fake_commit
+    args = {"json_data": VALID_KNOWLEDGE_JSON}
+    result = validate_knowledge(mock_runtime, args)
+    assert result["valid"] is False
+    assert result["version_id"] == "v2"
+    assert len(result["diagnostics"]) == 1
+    assert result["diagnostics"][0]["code"] == "ERR-001"
+    assert result["diagnostics"][0]["severity"] == "error"
 
 
 def test_serialize_knowledge(mock_runtime):
