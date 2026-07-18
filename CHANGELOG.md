@@ -8,6 +8,7 @@
 ### Fixed
 - `evolve_knowledge` now uses `cks.evolution.parse_operations` to convert JSON operation descriptors into proper `StructuralOperator` objects, fixing the `AttributeError: 'dict' object has no attribute 'apply'` crash.
 - Requires `cks-runtime>=0.4.4` and `cks-core>=1.2.1`.
+- Added missing `EvolveOperation` import in `evolve_knowledge` tool.
 
 ### Changed
 - Updated tests to use valid JSON operation descriptors for evolve.
