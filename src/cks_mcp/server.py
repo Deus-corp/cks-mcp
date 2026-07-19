@@ -87,6 +87,13 @@ TOOLS = {
                         "vector payload via 'store_ref' rather than embedding it inline. Use "
                         "this to mechanically catch citations/references to sources that do not "
                         "actually exist in the structure being validated."
+                        "\n\n"
+                        "Example of a correct EmbeddingProjection with its 'represents' relation: "
+                        '{"objects": ['
+                        '{"identity": {"id": "src-1", "type": "Document", "name": "Real paper"}, "structure": {}}, '
+                        '{"identity": {"id": "proj-1", "type": "EmbeddingProjection", "name": "projection"}, "structure": {"store_ref": "vecdb://xyz"}}, '
+                        '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["src-1", "proj-1"], "relation_type": "represents"}}'
+                        ']}.'
                     ),
                 },
             },

@@ -3,6 +3,13 @@
 
 ---
 
+## [0.4.3] - 2026-07-19
+
+### Changed
+- Added a complete worked example of a correct `EmbeddingProjection` with its `represents` relation to the description of the `extensions` parameter in `validate_knowledge`. This further reduces trial-and-error by giving the model a template to follow.
+
+---
+
 ## [0.4.2] - 2026-07-19
 
 ### Changed
