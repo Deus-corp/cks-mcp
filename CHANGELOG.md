@@ -3,6 +3,13 @@
 
 ---
 
+## [0.7.2] - 2026-07-19
+
+### Fixed
+- Response format now matches the incoming request: `Content-Length`-framed for clients that use headers, plain line-delimited for legacy clients. This restores full compatibility with Claude Desktop and other MCP clients.
+
+---
+
 ## [0.7.1] - 2026-07-19
 
 ### Fixed

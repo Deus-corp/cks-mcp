@@ -30,7 +30,7 @@ from cks_mcp.tools.revert import list_versions, revert_version
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "0.7.1"
+SERVER_VERSION = "0.7.2"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -279,14 +279,6 @@ def handle_request(
     })
 
 
-# ---------------------------------------------------------------------------
-# Main loop
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Main loop
-# ---------------------------------------------------------------------------
-
 def main() -> None:
     """Entry point for the MCP server, supporting both Content-Length and line-delimited modes."""
     runtime = Runtime(core=CksCoreAdapter())
@@ -304,28 +296,26 @@ def main() -> None:
             body = sys.stdin.read(content_length)
             if not body:
                 return
-            process_request(runtime, body)
+            process_request(runtime, body, use_content_length=True)
         elif line_stripped:
             # Line-delimited fallback (old MCP clients)
-            process_request(runtime, line_stripped)
-
-def _send_response(response_obj: dict | list) -> None:
-    """Helper to send a response with Content-Length header."""
-    body = json.dumps(response_obj, ensure_ascii=False)
-    sys.stdout.write(f"Content-Length: {len(body.encode('utf-8'))}\r\n\r\n{body}")
-    sys.stdout.flush()
+            process_request(runtime, line_stripped, use_content_length=False)
 
 
-def process_request(runtime: Runtime, body: str) -> None:
+def process_request(runtime: Runtime, body: str, *, use_content_length: bool) -> None:
     """Process a single JSON-RPC request body and write the response."""
     try:
         raw = json.loads(body)
     except json.JSONDecodeError:
-        sys.stdout.write(json.dumps({
+        error_response = json.dumps({
             "jsonrpc": "2.0",
             "error": {"code": -32700, "message": "Parse error"},
             "id": None,
-        }) + "\r\n")
+        })
+        if use_content_length:
+            sys.stdout.write(f"Content-Length: {len(error_response.encode('utf-8'))}\r\n\r\n{error_response}")
+        else:
+            sys.stdout.write(error_response + "\n")
         sys.stdout.flush()
         return
 
@@ -336,11 +326,21 @@ def process_request(runtime: Runtime, body: str) -> None:
             if resp:
                 responses.append(resp)
         if responses:
-            _send_response(responses)
+            _send_response(responses, use_content_length=use_content_length)
     else:
         resp = handle_request(runtime, raw)
         if resp:
-            _send_response(resp)
+            _send_response(resp, use_content_length=use_content_length)
+
+
+def _send_response(response_obj: dict | list, *, use_content_length: bool = False) -> None:
+    """Helper to send a response, optionally with Content-Length header."""
+    body = json.dumps(response_obj, ensure_ascii=False)
+    if use_content_length:
+        sys.stdout.write(f"Content-Length: {len(body.encode('utf-8'))}\r\n\r\n{body}")
+    else:
+        sys.stdout.write(body + "\n")
+    sys.stdout.flush()
 
 
 if __name__ == "__main__":
