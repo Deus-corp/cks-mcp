@@ -3,6 +3,20 @@
 
 ---
 
+## [0.6.0] - 2026-07-19
+
+### Added
+- Provenance signing for `VerificationRecord` – only records produced by `verify_source` pass the new `CKS-MCP-UNVERIFIED-PROVENANCE` check.
+- SSRF protection in `verify_source` – URLs are validated against public-IP allowlist.
+- Unique IDs (uuid4) for all objects created by `verify_source`.
+- Tests for SSRF protection, unique IDs, and provenance signing (7 new tests, total 24 passed).
+
+### Changed
+- All tools now catch `cks.SerializationError` and return structured error messages instead of raw tracebacks.
+- `invalid_json_error` now accepts a `details` parameter.
+
+---
+
 ## [0.5.2] - 2026-07-19
 
 ### Changed

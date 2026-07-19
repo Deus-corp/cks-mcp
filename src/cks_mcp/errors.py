@@ -2,10 +2,15 @@
 Structured error responses for LLM-friendly diagnostics.
 """
 
-def invalid_json_error() -> dict:
+def invalid_json_error(details: str | None = None) -> dict:
+    message = "The provided json_data could not be parsed into a Knowledge Structure."
+    if details:
+        message += f" Details: {details}"
+    else:
+        message += " Please check the syntax and try again."
     return {
         "error": "invalid_json",
-        "message": "The provided json_data is not a valid JSON string. Please check the syntax and try again."
+        "message": message,
     }
 
 def validation_failed(details: str) -> dict:

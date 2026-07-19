@@ -3,10 +3,22 @@ from cks.evolution import parse_operations
 from typing import Any
 from cks_runtime.runtime import Runtime
 from cks_runtime.operations.operation_types import EvolveOperation
+from cks_mcp.errors import invalid_json_error
 
 def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
-    structure = cks.parse(arguments["json_data"])
-    operations = parse_operations(arguments.get("operations", []))
+    try:
+        structure = cks.parse(arguments["json_data"])
+    except cks.SerializationError as exc:
+        return invalid_json_error(str(exc))
+
+    try:
+        operations = parse_operations(arguments.get("operations", []))
+    except ValueError as exc:
+        return {
+            "error": "invalid_operations",
+            "message": f"Could not parse 'operations': {exc}",
+        }
+
     session = runtime.create_session(structure)
     tx = runtime.begin_transaction(session)
     tx.add_operation(EvolveOperation("evolve", knowledge_structure=structure, evolution=operations))
