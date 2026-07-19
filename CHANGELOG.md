@@ -3,6 +3,13 @@
 
 ---
 
+## [0.6.1] - 2026-07-19
+
+### Fixed
+- Restored standard MCP protocol version (`2024-11-05`) that was accidentally overwritten, which prevented Claude Desktop from connecting.
+
+---
+
 ## [0.6.0] - 2026-07-19
 
 ### Added

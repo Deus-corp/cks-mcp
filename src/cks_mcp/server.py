@@ -29,7 +29,7 @@ from cks_mcp.errors import invalid_json_error, validation_failed
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "0.6.0"
+SERVER_VERSION = "0.6.1"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
