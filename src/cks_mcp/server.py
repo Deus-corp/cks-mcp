@@ -30,7 +30,7 @@ from cks_mcp.tools.revert import list_versions, revert_version
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "0.7.0"
+SERVER_VERSION = "0.7.1"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -283,62 +283,64 @@ def handle_request(
 # Main loop
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Main loop
+# ---------------------------------------------------------------------------
+
 def main() -> None:
-    """Entry point for the MCP server using Content-Length headers."""
+    """Entry point for the MCP server, supporting both Content-Length and line-delimited modes."""
     runtime = Runtime(core=CksCoreAdapter())
 
     while True:
-        # Читаем заголовки до пустой строки (\r\n)
-        content_length = 0
-        while True:
-            line = sys.stdin.readline()
-            if not line:
-                return  # EOF
-
-            line = line.strip()
-            if not line:
-                break  # Пустая строка означает конец заголовков
-
-            if line.lower().startswith("content-length:"):
-                content_length = int(line.split(":")[1].strip())
-
-        if content_length == 0:
-            continue
-
-        # Читаем ровно столько байт, сколько указано в заголовке
-        body = sys.stdin.read(content_length)
-        if not body:
+        line = sys.stdin.readline()
+        if not line:
             return  # EOF
 
-        try:
-            raw = json.loads(body)
-        except json.JSONDecodeError:
-            sys.stdout.write(json.dumps({
-                "jsonrpc": "2.0",
-                "error": {"code": -32700, "message": "Parse error"},
-                "id": None,
-            }) + "\r\n")
-            sys.stdout.flush()
-            continue
-
-        if isinstance(raw, list):
-            responses = []
-            for req in raw:
-                resp = handle_request(runtime, req)
-                if resp:
-                    responses.append(resp)
-            if responses:
-                _send_response(responses)
-        else:
-            resp = handle_request(runtime, raw)
-            if resp:
-                _send_response(resp)
+        line_stripped = line.strip()
+        if line_stripped.lower().startswith("content-length:"):
+            content_length = int(line_stripped.split(":")[1].strip())
+            # Read the blank line after the header
+            sys.stdin.readline()
+            body = sys.stdin.read(content_length)
+            if not body:
+                return
+            process_request(runtime, body)
+        elif line_stripped:
+            # Line-delimited fallback (old MCP clients)
+            process_request(runtime, line_stripped)
 
 def _send_response(response_obj: dict | list) -> None:
     """Helper to send a response with Content-Length header."""
     body = json.dumps(response_obj, ensure_ascii=False)
     sys.stdout.write(f"Content-Length: {len(body.encode('utf-8'))}\r\n\r\n{body}")
     sys.stdout.flush()
+
+
+def process_request(runtime: Runtime, body: str) -> None:
+    """Process a single JSON-RPC request body and write the response."""
+    try:
+        raw = json.loads(body)
+    except json.JSONDecodeError:
+        sys.stdout.write(json.dumps({
+            "jsonrpc": "2.0",
+            "error": {"code": -32700, "message": "Parse error"},
+            "id": None,
+        }) + "\r\n")
+        sys.stdout.flush()
+        return
+
+    if isinstance(raw, list):
+        responses = []
+        for req in raw:
+            resp = handle_request(runtime, req)
+            if resp:
+                responses.append(resp)
+        if responses:
+            _send_response(responses)
+    else:
+        resp = handle_request(runtime, raw)
+        if resp:
+            _send_response(resp)
 
 
 if __name__ == "__main__":

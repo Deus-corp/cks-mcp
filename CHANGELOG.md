@@ -3,6 +3,13 @@
 
 ---
 
+## [0.7.1] - 2026-07-19
+
+### Fixed
+- Server now supports both `Content-Length`‑framed and plain line‑delimited modes, restoring compatibility with Claude Desktop and other MCP clients that do not use headers.
+
+---
+
 ## [0.7.0] - 2026-07-19
 
 ### Added
