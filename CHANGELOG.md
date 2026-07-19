@@ -3,6 +3,16 @@
 
 ---
 
+## [1.0.0] - 2026-07-19
+
+### Added
+- First stable release of the CKS MCP Server.
+- Unconditional verification of `VerificationRecord` shape and provenance, regardless of whether the `verification_record` extension is explicitly requested.
+- Deterministic, IPv4-first IP candidate selection in `verify_source` with automatic fallback to additional resolved addresses.
+- Updated tests covering the new IP resolution contract and fallback behaviour (32 tests total).
+
+---
+
 ## [0.7.8] - 2026-07-19
 
 ### Fixed

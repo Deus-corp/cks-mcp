@@ -29,7 +29,7 @@ from cks_mcp.tools.revert import list_versions, revert_version
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "0.7.8"
+SERVER_VERSION = "1.0.0"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------

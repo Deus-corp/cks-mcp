@@ -87,7 +87,15 @@ def pin_dns(hostname: str, ip: str):
 # ---------------------------------------------------------------------------
 
 
-def _resolve_and_validate_host(url: str) -> tuple[str, str]:
+def _resolve_and_validate_host(url: str) -> tuple[str, list[str]]:
+    """
+    Resolve and validate `url`'s hostname, returning the hostname and
+    an ordered list of validated, public candidate IPs -- IPv4
+    addresses first. Preferring IPv4 and trying multiple candidates
+    (see _safe_head_status) avoids committing to a single,
+    arbitrarily-chosen address that may belong to an address family
+    with no functional outbound route in the deployment environment.
+    """
     parsed = urlparse(url)
     if parsed.scheme not in _ALLOWED_SCHEMES:
         raise UnsafeURLError(
@@ -102,35 +110,54 @@ def _resolve_and_validate_host(url: str) -> tuple[str, str]:
     except socket.gaierror as exc:
         raise UnsafeURLError(f"Could not resolve host '{hostname}': {exc}") from exc
 
-    resolved_ips = {sockaddr[0] for *_, sockaddr in addrinfo}
+    seen: set[str] = set()
+    ipv4: list[str] = []
+    ipv6: list[str] = []
+    for family, _, _, _, sockaddr in addrinfo:
+        ip = sockaddr[0]
+        if ip in seen:
+            continue
+        seen.add(ip)
+        (ipv4 if family == socket.AF_INET else ipv6).append(ip)
+    resolved_ips = ipv4 + ipv6
+
     if not resolved_ips or not all(_is_public_ip(ip) for ip in resolved_ips):
         raise UnsafeURLError(
             f"URL host '{hostname}' resolves to a non-public address "
-            f"({', '.join(sorted(resolved_ips))}); refusing to fetch."
+            f"({', '.join(sorted(seen))}); refusing to fetch."
         )
 
-    return hostname, list(resolved_ips)[0]
+    return hostname, resolved_ips
 
 
 def _safe_head_status(url: str) -> int | None:
     try:
-        hostname, verified_ip = _resolve_and_validate_host(url)
+        hostname, candidate_ips = _resolve_and_validate_host(url)
     except UnsafeURLError:
         raise
 
     session = requests.Session()
 
     for _ in range(_MAX_REDIRECTS + 1):
-        with pin_dns(hostname, verified_ip):
-            try:
-                resp = session.head(url, timeout=_TIMEOUT_SECONDS, allow_redirects=False)
-            except requests.RequestException:
-                return None
+        resp = None
+        for ip in candidate_ips:
+            with pin_dns(hostname, ip):
+                try:
+                    resp = session.head(url, timeout=_TIMEOUT_SECONDS, allow_redirects=False)
+                    break
+                except requests.RequestException:
+                    # This specific candidate address didn't work --
+                    # try the next validated one (e.g. IPv4 after an
+                    # unreachable IPv6 address) before giving up.
+                    continue
+
+        if resp is None:
+            return None
 
         if resp.is_redirect and resp.headers.get("Location"):
             new_url = urljoin(url, resp.headers["Location"])
             try:
-                hostname, verified_ip = _resolve_and_validate_host(new_url)
+                hostname, candidate_ips = _resolve_and_validate_host(new_url)
                 url = new_url
             except UnsafeURLError:
                 return None

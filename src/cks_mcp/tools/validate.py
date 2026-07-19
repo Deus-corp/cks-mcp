@@ -23,6 +23,15 @@ EXTENSION_ALIASES: dict[str, str] = {
     "verification_record": "CKS-EXT-VERIFICATION-RECORD",
 }
 
+# Trust-bearing types are enforced unconditionally the moment they
+# appear in a structure -- unlike EmbeddingProjection (harmless if
+# unrecognized), an unchecked VerificationRecord looks exactly like a
+# checked one to anyone reading the result. Both its shape (enforced
+# here) and its provenance signature (_check_verification_record_provenance,
+# already called unconditionally below) must not depend on the caller
+# remembering to opt in.
+_ALWAYS_ENFORCED_EXTENSIONS: frozenset[str] = frozenset({"verification_record"})
+
 _OPTIONAL_BY_IDENTITY = {c.identity: c for c in OPTIONAL_CONSTRAINTS_BY_NAME.values()}
 
 
@@ -40,6 +49,10 @@ def resolve_extensions(names: list[str] | None) -> tuple[list[Any], list[str]]:
         else:
             resolved.append(constraint)
     return resolved, unknown
+
+
+def _has_type(structure: Any, object_type: str) -> bool:
+    return any(obj.identity.type == object_type for obj in structure.objects)
 
 
 def _check_verification_record_provenance(structure: Any) -> list[dict[str, Any]]:
@@ -151,6 +164,15 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
                 f"Available extensions: {', '.join(sorted(EXTENSION_ALIASES)) or '(none)'}."
             ),
         }
+
+    forced_names = {
+        name for name in _ALWAYS_ENFORCED_EXTENSIONS
+        if _has_type(structure, "VerificationRecord")
+    }
+    forced_constraints, _ = resolve_extensions(sorted(forced_names))
+    for constraint in forced_constraints:
+        if constraint not in extensions:
+            extensions.append(constraint)
 
     tx = runtime.begin_transaction(session)
     tx.add_operation(
