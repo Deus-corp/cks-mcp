@@ -12,6 +12,10 @@ ecosystem.  It exposes four tools—`validate_knowledge`, `serialize_knowledge`,
 `explain_knowledge`, and `evolve_knowledge`—each backed by the deterministic,
 immutable semantics of `cks-core` and the operational management of `cks-runtime`.
 
+Every tool call now creates a **Runtime Session** and **Transaction**,
+producing an immutable **Version** and collecting **Diagnostics**.
+This guarantees full auditability and reproducibility.
+
 ---
 
 # Ecosystem
@@ -35,9 +39,14 @@ explicitly structured, validated against formal constraints, and
 traceable to its origin.  This minimises hallucinations and makes AI‑
 generated knowledge auditable.
 
-Every tool call now creates a **Runtime Session** and **Transaction**,
-producing an immutable **Version** and collecting **Diagnostics**.
-This guarantees full auditability and reproducibility.
+In addition to the built‑in validation rules, `validate_knowledge`
+supports **opt‑in extensions** — extra, non‑default constraints that
+can be activated per call without affecting global state. The first
+available extension, `embedding_projection`, mechanically detects
+**citation hallucinations**: it verifies that every `EmbeddingProjection`
+points to a real source object that actually exists in the structure.
+This turns the abstract goal of "reducing hallucinations" into a
+concrete, machine‑checkable property of the knowledge graph.
 
 ---
 
@@ -62,6 +71,32 @@ cks-mcp
 An MCP client (Claude Desktop, any MCP-compatible LLM) can then connect
 and call tools.
 
+## Connect to Claude Desktop
+
+1. Install all three packages into a single virtual environment:
+   ```bash
+   python3 -m venv cks-env
+   source cks-env/bin/activate
+   pip install cks-core cks-runtime cks-mcp
+   ```
+
+2. Open Claude Desktop, go to **Settings → Developer → Edit Config**.
+   The configuration file (`claude_desktop_config.json`) will open.
+   Add the following block (adjust the path to your `cks-mcp` executable):
+   ```json
+   {
+     "mcpServers": {
+       "cks-mcp": {
+         "command": "/absolute/path/to/cks-env/bin/cks-mcp"
+       }
+     }
+   }
+   ```
+
+3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
+   After restart, a connector icon will appear – `cks-mcp` with four tools
+   is ready to use.
+
 ## Interactive LLM client (Groq / DeepSeek / local)
 
 ```bash
@@ -78,7 +113,7 @@ call the appropriate CKS tool.
 
 | Tool | Description |
 |------|-------------|
-| `validate_knowledge` | Validate a Knowledge Structure and return diagnostics. |
+| `validate_knowledge` | Validate a Knowledge Structure and return diagnostics. Supports opt‑in extensions (e.g. `embedding_projection`). |
 | `serialize_knowledge` | Serialize a Knowledge Structure into canonical JSON. |
 | `explain_knowledge` | Produce a semantic explanation of a Knowledge Structure. |
 | `evolve_knowledge` | Apply Genesis/Decay operators to evolve a structure. |
@@ -113,6 +148,15 @@ Response (with version and session information):
   }
 }
 ```
+
+## Catching citation hallucinations
+
+Pass `"extensions": ["embedding_projection"]` to `validate_knowledge`.
+This activates an extra constraint that checks every `EmbeddingProjection`
+object for a valid `represents` relation to an existing source object.
+A projection that references a non‑existent source (a fabricated citation)
+is mechanically flagged, giving you a clear, machine‑readable diagnostic
+instead of an undetected hallucination.
 
 ---
 
