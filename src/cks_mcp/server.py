@@ -30,7 +30,7 @@ from cks_mcp.errors import invalid_json_error, validation_failed
 
 SERVER_NAME = "cks-mcp"
 SERVER_VERSION = "0.6.0"
-PROTOCOL_VERSION = "2026-07-19"  # latest MCP protocol version
+PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
 # Shared parameter descriptions
