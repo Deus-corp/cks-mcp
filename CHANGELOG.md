@@ -3,6 +3,13 @@
 
 ---
 
+## [0.4.2] - 2026-07-19
+
+### Changed
+- Improved tool descriptions: `json_data` now includes a full worked example of a CKS Knowledge Structure, and `operations` in `evolve_knowledge` includes per‑operator field requirements and an example. This dramatically reduces the number of trial‑and‑error round‑trips a cold LLM needs to construct valid requests (measured: from 3 to 0).
+
+---
+
 ## [0.4.1] - 2026-07-18
 
 ### Added

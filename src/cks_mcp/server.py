@@ -34,6 +34,32 @@ PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 # Tool registry
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Shared parameter descriptions
+# ---------------------------------------------------------------------------
+#
+# A bare "A valid CKS Knowledge Structure as a JSON string." description
+# gives a calling model no way to know the field names (identity/structure,
+# not id/type/name/content flat) without trial and error. This was
+# measured directly: a cold agent given only this schema needed 3 failed
+# round-trips to converge on the correct shape, versus 0 for the
+# 'extensions' parameter below, whose description already included field
+# names and an example. Every json_data description now includes a
+# minimal worked example for the same reason.
+
+JSON_DATA_DESCRIPTION = (
+    "A valid CKS Knowledge Structure as a JSON string. Each object has "
+    "an 'identity' ({'id', 'type', 'name'}) and a free-form 'structure' "
+    "dict. Relations are objects whose 'structure' contains "
+    "'participants' (a list of object ids) and 'relation_type'. Example: "
+    '\'{"objects": [{"identity": {"id": "obj-1", "type": "Definition", '
+    '"name": "Photosynthesis"}, "structure": {"content": "..."}}, '
+    '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, '
+    '"structure": {"participants": ["obj-1", "obj-2"], "relation_type": '
+    '"derives"}}]}\'.'
+)
+
+
 TOOLS = {
     "validate_knowledge": {
         "name": "validate_knowledge",
@@ -47,7 +73,7 @@ TOOLS = {
             "properties": {
                 "json_data": {
                     "type": "string",
-                    "description": "A valid CKS Knowledge Structure as a JSON string.",
+                    "description": JSON_DATA_DESCRIPTION,
                 },
                 "extensions": {
                     "type": "array",
@@ -76,7 +102,7 @@ TOOLS = {
             "properties": {
                 "json_data": {
                     "type": "string",
-                    "description": "A valid CKS Knowledge Structure as a JSON string.",
+                    "description": JSON_DATA_DESCRIPTION,
                 },
             },
             "required": ["json_data"],
@@ -91,7 +117,7 @@ TOOLS = {
             "properties": {
                 "json_data": {
                     "type": "string",
-                    "description": "A valid CKS Knowledge Structure as a JSON string.",
+                    "description": JSON_DATA_DESCRIPTION,
                 },
             },
             "required": ["json_data"],
@@ -106,11 +132,22 @@ TOOLS = {
             "properties": {
                 "json_data": {
                     "type": "string",
-                    "description": "A valid CKS Knowledge Structure as a JSON string.",
+                    "description": JSON_DATA_DESCRIPTION,
                 },
                 "operations": {
                     "type": "array",
-                    "description": "List of evolution operators to apply.",
+                    "description": (
+                        "List of evolution operators to apply, in order. Each operator is an "
+                        "object with a 'type' of 'add_object' | 'add_relation' | 'remove_object' "
+                        "| 'remove_relation'. 'add_object' needs 'identity' and 'structure'. "
+                        "'add_relation' needs 'identity', 'participants' (list of object ids), "
+                        "'relation_type', and optional 'structure'. 'remove_object' needs "
+                        "'object_id'. 'remove_relation' needs 'relation_id'. Example: "
+                        '\'[{"type": "add_object", "identity": {"id": "obj-2", "type": "Lemma", '
+                        '"name": "New"}, "structure": {}}, {"type": "add_relation", "identity": '
+                        '{"id": "rel-1", "type": "Relation", "name": "r"}, "participants": '
+                        '["obj-1", "obj-2"], "relation_type": "derives"}]\'.'
+                    ),
                 },
             },
             "required": ["json_data"],
