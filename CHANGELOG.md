@@ -3,6 +3,13 @@
 
 ---
 
+## [0.7.3] - 2026-07-19
+
+### Fixed
+- `list_versions` and `revert_version` now require an explicit `session_id` parameter, eliminating unpredictable behaviour when multiple sessions exist. Tools always return the `session_id` they operated on.
+
+---
+
 ## [0.7.2] - 2026-07-19
 
 ### Fixed

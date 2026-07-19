@@ -30,7 +30,7 @@ from cks_mcp.tools.revert import list_versions, revert_version
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "0.7.2"
+SERVER_VERSION = "0.7.3"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -168,9 +168,10 @@ TOOLS = {
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "Optional. The ID of the session to list versions for. If not provided, the most recent session is used."
+                    "description": "The ID of the session to list versions for."
                 }
-            }
+            },
+            "required": ["session_id"]
         },
         "handler": list_versions,
     },
@@ -182,14 +183,14 @@ TOOLS = {
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "Optional. The ID of the session to revert. If not provided, the most recent session is used."
+                    "description": "The ID of the session to revert."
                 },
                 "target_version_id": {
                     "type": "string",
                     "description": "The ID of the version to revert to."
                 }
             },
-            "required": ["target_version_id"]
+            "required": ["session_id", "target_version_id"]
         },
         "handler": revert_version,
     },
