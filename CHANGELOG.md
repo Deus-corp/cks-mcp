@@ -3,6 +3,13 @@
 
 ---
 
+## [0.7.6] - 2026-07-19
+
+### Fixed
+- `list_versions` now handles internal errors gracefully and returns an empty list when no versions exist, instead of failing silently.
+
+---
+
 ## [0.7.5] - 2026-07-19
 
 ### Added

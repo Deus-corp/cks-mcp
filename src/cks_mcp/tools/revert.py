@@ -5,6 +5,7 @@ revert: Time-travel operations for session version history.
 from typing import Any
 from cks_runtime.runtime import Runtime
 from cks_runtime.operations.operation_types import ListVersionsOperation, RevertVersionOperation
+from cks_runtime.execution.operation_executor import OperationStatus
 
 def list_versions(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """Return a lightweight list of all versions in the given session."""
@@ -16,14 +17,17 @@ def list_versions(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
     if not session:
         return {"error": f"Session '{session_id}' not found."}
 
-    op = ListVersionsOperation()
-    result = runtime.executor.execute(op, session)
-    if result.failed:
-        return {"error": str(result.error)}
-    return {
-        "session_id": session.session_id,
-        "versions": result.payload,
-    }
+    try:
+        op = ListVersionsOperation()
+        result = runtime.executor.execute(op, session)
+        if result.status == OperationStatus.FAILED:
+            return {"error": f"Failed to list versions: {result.error}"}
+        return {
+            "session_id": session.session_id,
+            "versions": result.payload if result.payload else [],
+        }
+    except Exception as e:
+        return {"error": f"Internal error in list_versions: {str(e)}"}
 
 
 def revert_version(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -40,12 +44,14 @@ def revert_version(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any
     if not session:
         return {"error": f"Session '{session_id}' not found."}
 
-    tx = runtime.begin_transaction(session)
-    tx.add_operation(RevertVersionOperation("revert", target_version_id=target_version_id))
-    version = runtime.commit_transaction(tx)
-
-    return {
-        "reverted_to": target_version_id,
-        "new_version_id": version.version_id,
-        "session_id": session.session_id,
-    }
+    try:
+        tx = runtime.begin_transaction(session)
+        tx.add_operation(RevertVersionOperation("revert", target_version_id=target_version_id))
+        version = runtime.commit_transaction(tx)
+        return {
+            "reverted_to": target_version_id,
+            "new_version_id": version.version_id,
+            "session_id": session.session_id,
+        }
+    except Exception as e:
+        return {"error": f"Revert failed: {str(e)}"}
