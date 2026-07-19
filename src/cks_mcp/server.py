@@ -14,6 +14,7 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
+from cks_mcp.tools.verify_source import verify_source
 
 from cks_mcp.tools import (
     validate_knowledge,
@@ -174,6 +175,25 @@ TOOLS = {
             "required": ["json_data"],
         },
         "handler": evolve_knowledge,
+    },
+    "verify_source": {
+        "name": "verify_source",
+        "description": "Verify an external source by performing a real HTTP request. Creates a VerificationRecord that can be validated.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "The URL of the source to verify."
+                },
+                "subject_id": {
+                    "type": "string",
+                    "description": "The ID of the Knowledge Object that this verification is about."
+                }
+            },
+            "required": ["url", "subject_id"]
+        },
+        "handler": verify_source,
     },
 }
 

@@ -3,6 +3,13 @@
 
 ---
 
+## [0.5.0] - 2026-07-19
+
+### Added
+- New `verify_source` tool. It performs an actual HTTP request to check a source's availability and creates a `VerificationRecord` object. This ensures that verification records can only be produced by real checks, not fabricated by the model.
+
+---
+
 ## [0.4.4] - 2026-07-19
 
 ### Added
