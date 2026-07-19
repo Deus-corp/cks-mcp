@@ -19,7 +19,14 @@ def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, A
             "message": f"Could not parse 'operations': {exc}",
         }
 
-    session = runtime.create_session(structure)
+    session_id = arguments.get("session_id")
+    if session_id:
+        session = runtime.get_session(session_id)
+        if not session:
+            return {"error": f"Session '{session_id}' not found."}
+    else:
+        session = runtime.create_session(structure)
+
     tx = runtime.begin_transaction(session)
     tx.add_operation(EvolveOperation("evolve", knowledge_structure=structure, evolution=operations))
     version = runtime.commit_transaction(tx)

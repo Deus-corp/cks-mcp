@@ -3,6 +3,13 @@
 
 ---
 
+## [0.7.5] - 2026-07-19
+
+### Added
+- `evolve_knowledge` now accepts an optional `session_id` parameter. When provided, the evolution is applied to the existing session, adding a new version to its history. This enables predictable version tracking within a single session.
+
+---
+
 ## [0.7.4] - 2026-07-19
 
 ### Changed
