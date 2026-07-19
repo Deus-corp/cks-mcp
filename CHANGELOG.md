@@ -3,6 +3,14 @@
 
 ---
 
+## [0.5.2] - 2026-07-19
+
+### Changed
+- Improved error responses in MCP server: structured error messages with types (`invalid_json`, `validation_failed`) now replace raw tracebacks, helping LLMs understand what went wrong and how to recover.
+- Updated server version string to 0.5.2 and imported new error helpers from `cks_mcp.errors`.
+
+---
+
 ## [0.5.1] - 2026-07-19
 
 ### Changed

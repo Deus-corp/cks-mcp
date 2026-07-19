@@ -2,8 +2,8 @@
 CKS MCP Server – Model Context Protocol over stdio.
 
 A lightweight MCP server that exposes canonical CKS operations
-(validate, serialize, explain, evolve) to LLMs via the
-Model Context Protocol.
+(validate, serialize, explain, evolve, verify_source) to LLMs
+via the Model Context Protocol.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
-from cks_mcp.tools.verify_source import verify_source
 
 from cks_mcp.tools import (
     validate_knowledge,
@@ -22,31 +21,20 @@ from cks_mcp.tools import (
     explain_knowledge,
     evolve_knowledge,
 )
+from cks_mcp.tools.verify_source import verify_source
+from cks_mcp.errors import invalid_json_error, validation_failed
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "0.2.0"
+SERVER_VERSION = "0.5.1"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
-
-# ---------------------------------------------------------------------------
-# Tool registry
-# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Shared parameter descriptions
 # ---------------------------------------------------------------------------
-#
-# A bare "A valid CKS Knowledge Structure as a JSON string." description
-# gives a calling model no way to know the field names (identity/structure,
-# not id/type/name/content flat) without trial and error. This was
-# measured directly: a cold agent given only this schema needed 3 failed
-# round-trips to converge on the correct shape, versus 0 for the
-# 'extensions' parameter below, whose description already included field
-# names and an example. Every json_data description now includes a
-# minimal worked example for the same reason.
 
 JSON_DATA_DESCRIPTION = (
     "A valid CKS Knowledge Structure as a JSON string. Each object has "
@@ -59,7 +47,6 @@ JSON_DATA_DESCRIPTION = (
     '"structure": {"participants": ["obj-1", "obj-2"], "relation_type": '
     '"derives"}}]}\'.'
 )
-
 
 TOOLS = {
     "validate_knowledge": {
@@ -82,39 +69,19 @@ TOOLS = {
                     "description": (
                         "Optional list of opt-in validation extensions to apply for this call "
                         "only (does not affect other calls). Currently available: "
-                        "'embedding_projection' -- requires every object of type "
-                        "'EmbeddingProjection' to carry exactly one 'represents' relation to a "
-                        "real object already present in this structure, and to reference its "
-                        "vector payload via 'store_ref' rather than embedding it inline. "
-                        "'verification_record' -- requires every object of type "
-                        "'VerificationRecord' to carry exactly one 'verified_by' relation to a "
-                        "real subject object, a well-formed ISO 8601 timestamp in 'checked_at', "
-                        "a valid method in 'checked_via' ('automated_http_check', "
-                        "'automated_search_check', 'manual_review'), and no qualitative judgment "
-                        "fields ('reliability_score', 'confidence', 'score', 'reasons', "
-                        "'warning_signs', 'recommendations'). Use this to mechanically verify "
-                        "that a record of an external check is well-formed and points to an "
-                        "actual existing subject."
-                        "\n\n"
+                        "'embedding_projection' and 'verification_record'. "
                         "Example of a correct EmbeddingProjection with its 'represents' relation: "
                         '{"objects": ['
                         '{"identity": {"id": "src-1", "type": "Document", "name": "Real paper"}, "structure": {}}, '
                         '{"identity": {"id": "proj-1", "type": "EmbeddingProjection", "name": "projection"}, "structure": {"store_ref": "vecdb://xyz"}}, '
                         '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["src-1", "proj-1"], "relation_type": "represents"}}'
                         ']}.'
-                        "\n\n"
-                        "Example of a correct VerificationRecord with its 'verified_by' relation: "
-                        '{"objects": ['
-                        '{"identity": {"id": "doc-1", "type": "Document", "name": "Source document"}, "structure": {}}, '
-                        '{"identity": {"id": "vr-1", "type": "VerificationRecord", "name": "verification"}, "structure": {"checked_at": "2026-07-19T12:00:00Z", "checked_via": "automated_http_check", "http_status": 200}}, '
-                        '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["doc-1", "vr-1"], "relation_type": "verified_by"}}'
-                        ']}.'
                     ),
                 },
             },
             "required": ["json_data"],
         },
-        "handler": validate_knowledge,   # <-- ВОТ ЭТА СТРОКА
+        "handler": validate_knowledge,
     },
     "serialize_knowledge": {
         "name": "serialize_knowledge",
@@ -161,10 +128,7 @@ TOOLS = {
                     "description": (
                         "List of evolution operators to apply, in order. Each operator is an "
                         "object with a 'type' of 'add_object' | 'add_relation' | 'remove_object' "
-                        "| 'remove_relation'. 'add_object' needs 'identity' and 'structure'. "
-                        "'add_relation' needs 'identity', 'participants' (list of object ids), "
-                        "'relation_type', and optional 'structure'. 'remove_object' needs "
-                        "'object_id'. 'remove_relation' needs 'relation_id'. Example: "
+                        "| 'remove_relation'. Example: "
                         '\'[{"type": "add_object", "identity": {"id": "obj-2", "type": "Lemma", '
                         '"name": "New"}, "structure": {}}, {"type": "add_relation", "identity": '
                         '{"id": "rel-1", "type": "Relation", "name": "r"}, "participants": '
@@ -220,10 +184,6 @@ def handle_request(
     method = request.get("method", "")
     params = request.get("params", {})
 
-    # ------------------------------------------------------------------
-    # MCP lifecycle methods
-    # ------------------------------------------------------------------
-
     if method == "initialize":
         return _make_response(req_id, {
             "protocolVersion": PROTOCOL_VERSION,
@@ -237,15 +197,10 @@ def handle_request(
         })
 
     if method == "notifications/initialized":
-        # No response expected for notifications
-        return {}  # will be filtered out
+        return {}
 
     if method == "ping":
         return _make_response(req_id, {})
-
-    # ------------------------------------------------------------------
-    # Tools
-    # ------------------------------------------------------------------
 
     if method == "tools/list":
         return _make_response(req_id, {
@@ -270,26 +225,17 @@ def handle_request(
                 "message": f"Unknown tool: {tool_name}",
             })
 
+        handler = tool["handler"]
         try:
-            handler = tool["handler"]
             result = handler(runtime, arguments)
             return _make_response(req_id, {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": json.dumps(result, ensure_ascii=False),
-                    }
-                ]
+                "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]
             })
-        except Exception as exc:
+        except (json.JSONDecodeError, Exception) as e:
             return _make_response(req_id, error={
                 "code": -32000,
-                "message": str(exc),
+                "message": validation_failed(str(e))["message"]
             })
-
-    # ------------------------------------------------------------------
-    # Unknown method
-    # ------------------------------------------------------------------
 
     return _make_response(req_id, error={
         "code": -32601,
@@ -321,7 +267,6 @@ def main() -> None:
             sys.stdout.flush()
             continue
 
-        # Support both single requests and batch (array)
         if isinstance(raw, list):
             responses = []
             for req in raw:
