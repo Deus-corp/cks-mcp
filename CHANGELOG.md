@@ -3,6 +3,15 @@
 
 ---
 
+## [0.6.3] - 2026-07-19
+
+### Fixed
+- **HTTPS/SNI fix in `verify_source`**: Replaced custom HTTPAdapter with thread-local `socket.getaddrinfo` override, preserving SNI and SSL certificate validation while still preventing DNS rebinding.
+- **MCP protocol compliance**: Implemented `Content-Length` header-based message framing, fixing potential JSON parsing errors for large or formatted requests.
+- **LLM-friendly errors**: Business errors are now returned as successful tool responses with `isError: true`, allowing LLMs to read and recover from errors instead of treating them as server crashes.
+
+---
+
 ## [0.6.2] - 2026-07-19
 
 ### Fixed

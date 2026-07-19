@@ -26,9 +26,27 @@ def _call(request: dict) -> dict:
         text=True,
     )
     try:
-        proc.stdin.write(json.dumps(request) + "\n")
+        body = json.dumps(request)
+        # Пишем с Content-Length заголовком
+        proc.stdin.write(f"Content-Length: {len(body.encode('utf-8'))}\r\n\r\n{body}")
         proc.stdin.flush()
-        line = proc.stdout.readline()
+
+        # Читаем ответ: сначала заголовки, потом тело
+        content_length = 0
+        while True:
+            line = proc.stdout.readline()
+            if line is None:
+                break
+            line = line.strip()
+            if not line:
+                break  # пустая строка — конец заголовков
+            if line.lower().startswith("content-length:"):
+                content_length = int(line.split(":")[1].strip())
+        
+        if content_length == 0:
+            line = None
+        else:
+            line = proc.stdout.read(content_length)
     finally:
         proc.terminate()
         proc.wait(timeout=5)

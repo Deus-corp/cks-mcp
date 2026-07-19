@@ -29,7 +29,7 @@ from cks_mcp.errors import invalid_json_error, validation_failed
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "0.6.2"
+SERVER_VERSION = "0.6.3"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -232,9 +232,11 @@ def handle_request(
                 "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]
             })
         except Exception as e:
-            return _make_response(req_id, error={
-                "code": -32000,
-                "message": validation_failed(str(e))["message"]
+            # Возвращаем ошибку как часть инструментального ответа
+            error_message = str(e) if str(e) else "An internal error occurred."
+            return _make_response(req_id, {
+                "content": [{"type": "text", "text": f"Error: {error_message}"}],
+                "isError": True
             })
 
     return _make_response(req_id, error={
@@ -248,22 +250,40 @@ def handle_request(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    """Entry point for the MCP server."""
+    """Entry point for the MCP server using Content-Length headers."""
     runtime = Runtime(core=CksCoreAdapter())
 
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
+    while True:
+        # Читаем заголовки до пустой строки (\r\n)
+        content_length = 0
+        while True:
+            line = sys.stdin.readline()
+            if not line:
+                return  # EOF
+
+            line = line.strip()
+            if not line:
+                break  # Пустая строка означает конец заголовков
+
+            if line.lower().startswith("content-length:"):
+                content_length = int(line.split(":")[1].strip())
+
+        if content_length == 0:
             continue
 
+        # Читаем ровно столько байт, сколько указано в заголовке
+        body = sys.stdin.read(content_length)
+        if not body:
+            return  # EOF
+
         try:
-            raw = json.loads(line)
+            raw = json.loads(body)
         except json.JSONDecodeError:
             sys.stdout.write(json.dumps({
                 "jsonrpc": "2.0",
                 "error": {"code": -32700, "message": "Parse error"},
                 "id": None,
-            }) + "\n")
+            }) + "\r\n")
             sys.stdout.flush()
             continue
 
@@ -274,13 +294,17 @@ def main() -> None:
                 if resp:
                     responses.append(resp)
             if responses:
-                sys.stdout.write(json.dumps(responses) + "\n")
+                _send_response(responses)
         else:
             resp = handle_request(runtime, raw)
             if resp:
-                sys.stdout.write(json.dumps(resp) + "\n")
+                _send_response(resp)
 
-        sys.stdout.flush()
+def _send_response(response_obj: dict | list) -> None:
+    """Helper to send a response with Content-Length header."""
+    body = json.dumps(response_obj, ensure_ascii=False)
+    sys.stdout.write(f"Content-Length: {len(body.encode('utf-8'))}\r\n\r\n{body}")
+    sys.stdout.flush()
 
 
 if __name__ == "__main__":

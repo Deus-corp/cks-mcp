@@ -1,19 +1,26 @@
 """
 verify_source: perform a real HTTP check against an external URL and
 build a signed VerificationRecord from the *actual* result.
+
+DNS rebinding protection is implemented by temporarily overriding
+``socket.getaddrinfo`` on a per-thread basis, so that the HTTP
+request is pinned to the specific IP address resolved during the
+safety check. This preserves SNI and SSL certificate validation,
+unlike connection-pool mutation.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import socket
+import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urljoin, urlparse
 from uuid import uuid4
 
 import requests
-from requests.adapters import HTTPAdapter
 
 from cks_runtime.runtime import Runtime
 from cks_mcp.provenance import sign, SIGNATURE_KEY
@@ -42,11 +49,45 @@ def _is_public_ip(ip_str: str) -> bool:
     )
 
 
+# ---------------------------------------------------------------------------
+# DNS rebinding protection via thread-local getaddrinfo override
+# ---------------------------------------------------------------------------
+
+_orig_getaddrinfo = socket.getaddrinfo
+_thread_local = threading.local()
+
+
+def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    overrides = getattr(_thread_local, "dns_overrides", {})
+    if host in overrides:
+        host = overrides[host]
+    return _orig_getaddrinfo(host, port, family, type, proto, flags)
+
+
+socket.getaddrinfo = _patched_getaddrinfo
+
+
+@contextmanager
+def pin_dns(hostname: str, ip: str):
+    """Pin a hostname to a specific IP for the duration of the context."""
+    if not hasattr(_thread_local, "dns_overrides"):
+        _thread_local.dns_overrides = {}
+
+    old_ip = _thread_local.dns_overrides.get(hostname)
+    _thread_local.dns_overrides[hostname] = ip
+    try:
+        yield
+    finally:
+        if old_ip is None:
+            del _thread_local.dns_overrides[hostname]
+        else:
+            _thread_local.dns_overrides[hostname] = old_ip
+
+
+# ---------------------------------------------------------------------------
+
+
 def _resolve_and_validate_host(url: str) -> tuple[str, str]:
-    """
-    Проверяет безопасность URL и возвращает (hostname, verified_ip).
-    Выполняет резолвинг единожды, чтобы избежать DNS rebinding.
-    """
     parsed = urlparse(url)
     if parsed.scheme not in _ALLOWED_SCHEMES:
         raise UnsafeURLError(
@@ -67,59 +108,31 @@ def _resolve_and_validate_host(url: str) -> tuple[str, str]:
             f"URL host '{hostname}' resolves to a non-public address "
             f"({', '.join(sorted(resolved_ips))}); refusing to fetch."
         )
-    
-    # Возвращаем первый публичный IP для закрепления
+
     return hostname, list(resolved_ips)[0]
 
 
-class PinnedHTTPAdapter(HTTPAdapter):
-    """HTTPAdapter, который закрепляет соединение за конкретным IP-адресом."""
-    def __init__(self, pinned_ip: str, *args, **kwargs):
-        self.pinned_ip = pinned_ip
-        super().__init__(*args, **kwargs)
-
-    def send(self, request, **kwargs):
-        # Подменяем пул соединений, чтобы запрос шел на проверенный IP
-        conn_pool = self.get_connection_with_tls_context(
-            request, verify=True, cert=self.cert
-        )
-        conn_pool.host = self.pinned_ip
-        return super().send(request, **kwargs)
-    
-    def get_connection_with_tls_context(self, request, verify, cert=None):
-        return super().get_connection_with_tls_context(request, verify, cert=cert)
-
-
 def _safe_head_status(url: str) -> int | None:
-    """
-    Выполняет HEAD-запрос с защитой от DNS rebinding.
-    Проверка безопасности и резолвинг IP происходят один раз перед запросом.
-    """
     try:
         hostname, verified_ip = _resolve_and_validate_host(url)
     except UnsafeURLError:
-        raise  # Перебрасываем исключение для обработки в verify_source
+        raise
 
     session = requests.Session()
-    adapter = PinnedHTTPAdapter(pinned_ip=verified_ip)
-    session.mount("https://", adapter)
-    session.mount("http://", adapter)
-    
+
     for _ in range(_MAX_REDIRECTS + 1):
-        try:
-            resp = session.head(url, timeout=_TIMEOUT_SECONDS, allow_redirects=False)
-        except requests.RequestException:
-            return None
+        with pin_dns(hostname, verified_ip):
+            try:
+                resp = session.head(url, timeout=_TIMEOUT_SECONDS, allow_redirects=False)
+            except requests.RequestException:
+                return None
 
         if resp.is_redirect and resp.headers.get("Location"):
             new_url = urljoin(url, resp.headers["Location"])
             try:
-                # Проверяем безопасность нового URL и закрепляем новый IP
                 hostname, verified_ip = _resolve_and_validate_host(new_url)
-                adapter.pinned_ip = verified_ip
                 url = new_url
             except UnsafeURLError:
-                # Если редирект ведёт на небезопасный адрес, прерываем проверку
                 return None
             continue
         return resp.status_code
@@ -132,7 +145,7 @@ def verify_source(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
     subject_id = arguments["subject_id"]
 
     try:
-        _resolve_and_validate_host(url)  # Быстрая предварительная проверка
+        _resolve_and_validate_host(url)
     except UnsafeURLError as exc:
         return {
             "error": "unsafe_url",
