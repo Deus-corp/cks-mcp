@@ -3,6 +3,13 @@
 
 ---
 
+## [0.7.8] - 2026-07-19
+
+### Fixed
+- `list_versions` now builds version history directly from the session instead of delegating to the OperationExecutor, fixing the persistent error that prevented LLMs from inspecting session history.
+
+---
+
 ## [0.7.7] - 2026-07-19
 
 ### Added

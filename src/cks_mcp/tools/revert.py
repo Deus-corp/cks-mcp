@@ -4,8 +4,7 @@ revert: Time-travel operations for session version history.
 
 from typing import Any
 from cks_runtime.runtime import Runtime
-from cks_runtime.operations.operation_types import ListVersionsOperation, RevertVersionOperation
-from cks_runtime.execution.operation_executor import OperationStatus
+from cks_runtime.operations.operation_types import RevertVersionOperation
 
 def list_versions(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """Return a lightweight list of all versions in the given session."""
@@ -18,14 +17,18 @@ def list_versions(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
         return {"error": f"Session '{session_id}' not found."}
 
     try:
-        op = ListVersionsOperation()
-        result = runtime.executor.execute(op, session)
-        if result.status == OperationStatus.FAILED:
-            return {"error": f"Failed to list versions: {result.error}"}
+        versions_data = [
+            {
+                "version_id": v.version_id,
+                "created_at": v.created_at.isoformat(),
+                "transaction_id": v.transaction_id,
+                "metadata": dict(v.metadata),
+            }
+            for v in session.version_history
+        ]
         return {
             "session_id": session.session_id,
-            "versions": result.payload if result.payload else [],
-            "current_version_id": getattr(session, "current_version_id", None),
+            "versions": versions_data,
         }
     except Exception as e:
         return {"error": f"Internal error in list_versions: {str(e)}"}
