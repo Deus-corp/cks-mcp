@@ -4,6 +4,7 @@ from cks.constraints.builtin import OPTIONAL_CONSTRAINTS
 from cks_runtime.diagnostics.diagnostic import DiagnosticSeverity
 from cks_runtime.runtime import Runtime
 from cks_runtime.operations.operation_types import ValidateOperation
+from cks.constraints.builtin import OPTIONAL_CONSTRAINTS_BY_NAME
 
 
 def _serialize_diagnostic(diagnostic: Any) -> dict[str, Any]:
@@ -30,9 +31,10 @@ def _serialize_diagnostic(diagnostic: Any) -> dict[str, Any]:
 
 EXTENSION_ALIASES: dict[str, str] = {
     "embedding_projection": "CKS-EXT-EMBEDDING-PROJECTION",
+    "verification_record": "CKS-EXT-VERIFICATION-RECORD",
 }
 
-_OPTIONAL_BY_IDENTITY = {c.identity: c for c in OPTIONAL_CONSTRAINTS}
+_OPTIONAL_BY_IDENTITY = {c.identity: c for c in OPTIONAL_CONSTRAINTS_BY_NAME.values()}
 
 
 def resolve_extensions(names: list[str] | None) -> tuple[list[Any], list[str]]:

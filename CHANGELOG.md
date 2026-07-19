@@ -3,6 +3,14 @@
 
 ---
 
+## [0.4.4] - 2026-07-19
+
+### Added
+- `verification_record` extension now available in `validate_knowledge`'s `extensions` parameter. This extension checks the integrity of `VerificationRecord` objects, ensuring they have exactly one `verified_by` relation, a valid timestamp, a recognized check method, and no qualitative judgment fields.
+- Updated tool descriptions with an example of a correct `VerificationRecord`.
+
+---
+
 ## [0.4.3] - 2026-07-19
 
 ### Changed

@@ -84,15 +84,29 @@ TOOLS = {
                         "'embedding_projection' -- requires every object of type "
                         "'EmbeddingProjection' to carry exactly one 'represents' relation to a "
                         "real object already present in this structure, and to reference its "
-                        "vector payload via 'store_ref' rather than embedding it inline. Use "
-                        "this to mechanically catch citations/references to sources that do not "
-                        "actually exist in the structure being validated."
+                        "vector payload via 'store_ref' rather than embedding it inline. "
+                        "'verification_record' -- requires every object of type "
+                        "'VerificationRecord' to carry exactly one 'verified_by' relation to a "
+                        "real subject object, a well-formed ISO 8601 timestamp in 'checked_at', "
+                        "a valid method in 'checked_via' ('automated_http_check', "
+                        "'automated_search_check', 'manual_review'), and no qualitative judgment "
+                        "fields ('reliability_score', 'confidence', 'score', 'reasons', "
+                        "'warning_signs', 'recommendations'). Use this to mechanically verify "
+                        "that a record of an external check is well-formed and points to an "
+                        "actual existing subject."
                         "\n\n"
                         "Example of a correct EmbeddingProjection with its 'represents' relation: "
                         '{"objects": ['
                         '{"identity": {"id": "src-1", "type": "Document", "name": "Real paper"}, "structure": {}}, '
                         '{"identity": {"id": "proj-1", "type": "EmbeddingProjection", "name": "projection"}, "structure": {"store_ref": "vecdb://xyz"}}, '
                         '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["src-1", "proj-1"], "relation_type": "represents"}}'
+                        ']}.'
+                        "\n\n"
+                        "Example of a correct VerificationRecord with its 'verified_by' relation: "
+                        '{"objects": ['
+                        '{"identity": {"id": "doc-1", "type": "Document", "name": "Source document"}, "structure": {}}, '
+                        '{"identity": {"id": "vr-1", "type": "VerificationRecord", "name": "verification"}, "structure": {"checked_at": "2026-07-19T12:00:00Z", "checked_via": "automated_http_check", "http_status": 200}}, '
+                        '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["doc-1", "vr-1"], "relation_type": "verified_by"}}'
                         ']}.'
                     ),
                 },
