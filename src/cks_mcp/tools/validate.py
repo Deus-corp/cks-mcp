@@ -44,6 +44,11 @@ def resolve_extensions(names: list[str] | None) -> tuple[list[Any], list[str]]:
 
 
 def _check_verification_record_provenance(structure: Any) -> list[dict[str, Any]]:
+    """
+    Проверяет наличие подписи provenance у всех VerificationRecord.
+    Эта проверка выполняется БЕЗУСЛОВНО, так как объект типа VerificationRecord
+    имеет смысл только при гарантированном происхождении.
+    """
     subject_by_record: dict[str, str] = {}
     for relation in structure.relations():
         if relation.relation_type != "verified_by":
@@ -121,8 +126,8 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
     diagnostics = [_serialize_diagnostic(d) for d in session.diagnostics]
     core_valid = not any(d["severity"] == "error" for d in diagnostics)
 
-    if "verification_record" in requested:
-        diagnostics.extend(_check_verification_record_provenance(structure))
+    # Проверка provenance теперь выполняется БЕЗУСЛОВНО
+    diagnostics.extend(_check_verification_record_provenance(structure))
 
     valid = core_valid and not any(d["severity"] == "error" for d in diagnostics)
 

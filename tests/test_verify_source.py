@@ -1,21 +1,25 @@
-"""Tests for verify_source: SSRF protection, unique IDs, provenance signing."""
+"""
+Tests for verify_source: SSRF protection, unique IDs, provenance signing.
+"""
 
 import json
 import pytest
 from unittest.mock import patch, MagicMock
-from cks_mcp.tools.verify_source import verify_source, UnsafeURLError, _assert_url_is_safe
+from cks_mcp.tools.verify_source import verify_source, UnsafeURLError, _resolve_and_validate_host
 from cks_mcp.provenance import verify, SIGNATURE_KEY
 
-def test_assert_url_is_safe_allows_public():
-    _assert_url_is_safe("https://example.com")
+def test_resolve_and_validate_allows_public():
+    hostname, ip = _resolve_and_validate_host("https://example.com")
+    assert hostname == "example.com"
+    assert ip is not None
 
-def test_assert_url_is_safe_rejects_private():
+def test_resolve_and_validate_rejects_private():
     with pytest.raises(UnsafeURLError):
-        _assert_url_is_safe("http://127.0.0.1")
+        _resolve_and_validate_host("http://127.0.0.1")
 
-def test_assert_url_is_safe_rejects_metadata():
+def test_resolve_and_validate_rejects_metadata():
     with pytest.raises(UnsafeURLError):
-        _assert_url_is_safe("http://169.254.169.254")
+        _resolve_and_validate_host("http://169.254.169.254")
 
 def test_verify_source_returns_unique_ids():
     with patch("cks_mcp.tools.verify_source._safe_head_status", return_value=200):

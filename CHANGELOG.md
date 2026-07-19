@@ -3,6 +3,14 @@
 
 ---
 
+## [0.6.2] - 2026-07-19
+
+### Fixed
+- Provenance check is now unconditional for any `VerificationRecord`, closing a bypass where an LLM could skip validation by omitting the extension parameter.
+- DNS rebinding SSRF vector closed by pinning HTTP connections to the specific IP address resolved during the safety check.
+
+---
+
 ## [0.6.1] - 2026-07-19
 
 ### Fixed

@@ -13,6 +13,7 @@ from urllib.parse import urljoin, urlparse
 from uuid import uuid4
 
 import requests
+from requests.adapters import HTTPAdapter
 
 from cks_runtime.runtime import Runtime
 from cks_mcp.provenance import sign, SIGNATURE_KEY
@@ -41,7 +42,11 @@ def _is_public_ip(ip_str: str) -> bool:
     )
 
 
-def _assert_url_is_safe(url: str) -> None:
+def _resolve_and_validate_host(url: str) -> tuple[str, str]:
+    """
+    Проверяет безопасность URL и возвращает (hostname, verified_ip).
+    Выполняет резолвинг единожды, чтобы избежать DNS rebinding.
+    """
     parsed = urlparse(url)
     if parsed.scheme not in _ALLOWED_SCHEMES:
         raise UnsafeURLError(
@@ -62,18 +67,60 @@ def _assert_url_is_safe(url: str) -> None:
             f"URL host '{hostname}' resolves to a non-public address "
             f"({', '.join(sorted(resolved_ips))}); refusing to fetch."
         )
+    
+    # Возвращаем первый публичный IP для закрепления
+    return hostname, list(resolved_ips)[0]
+
+
+class PinnedHTTPAdapter(HTTPAdapter):
+    """HTTPAdapter, который закрепляет соединение за конкретным IP-адресом."""
+    def __init__(self, pinned_ip: str, *args, **kwargs):
+        self.pinned_ip = pinned_ip
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        # Подменяем пул соединений, чтобы запрос шел на проверенный IP
+        conn_pool = self.get_connection_with_tls_context(
+            request, verify=True, cert=self.cert
+        )
+        conn_pool.host = self.pinned_ip
+        return super().send(request, **kwargs)
+    
+    def get_connection_with_tls_context(self, request, verify, cert=None):
+        return super().get_connection_with_tls_context(request, verify, cert=cert)
 
 
 def _safe_head_status(url: str) -> int | None:
+    """
+    Выполняет HEAD-запрос с защитой от DNS rebinding.
+    Проверка безопасности и резолвинг IP происходят один раз перед запросом.
+    """
+    try:
+        hostname, verified_ip = _resolve_and_validate_host(url)
+    except UnsafeURLError:
+        raise  # Перебрасываем исключение для обработки в verify_source
+
+    session = requests.Session()
+    adapter = PinnedHTTPAdapter(pinned_ip=verified_ip)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    
     for _ in range(_MAX_REDIRECTS + 1):
-        _assert_url_is_safe(url)
         try:
-            resp = requests.head(url, timeout=_TIMEOUT_SECONDS, allow_redirects=False)
+            resp = session.head(url, timeout=_TIMEOUT_SECONDS, allow_redirects=False)
         except requests.RequestException:
             return None
 
         if resp.is_redirect and resp.headers.get("Location"):
-            url = urljoin(url, resp.headers["Location"])
+            new_url = urljoin(url, resp.headers["Location"])
+            try:
+                # Проверяем безопасность нового URL и закрепляем новый IP
+                hostname, verified_ip = _resolve_and_validate_host(new_url)
+                adapter.pinned_ip = verified_ip
+                url = new_url
+            except UnsafeURLError:
+                # Если редирект ведёт на небезопасный адрес, прерываем проверку
+                return None
             continue
         return resp.status_code
 
@@ -85,7 +132,7 @@ def verify_source(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
     subject_id = arguments["subject_id"]
 
     try:
-        _assert_url_is_safe(url)
+        _resolve_and_validate_host(url)  # Быстрая предварительная проверка
     except UnsafeURLError as exc:
         return {
             "error": "unsafe_url",
@@ -95,7 +142,17 @@ def verify_source(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
             ),
         }
 
-    status = _safe_head_status(url)
+    try:
+        status = _safe_head_status(url)
+    except UnsafeURLError as exc:
+        return {
+            "error": "unsafe_url",
+            "message": (
+                f"Refusing to verify '{url}': {exc} No VerificationRecord "
+                f"was created."
+            ),
+        }
+
     checked_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     checked_via = "automated_http_check"
 
