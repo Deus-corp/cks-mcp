@@ -3,6 +3,13 @@
 
 ---
 
+## [0.7.0] - 2026-07-19
+
+### Added
+- `list_versions` and `revert_version` tools, giving LLMs the ability to inspect the version history of a session and safely roll back to any previous state. Powered by `cks-runtime`'s new `ListVersionsOperation` and `RevertVersionOperation`.
+
+---
+
 ## [0.6.3] - 2026-07-19
 
 ### Fixed

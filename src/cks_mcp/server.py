@@ -23,13 +23,14 @@ from cks_mcp.tools import (
 )
 from cks_mcp.tools.verify_source import verify_source
 from cks_mcp.errors import invalid_json_error, validation_failed
+from cks_mcp.tools.revert import list_versions, revert_version
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "0.6.3"
+SERVER_VERSION = "0.7.0"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -158,6 +159,39 @@ TOOLS = {
             "required": ["url", "subject_id"]
         },
         "handler": verify_source,
+    },
+    "list_versions": {
+        "name": "list_versions",
+        "description": "List all available versions of a session's history.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "Optional. The ID of the session to list versions for. If not provided, the most recent session is used."
+                }
+            }
+        },
+        "handler": list_versions,
+    },
+    "revert_version": {
+        "name": "revert_version",
+        "description": "Revert a session's Knowledge Structure to a specific previous version.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "Optional. The ID of the session to revert. If not provided, the most recent session is used."
+                },
+                "target_version_id": {
+                    "type": "string",
+                    "description": "The ID of the version to revert to."
+                }
+            },
+            "required": ["target_version_id"]
+        },
+        "handler": revert_version,
     },
 }
 
