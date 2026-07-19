@@ -25,6 +25,7 @@ def list_versions(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
         return {
             "session_id": session.session_id,
             "versions": result.payload if result.payload else [],
+            "current_version_id": getattr(session, "current_version_id", None),
         }
     except Exception as e:
         return {"error": f"Internal error in list_versions: {str(e)}"}
@@ -48,10 +49,13 @@ def revert_version(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any
         tx = runtime.begin_transaction(session)
         tx.add_operation(RevertVersionOperation("revert", target_version_id=target_version_id))
         version = runtime.commit_transaction(tx)
+
+        serialized = runtime.core_bridge.serialize(session.knowledge_structure)
         return {
             "reverted_to": target_version_id,
             "new_version_id": version.version_id,
             "session_id": session.session_id,
+            "serialized": serialized,
         }
     except Exception as e:
         return {"error": f"Revert failed: {str(e)}"}

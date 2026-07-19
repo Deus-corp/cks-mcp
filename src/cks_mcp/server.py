@@ -22,7 +22,6 @@ from cks_mcp.tools import (
     evolve_knowledge,
 )
 from cks_mcp.tools.verify_source import verify_source
-from cks_mcp.errors import invalid_json_error, validation_failed
 from cks_mcp.tools.revert import list_versions, revert_version
 
 # ---------------------------------------------------------------------------
@@ -30,7 +29,7 @@ from cks_mcp.tools.revert import list_versions, revert_version
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "0.7.6"
+SERVER_VERSION = "0.7.7"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -46,7 +45,7 @@ JSON_DATA_DESCRIPTION = (
     '"name": "Photosynthesis"}, "structure": {"content": "..."}}, '
     '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, '
     '"structure": {"participants": ["obj-1", "obj-2"], "relation_type": '
-    '"derives"}}]}\'.'
+    '\'derives"}}]}\'.'
 )
 
 TOOLS = {
@@ -54,8 +53,9 @@ TOOLS = {
         "name": "validate_knowledge",
         "description": (
             "Validate a Canonical Knowledge Structure. Returns validation result and diagnostics. "
-            "Optionally accepts 'extensions' to opt into additional, non-default validation rules "
-            "for this call only (see 'extensions' parameter). "
+            "Optionally accepts 'session_id' to validate an existing session's current state instead "
+            "of creating a new one. Optionally accepts 'extensions' to opt into additional, non-default "
+            "validation rules for this call only (see 'extensions' parameter). "
             "Returns a 'session_id' that can be used with list_versions and revert_version to track and manage version history."
         ),
         "inputSchema": {
@@ -64,6 +64,13 @@ TOOLS = {
                 "json_data": {
                     "type": "string",
                     "description": JSON_DATA_DESCRIPTION,
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": (
+                        "Optional. If provided, validate the current structure of this session "
+                        "instead of creating a new session from json_data."
+                    ),
                 },
                 "extensions": {
                     "type": "array",
@@ -87,13 +94,23 @@ TOOLS = {
     },
     "serialize_knowledge": {
         "name": "serialize_knowledge",
-        "description": "Serialize a Knowledge Structure into its canonical JSON representation.",
+        "description": (
+            "Serialize a Knowledge Structure into its canonical JSON representation. "
+            "Optionally accepts 'session_id' to serialize the current state of an existing session."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "json_data": {
                     "type": "string",
                     "description": JSON_DATA_DESCRIPTION,
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": (
+                        "Optional. If provided, serialize the current structure of this session "
+                        "instead of creating a new session from json_data."
+                    ),
                 },
             },
             "required": ["json_data"],
@@ -102,13 +119,23 @@ TOOLS = {
     },
     "explain_knowledge": {
         "name": "explain_knowledge",
-        "description": "Produce a human-readable explanation of a Knowledge Structure.",
+        "description": (
+            "Produce a human-readable explanation of a Knowledge Structure. "
+            "Optionally accepts 'session_id' to explain the current state of an existing session."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "json_data": {
                     "type": "string",
                     "description": JSON_DATA_DESCRIPTION,
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": (
+                        "Optional. If provided, explain the current structure of this session "
+                        "instead of creating a new session from json_data."
+                    ),
                 },
             },
             "required": ["json_data"],
@@ -142,7 +169,10 @@ TOOLS = {
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Optional. The ID of an existing session to continue. If not provided, a new session is created."
+                    "description": (
+                        "Optional. If provided, evolve the current structure of this session "
+                        "instead of creating a new session from json_data."
+                    )
                 },
             },
             "required": ["json_data"],
@@ -275,7 +305,6 @@ def handle_request(
                 "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]
             })
         except Exception as e:
-            # Возвращаем ошибку как часть инструментального ответа
             error_message = str(e) if str(e) else "An internal error occurred."
             return _make_response(req_id, {
                 "content": [{"type": "text", "text": f"Error: {error_message}"}],

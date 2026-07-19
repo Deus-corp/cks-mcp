@@ -1,7 +1,6 @@
 import cks
 from typing import Any
 from cks.constraints.builtin import OPTIONAL_CONSTRAINTS_BY_NAME
-from cks_runtime.diagnostics.diagnostic import DiagnosticSeverity
 from cks_runtime.runtime import Runtime
 from cks_runtime.operations.operation_types import ValidateOperation
 
@@ -45,28 +44,58 @@ def resolve_extensions(names: list[str] | None) -> tuple[list[Any], list[str]]:
 
 def _check_verification_record_provenance(structure: Any) -> list[dict[str, Any]]:
     """
-    Проверяет наличие подписи provenance у всех VerificationRecord.
-    Эта проверка выполняется БЕЗУСЛОВНО, так как объект типа VerificationRecord
-    имеет смысл только при гарантированном происхождении.
+    Checks that every VerificationRecord has a valid provenance signature.
+    Also reports ambiguous verified_by mappings explicitly.
     """
-    subject_by_record: dict[str, str] = {}
+    record_to_subject: dict[str, str] = {}
+    ambiguous_records: set[str] = set()
+
     for relation in structure.relations():
         if relation.relation_type != "verified_by":
             continue
         if len(relation.participants) != 2:
             continue
+
         subject_id, record_id = relation.participants
-        subject_by_record[record_id] = (
-            subject_id if record_id not in subject_by_record else None
-        )
+        existing = record_to_subject.get(record_id)
+        if existing is None:
+            record_to_subject[record_id] = subject_id
+        elif existing != subject_id:
+            ambiguous_records.add(record_id)
 
     diagnostics: list[dict[str, Any]] = []
+
+    for record_id in ambiguous_records:
+        diagnostics.append({
+            "code": "CKS-MCP-AMBIGUOUS-VERIFICATION-REFERENCE",
+            "severity": "error",
+            "source": "mcp",
+            "message": (
+                f"VerificationRecord '{record_id}' is referenced by multiple subjects "
+                f"through 'verified_by'. This relationship is ambiguous and must be resolved."
+            ),
+            "metadata": {"location": record_id},
+        })
+
     for obj in structure.objects:
         if obj.identity.type != "VerificationRecord":
             continue
 
-        subject_id = subject_by_record.get(obj.identity.id)
+        if obj.identity.id in ambiguous_records:
+            continue
+
+        subject_id = record_to_subject.get(obj.identity.id)
         if not subject_id:
+            diagnostics.append({
+                "code": "CKS-MCP-UNLINKED-VERIFICATION-RECORD",
+                "severity": "warning",
+                "source": "mcp",
+                "message": (
+                    f"VerificationRecord '{obj.identity.id}' has no verified_by relation. "
+                    f"It will not be treated as a trusted provenance record."
+                ),
+                "metadata": {"location": obj.identity.id},
+            })
             continue
 
         ok = provenance.verify(
@@ -83,11 +112,8 @@ def _check_verification_record_provenance(structure: Any) -> list[dict[str, Any]
                 "severity": "error",
                 "source": "mcp",
                 "message": (
-                    f"VerificationRecord '{obj.identity.id}' does not carry a "
-                    f"valid provenance signature. It must be produced by "
-                    f"calling verify_source, not authored directly -- a "
-                    f"well-formed but hand-written record is exactly what "
-                    f"this check exists to catch."
+                    f"VerificationRecord '{obj.identity.id}' does not carry a valid provenance signature. "
+                    f"It must be produced by calling verify_source, not authored directly."
                 ),
                 "metadata": {"location": obj.identity.id},
             })
@@ -96,10 +122,24 @@ def _check_verification_record_provenance(structure: Any) -> list[dict[str, Any]
 
 
 def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
-    try:
-        structure = cks.parse(arguments["json_data"])
-    except cks.SerializationError as exc:
-        return invalid_json_error(str(exc))
+    """
+    Validate either:
+    - the current state of an existing session (if session_id is provided), or
+    - a freshly parsed JSON structure (fallback compatibility path).
+    """
+    session_id = arguments.get("session_id")
+
+    if session_id:
+        session = runtime.get_session(session_id)
+        if not session:
+            return {"error": f"Session '{session_id}' not found."}
+        structure = session.knowledge_structure
+    else:
+        try:
+            structure = cks.parse(arguments["json_data"])
+        except cks.SerializationError as exc:
+            return invalid_json_error(str(exc))
+        session = runtime.create_session(structure)
 
     requested = arguments.get("extensions") or []
     extensions, unknown = resolve_extensions(requested)
@@ -112,7 +152,6 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
             ),
         }
 
-    session = runtime.create_session(structure)
     tx = runtime.begin_transaction(session)
     tx.add_operation(
         ValidateOperation(
@@ -126,7 +165,6 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
     diagnostics = [_serialize_diagnostic(d) for d in session.diagnostics]
     core_valid = not any(d["severity"] == "error" for d in diagnostics)
 
-    # Проверка provenance теперь выполняется БЕЗУСЛОВНО
     diagnostics.extend(_check_verification_record_provenance(structure))
 
     valid = core_valid and not any(d["severity"] == "error" for d in diagnostics)

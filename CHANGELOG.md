@@ -3,6 +3,20 @@
 
 ---
 
+## [0.7.7] - 2026-07-19
+
+### Added
+- **Session-aware tools:** `validate_knowledge`, `serialize_knowledge`, `explain_knowledge`, and `evolve_knowledge` now accept an optional `session_id` parameter to operate on an existing session instead of creating a new one. This enables predictable, multi-step workflows within a single session.
+- `revert_version` now returns the `serialized` canonical JSON of the reverted state, eliminating the need for a separate `serialize_knowledge` call to verify the result.
+- **Production-ready provenance:** The signing secret can now be configured via the `CKS_MCP_SECRET` environment variable (supports raw strings, hex, and base64), making provenance verification stable across server restarts.
+- Improved error handling in `list_versions`.
+
+### Changed
+- `evolve_knowledge` no longer requires `json_data` when `session_id` is provided, reducing unnecessary re-parsing of large structures.
+- Provenance checks now distinguish between ambiguous, unlinked, and unverified records for clearer diagnostics.
+
+---
+
 ## [0.7.6] - 2026-07-19
 
 ### Fixed
