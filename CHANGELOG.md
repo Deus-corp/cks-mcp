@@ -3,6 +3,13 @@
 
 ---
 
+## [0.5.1] - 2026-07-19
+
+### Changed
+- `serialize_knowledge` and `explain_knowledge` tools now read operation results directly from the transaction's `results` field instead of calling `CoreBridge` a second time. This eliminates redundant semantic computations and keeps all operation payloads in one place.
+
+---
+
 ## [0.5.0] - 2026-07-19
 
 ### Added

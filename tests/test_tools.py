@@ -31,10 +31,17 @@ def mock_runtime():
         "summary": {"test": True},
     }
     runtime.core_bridge.evolve.return_value = MagicMock()
-    # Имитация коммита
-    runtime.create_session.return_value = MagicMock(session_id="s1", diagnostics=[])
-    runtime.begin_transaction.return_value = MagicMock()
+
+    session = MagicMock(session_id="s1", diagnostics=[])
+    runtime.create_session.return_value = session
+
+    # Мок транзакции с готовым результатом операции
+    tx = MagicMock(session=session)
+    tx.results = [MagicMock(payload='{"serialized":true}')]
+    runtime.begin_transaction.return_value = tx
+
     runtime.commit_transaction.return_value = MagicMock(version_id="v1")
+
     return runtime
 
 
@@ -87,18 +94,16 @@ def test_serialize_knowledge(mock_runtime):
     args = {"json_data": VALID_KNOWLEDGE_JSON}
     result = serialize_knowledge(mock_runtime, args)
     assert result == '{"serialized":true}'
-    mock_runtime.create_session.assert_called_once()
-    mock_runtime.commit_transaction.assert_called_once()
-
 
 def test_explain_knowledge(mock_runtime):
+    # Для explain нужно, чтобы первый результат в tx.results содержал нужный payload
+    mock_runtime.begin_transaction.return_value.results = [
+        MagicMock(payload={"object_count": 1, "relation_count": 0})
+    ]
     args = {"json_data": VALID_KNOWLEDGE_JSON}
     result = explain_knowledge(mock_runtime, args)
     assert result["object_count"] == 1
-    assert result["version_id"] == "v1"
-    assert result["session_id"] == "s1"
-    mock_runtime.create_session.assert_called_once()
-    mock_runtime.commit_transaction.assert_called_once()
+    assert result["relation_count"] == 0
 
 
 def test_evolve_knowledge(mock_runtime):

@@ -1,4 +1,3 @@
-# serialize.py
 import cks
 from typing import Any
 from cks_runtime.runtime import Runtime
@@ -10,4 +9,6 @@ def serialize_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> str:
     tx = runtime.begin_transaction(session)
     tx.add_operation(SerializeOperation("serialize", knowledge_structure=structure))
     runtime.commit_transaction(tx)
-    return runtime.core_bridge.serialize(structure)
+    # Берем результат из выполненной операции, а не вызываем Core повторно
+    result = tx.results[0] if tx.results else None
+    return result.payload if result else ""
