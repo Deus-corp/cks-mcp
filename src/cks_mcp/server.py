@@ -30,7 +30,7 @@ from cks_mcp.tools.revert import list_versions, revert_version
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "0.7.3"
+SERVER_VERSION = "0.7.4"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -55,7 +55,8 @@ TOOLS = {
         "description": (
             "Validate a Canonical Knowledge Structure. Returns validation result and diagnostics. "
             "Optionally accepts 'extensions' to opt into additional, non-default validation rules "
-            "for this call only (see 'extensions' parameter)."
+            "for this call only (see 'extensions' parameter). "
+            "Returns a 'session_id' that can be used with list_versions and revert_version to track and manage version history."
         ),
         "inputSchema": {
             "type": "object",
@@ -116,7 +117,10 @@ TOOLS = {
     },
     "evolve_knowledge": {
         "name": "evolve_knowledge",
-        "description": "Apply structural evolution operators to a Knowledge Structure.",
+        "description": (
+            "Apply structural evolution operators to a Knowledge Structure. "
+            "Returns a new 'session_id' and 'version_id'. The 'session_id' can be used with list_versions and revert_version."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -162,7 +166,7 @@ TOOLS = {
     },
     "list_versions": {
         "name": "list_versions",
-        "description": "List all available versions of a session's history.",
+        "description": "List all available versions of a session's history. Requires a 'session_id' obtained from a previous call to validate_knowledge or evolve_knowledge.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -177,7 +181,7 @@ TOOLS = {
     },
     "revert_version": {
         "name": "revert_version",
-        "description": "Revert a session's Knowledge Structure to a specific previous version.",
+        "description": "Revert a session's Knowledge Structure to a specific previous version. Requires a 'session_id' obtained from a previous call to validate_knowledge or evolve_knowledge.",
         "inputSchema": {
             "type": "object",
             "properties": {

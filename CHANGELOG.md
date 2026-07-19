@@ -3,6 +3,13 @@
 
 ---
 
+## [0.7.4] - 2026-07-19
+
+### Changed
+- Improved tool descriptions for `validate_knowledge`, `evolve_knowledge`, `list_versions`, and `revert_version` to explicitly document the session and versioning workflow, helping LLMs discover the correct usage pattern without trial and error.
+
+---
+
 ## [0.7.3] - 2026-07-19
 
 ### Fixed
