@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-16%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-19%20passing-brightgreen)
 
 `cks-mcp` is an MCP (Model Context Protocol) server that provides LLMs
 with structured, verifiable knowledge operations through the CKS
@@ -122,7 +122,7 @@ Response (with version and session information):
 python -m pytest -v
 ```
 
-16+ tests, all passing.
+19+ tests, all passing.
 
 ---
 

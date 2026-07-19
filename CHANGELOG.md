@@ -3,6 +3,13 @@
 
 ---
 
+## [0.4.1] - 2026-07-18
+
+### Added
+- Restored and expanded subprocess integration tests (`test_integration.py`) covering real stdin/stdout transport, including the new `extensions` parameter (3 new tests, total 19 passed).
+
+---
+
 ## [0.4.0] - 2026-07-18
 
 ### Added
