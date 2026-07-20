@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-29%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is an MCP (Model Context Protocol) server that gives LLMs
@@ -50,6 +50,7 @@ traceable to its origin.
 - **Full audit trail** — every operation is captured in an immutable
   version history, providing complete accountability for AI-generated
   knowledge.
+- **Time-travel debugging** — `list_versions`, `revert_version`, and `compare_versions` give LLMs a full version-control system for knowledge, enabling safe rollbacks and change inspection.
 
 ---
 
@@ -111,7 +112,10 @@ call the appropriate CKS tool.
 | `serialize_knowledge` | Serialize a Knowledge Structure into canonical JSON. |
 | `explain_knowledge` | Produce a semantic explanation of a Knowledge Structure. |
 | `evolve_knowledge` | Apply Genesis/Decay operators to evolve a structure. |
-| `verify_source` | Perform a real HTTP request to check a URL's availability and create a cryptographically signed `VerificationRecord`. This is the only legitimate way to create verification records. |
+| `verify_source` | Perform a real HTTP request to check a URL's availability and create a cryptographically signed `VerificationRecord`. |
+| `list_versions` | List all available versions of a session's history. |
+| `compare_versions` | Compute the structural difference between the current state of a session and a target version. |
+| `revert_version` | Revert a session's Knowledge Structure to a specific previous version. |
 
 ---
 
@@ -163,6 +167,36 @@ Response (with version and session information):
 }
 ```
 
+## Compare two versions
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "compare_versions",
+    "arguments": {
+      "session_id": "...",
+      "target_version_id": "..."
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"session_id\": \"...\", \"target_version_id\": \"...\", \"changes\": [...]}"
+      }
+    ]
+  }
+}
+```
+
 ---
 
 # Security and Provenance
@@ -185,7 +219,7 @@ Response (with version and session information):
 python -m pytest -v
 ```
 
-29+ tests, all passing.
+30+ tests, all passing.
 
 ---
 

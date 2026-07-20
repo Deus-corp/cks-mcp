@@ -23,13 +23,14 @@ from cks_mcp.tools import (
 )
 from cks_mcp.tools.verify_source import verify_source
 from cks_mcp.tools.revert import list_versions, revert_version
+from cks_mcp.tools.compare import compare_versions
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "1.0.1"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -231,6 +232,25 @@ TOOLS = {
             "required": ["session_id", "target_version_id"]
         },
         "handler": revert_version,
+    },
+    "compare_versions": {
+        "name": "compare_versions",
+        "description": "Compute the structural difference between the current state of a session and a specific target version. Returns a compact list of changes (add/remove operations).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The ID of the session to compare."
+                },
+                "target_version_id": {
+                    "type": "string",
+                    "description": "The ID of the version to compare against."
+                }
+            },
+            "required": ["session_id", "target_version_id"]
+        },
+        "handler": compare_versions,
     },
 }
 

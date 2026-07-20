@@ -3,6 +3,20 @@
 
 ---
 
+## [1.0.1] - 2026-07-20
+
+### Added
+- `compare_versions` tool: computes the structural diff between the current state of a session and a specified target version, returning a compact list of changes.
+- Session-aware `serialize_knowledge`, `explain_knowledge`, and `evolve_knowledge` — all tools now accept an optional `session_id` to operate on existing sessions.
+- Stable provenance secret via `CKS_MCP_SECRET` env var.
+
+### Changed
+- `verify_source` now uses deterministic, IPv4-first IP selection with automatic fallback.
+- `VerificationRecord` shape and provenance checks are now unconditional, regardless of the `verification_record` extension parameter.
+- Improved error responses for LLM readability.
+
+---
+
 ## [1.0.0] - 2026-07-19
 
 ### Added

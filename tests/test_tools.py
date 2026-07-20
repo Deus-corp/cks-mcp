@@ -123,3 +123,15 @@ def test_evolve_knowledge(mock_runtime):
     assert result["session_id"] == "s1"
     mock_runtime.create_session.assert_called_once()
     mock_runtime.commit_transaction.assert_called_once()
+
+
+def test_compare_versions(mock_runtime):
+    from cks_mcp.tools.compare import compare_versions
+    mock_runtime.get_session.return_value = MagicMock()
+    mock_runtime.begin_transaction.return_value = MagicMock()
+    mock_runtime.commit_transaction.return_value = MagicMock()
+    args = {"session_id": "s1", "target_version_id": "v1"}
+    result = compare_versions(mock_runtime, args)
+    assert "session_id" in result
+    assert "target_version_id" in result
+    assert "changes" in result
