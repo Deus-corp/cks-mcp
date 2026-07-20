@@ -3,6 +3,13 @@
 
 ---
 
+## [1.0.4] - 2026-07-20
+
+### Fixed
+- `compare_versions` no longer crashes with "Object of type RemoveRelation is not JSON serializable" when the diff contains relation removals. The serialiser now correctly handles all four operator types.
+
+---
+
 ## [1.0.3] - 2026-07-20
 
 ### Fixed
