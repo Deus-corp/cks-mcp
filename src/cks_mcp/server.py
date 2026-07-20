@@ -30,7 +30,7 @@ from cks_mcp.tools.compare import compare_versions
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.0.1"
+SERVER_VERSION = "1.0.2"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -235,20 +235,35 @@ TOOLS = {
     },
     "compare_versions": {
         "name": "compare_versions",
-        "description": "Compute the structural difference between the current state of a session and a specific target version. Returns a compact list of changes (add/remove operations).",
+        "description": (
+            "Compare the current state of a session against a target version. "
+            "The returned diff is directional. "
+            "'direction' explicitly describes how to interpret the changes. "
+            "'base_version_id' is the historical version being compared against. "
+            "'target_version_id' is the current session state. "
+            "The response also contains a semantic summary (added/removed objects "
+            "and relations) to make interpretation easier for LLMs."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "The ID of the session to compare."
+                    "description": "The session whose current state will be compared."
                 },
                 "target_version_id": {
                     "type": "string",
-                    "description": "The ID of the version to compare against."
+                    "description": (
+                        "Historical version to compare against. "
+                        "The comparison is performed between this version "
+                        "and the current state of the session."
+                    )
                 }
             },
-            "required": ["session_id", "target_version_id"]
+            "required": [
+                "session_id",
+                "target_version_id"
+            ]
         },
         "handler": compare_versions,
     },

@@ -3,6 +3,14 @@
 
 ---
 
+## [1.0.2] - 2026-07-20
+
+### Changed
+- `compare_versions` now returns explicit `direction`, `base_version_id`, `current_version_id`, and a semantic `summary` (counts of added/removed objects and relations), making the diff direction unambiguous for LLMs.
+- Updated tool description in `server.py` to document the new response format.
+
+---
+
 ## [1.0.1] - 2026-07-20
 
 ### Added

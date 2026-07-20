@@ -127,11 +127,15 @@ def test_evolve_knowledge(mock_runtime):
 
 def test_compare_versions(mock_runtime):
     from cks_mcp.tools.compare import compare_versions
-    mock_runtime.get_session.return_value = MagicMock()
+    session = MagicMock(session_id="s1")
+    session.version_history = [MagicMock(version_id="current_v")]
+    mock_runtime.get_session.return_value = session
     mock_runtime.begin_transaction.return_value = MagicMock()
     mock_runtime.commit_transaction.return_value = MagicMock()
     args = {"session_id": "s1", "target_version_id": "v1"}
     result = compare_versions(mock_runtime, args)
-    assert "session_id" in result
-    assert "target_version_id" in result
-    assert "changes" in result
+    assert result["session_id"] == "s1"
+    assert result["base_version_id"] == "v1"
+    assert result["direction"] == "base_to_current"
+    assert "summary" in result
+    assert "operations" in result
