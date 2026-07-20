@@ -3,6 +3,13 @@
 
 ---
 
+## [1.0.5] - 2026-07-20
+
+### Fixed
+- Server no longer crashes with an unhandled `ValueError` when a client sends a malformed `Content-Length` header. The error is now caught and returned as a proper JSON-RPC parse error, keeping the server alive for subsequent requests.
+
+---
+
 ## [1.0.4] - 2026-07-20
 
 ### Fixed

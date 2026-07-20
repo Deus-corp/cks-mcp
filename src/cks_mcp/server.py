@@ -30,7 +30,7 @@ from cks_mcp.tools.compare import compare_versions
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.0.4"
+SERVER_VERSION = "1.0.5"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -363,7 +363,18 @@ def main() -> None:
 
         line_stripped = line.strip()
         if line_stripped.lower().startswith("content-length:"):
-            content_length = int(line_stripped.split(":")[1].strip())
+            try:
+                content_length = int(line_stripped.split(":")[1].strip())
+            except (ValueError, IndexError):
+                # Malformed Content-Length header – respond with parse error
+                error_response = json.dumps({
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32700, "message": "Parse error"},
+                    "id": None,
+                })
+                sys.stdout.write(error_response + "\n")
+                sys.stdout.flush()
+                continue
             # Read the blank line after the header
             sys.stdin.readline()
             body = sys.stdin.read(content_length)
