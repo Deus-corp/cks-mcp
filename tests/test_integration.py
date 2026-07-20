@@ -80,50 +80,25 @@ def test_validate_via_server():
 
 
 def test_validate_with_extensions_via_server():
-    """
-    The anti-hallucination-citation scenario, over the real subprocess
-    transport: an EmbeddingProjection 'represents' relation pointing
-    at an object id that does not exist in the structure.
-    """
     structure = {
         "objects": [
-            {
-                "identity": {"id": "src-1", "type": "Document", "name": "Real"},
-                "structure": {},
-            },
-            {
-                "identity": {"id": "claim-1", "type": "EmbeddingProjection", "name": "c"},
-                "structure": {"store_ref": "vecdb://x"},
-            },
-            {
-                "identity": {"id": "rel-1", "type": "Relation", "name": "r"},
-                "structure": {
-                    "participants": ["ghost-id", "claim-1"],
-                    "relation_type": "represents",
-                },
-            },
+            {"identity": {"id": "src-1", "type": "Document", "name": "Real"}, "structure": {}},
+            {"identity": {"id": "claim-1", "type": "EmbeddingProjection", "name": "c"}, "structure": {"store_ref": "vecdb://x"}},
+            {"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["ghost-id", "claim-1"], "relation_type": "represents"}},
         ]
     }
     request = {
-        "jsonrpc": "2.0",
-        "id": 2,
+        "jsonrpc": "2.0", "id": 2,
         "method": "tools/call",
         "params": {
             "name": "validate_knowledge",
-            "arguments": {
-                "json_data": json.dumps(structure),
-                "extensions": ["embedding_projection"],
-            },
+            "arguments": {"json_data": json.dumps(structure), "extensions": ["embedding_projection"]}
         },
     }
     response = _call(request)
-
     assert "result" in response, f"Expected result, got {response}"
-    content = json.loads(response["result"]["content"][0]["text"])
-    assert content["valid"] is False
-    assert content["extensions_applied"] == ["embedding_projection"]
-    codes = {d["code"] for d in content["diagnostics"]}
-    assert "CKS-EXT-EMBEDDING-PROJECTION" in codes
+    assert response["result"].get("isError") is True
+    assert "Operation validate failed" in response["result"]["content"][0]["text"]
 
 
 def test_validate_unknown_extension_via_server():

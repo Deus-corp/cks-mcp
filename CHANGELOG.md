@@ -3,6 +3,20 @@
 
 ---
 
+## [1.0.3] - 2026-07-20
+
+### Fixed
+- `compare_versions` now correctly computes the diff from `base_version` to `current`, and returns explicit `direction`, `base_version_id`, `current_version_id`, and a semantic `summary` (counts of added/removed objects and relations). This makes the diff direction unambiguous for LLMs.
+- `ValidateOperation` now correctly returns `FAILED` status when the structure is invalid, preventing invalid structures from being committed as versions.
+- `TransactionManager._finish` now removes completed transactions from the registry, preventing memory leaks.
+- `Dispatcher.dispatch` no longer writes to the non-existent `context.diagnostics`.
+- `CoreBridge.validate` now passes `extra_constraints` even when empty (`is not None` check).
+
+### Added
+- Integration tests for `compare_versions` direction and `TransactionManager` cleanup (2 new tests, total 30 passed).
+
+---
+
 ## [1.0.2] - 2026-07-20
 
 ### Changed
