@@ -3,6 +3,13 @@
 
 ---
 
+## [1.0.10] - 2026-07-21
+
+### Fixed
+- `merge_knowledge` now correctly returns detailed conflict information (object_id, base, branch_a, branch_b) when a `MergeConflictError` occurs, using duck-typing instead of fragile class name checks.
+
+---
+
 ## [1.0.9] - 2026-07-21
 
 ### Fixed

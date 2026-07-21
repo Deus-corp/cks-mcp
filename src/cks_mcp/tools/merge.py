@@ -25,13 +25,17 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
             "serialized": serialized,
         }
     except Exception as e:
-        # Проверяем, является ли это ошибкой конфликта слияния
-        error_type = type(e).__name__
-        if "MergeConflict" in error_type:
+        # Check if this is a merge conflict error by duck-typing
+        if hasattr(e, 'conflicts'):
             return {
                 "merged": False,
                 "conflicts": [
-                    {"object_id": c.object_id}
+                    {
+                        "object_id": c.object_id,
+                        "base": str(c.base) if c.base else None,
+                        "branch_a": str(c.branch_a) if c.branch_a else None,
+                        "branch_b": str(c.branch_b) if c.branch_b else None,
+                    }
                     for c in e.conflicts
                 ],
             }
