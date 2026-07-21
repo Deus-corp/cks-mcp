@@ -24,3 +24,15 @@ def unknown_extension(extensions: list[str]) -> dict:
         "error": "unknown_extension",
         "message": f"Unknown validation extension(s): {', '.join(extensions)}. Available: embedding_projection, verification_record."
     }
+
+def missing_parameter(name: str) -> dict:
+    return {
+        "error": "missing_parameter",
+        "message": f"Missing required parameter: '{name}'.",
+    }
+
+def session_not_found(session_id: str) -> dict:
+    return {
+        "error": "session_not_found",
+        "message": f"Session '{session_id}' not found.",
+    }

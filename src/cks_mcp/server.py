@@ -24,14 +24,15 @@ from cks_mcp.tools import (
 from cks_mcp.tools.verify_source import verify_source
 from cks_mcp.tools.revert import list_versions, revert_version
 from cks_mcp.tools.compare import compare_versions
-from cks_mcp.tools.merge import merge_knowledge
+from cks_mcp.tools.merge import merge_knowledge, merge_branch
+from cks_mcp.tools.branch import create_branch, close_session
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.0.10"
+SERVER_VERSION = "1.1.0"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -207,6 +208,99 @@ TOOLS = {
             "required": ["json_data_base", "json_data_branch_a", "json_data_branch_b"],
         },
         "handler": merge_knowledge,
+    },
+    "create_branch": {
+        "name": "create_branch",
+        "description": (
+            "Fork a new session from an existing one. Use this to isolate an "
+            "experiment, explore an alternative modeling approach, or try a "
+            "risky edit without touching the parent session -- if the branch "
+            "doesn't pan out, close_session it; if it does, merge_branch it "
+            "back into the parent."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The parent session to branch from.",
+                },
+                "version_id": {
+                    "type": "string",
+                    "description": (
+                        "Optional. Fork from this specific historical version "
+                        "of the parent instead of its current state. Recommended "
+                        "when you intend to merge_branch the result back later: "
+                        "it records the exact fork point merge_branch needs as "
+                        "its merge base. Without it, merge_branch has no "
+                        "automatic fork point and requires an explicit "
+                        "'base_version_id' itself."
+                    ),
+                },
+            },
+            "required": ["session_id"],
+        },
+        "handler": create_branch,
+    },
+    "merge_branch": {
+        "name": "merge_branch",
+        "description": (
+            "Session-aware three-way merge: merge a branch session's changes "
+            "into a target session. The merge base is resolved automatically "
+            "from the branch's recorded fork point (set by create_branch), so "
+            "-- unlike merge_knowledge -- you never supply the base yourself. "
+            "On success, commits the merged result as a new version of the "
+            "target session. On conflict, returns a 'conflicts' list "
+            "(object_id, base_state, target_state, source_state) instead of "
+            "merging. Do not call merge_branch again unchanged after a "
+            "conflict -- resolve each conflict on the target session with "
+            "evolve_knowledge, then close_session the source branch once it "
+            "has been fully integrated."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target_session_id": {
+                    "type": "string",
+                    "description": "The session to merge into.",
+                },
+                "source_session_id": {
+                    "type": "string",
+                    "description": "The branch session being merged in.",
+                },
+                "base_version_id": {
+                    "type": "string",
+                    "description": (
+                        "Optional. Overrides the merge base with a specific "
+                        "version id from the target session's history. Only "
+                        "needed if source_session_id wasn't created with "
+                        "create_branch's 'version_id' parameter."
+                    ),
+                },
+            },
+            "required": ["target_session_id", "source_session_id"],
+        },
+        "handler": merge_branch,
+    },
+    "close_session": {
+        "name": "close_session",
+        "description": (
+            "Close a session, releasing it from the runtime. Typical use: "
+            "after merge_branch reports success, close_session the source "
+            "branch that was just merged in -- it has been integrated and no "
+            "longer needs to stay open."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The session to close.",
+                },
+            },
+            "required": ["session_id"],
+        },
+        "handler": close_session,
     },
     "verify_source": {
         "name": "verify_source",

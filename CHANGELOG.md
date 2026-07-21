@@ -3,6 +3,16 @@
 
 ---
 
+## [1.1.0] - 2026-07-21
+
+### Added
+- `create_branch` tool — fork a new session from an existing one, optionally from a specific historical version, for isolated experimentation without touching the parent session.
+- `merge_branch` tool — session-aware three-way merge between a target session and a branch session. Unlike `merge_knowledge`, the merge base is resolved automatically from the branch's recorded fork point; on success the merged result is committed as a new version of the target session, on conflict a structured `conflicts` list (`object_id`, `base_state`, `target_state`, `source_state`) is returned instead, with guidance not to retry `merge_branch` unchanged but to resolve conflicts via `evolve_knowledge`.
+- `close_session` tool — closes a session, intended for releasing a branch session once `merge_branch` has integrated it.
+- Bumped `cks-runtime` dependency to `>=1.3.0` for `Runtime.create_branch`, `CoreBridge.merge`/`supports_merge`, and `MergeOperation`.
+
+---
+
 ## [1.0.10] - 2026-07-21
 
 ### Fixed
