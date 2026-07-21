@@ -4,13 +4,12 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-41%20passing-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is an MCP (Model Context Protocol) server that gives LLMs
-a **canonical knowledge backbone**. It exposes five tools —
-`validate_knowledge`, `serialize_knowledge`, `explain_knowledge`,
-`evolve_knowledge`, and `verify_source` — backed by the deterministic,
+a **canonical knowledge backbone**. It exposes the tools listed under
+*Available Tools* below, backed by the deterministic,
 immutable semantics of `cks-core` and the operational management of
 `cks-runtime`.
 
@@ -117,6 +116,9 @@ call the appropriate CKS tool.
 | `compare_versions` | Compute the structural difference between the current state of a session and a target version. |
 | `revert_version` | Revert a session's Knowledge Structure to a specific previous version. |
 | `merge_knowledge` | Three-way merge of knowledge structures with conflict detection. |
+| `create_branch` | Fork a new session from an existing one, optionally from a specific historical version. |
+| `merge_branch` | Session-aware three-way merge: merge a branch session into a target session, resolving the merge base automatically from the branch's recorded fork point. |
+| `close_session` | Close a session, releasing it from the runtime (e.g. a branch already merged in). |
 
 ---
 
@@ -198,6 +200,34 @@ Response:
 }
 ```
 
+## Branch, evolve independently, and merge back
+
+Fork a session, evolve the branch and its parent independently, then
+merge the branch back in:
+
+```json
+{"method": "tools/call", "params": {"name": "create_branch",
+  "arguments": {"session_id": "trunk-session-id"}}}
+```
+
+```json
+{"method": "tools/call", "params": {"name": "evolve_knowledge",
+  "arguments": {"session_id": "branch-session-id", "operations": [...]}}}
+```
+
+```json
+{"method": "tools/call", "params": {"name": "merge_branch",
+  "arguments": {"target_session_id": "trunk-session-id",
+                "source_session_id": "branch-session-id"}}}
+```
+
+A successful merge commits a new version of the target session and
+returns its `serialized` structure and `version_id`. A conflicting
+merge instead returns `"merged": false` with a `conflicts` list
+(`object_id`, `base_state`, `target_state`, `source_state`) — resolve
+each one on the target session with `evolve_knowledge`, then
+`close_session` the branch once it's fully integrated.
+
 ---
 
 # Security and Provenance
@@ -220,7 +250,7 @@ Response:
 python -m pytest -v
 ```
 
-30+ tests, all passing.
+41+ tests, all passing.
 
 ---
 
