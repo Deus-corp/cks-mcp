@@ -3,6 +3,13 @@
 
 ---
 
+## [1.0.9] - 2026-07-21
+
+### Fixed
+- `merge_knowledge` tool now correctly handles `MergeConflictError` without relying on direct imports.
+
+---
+
 ## [1.0.8] - 2026-07-21
 
 ### Changed

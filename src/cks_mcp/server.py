@@ -31,7 +31,7 @@ from cks_mcp.tools.merge import merge_knowledge
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.0.8"
+SERVER_VERSION = "1.0.9"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
