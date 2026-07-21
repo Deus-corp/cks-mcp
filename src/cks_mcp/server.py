@@ -30,7 +30,7 @@ from cks_mcp.tools.compare import compare_versions
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.0.5"
+SERVER_VERSION = "1.0.6"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------

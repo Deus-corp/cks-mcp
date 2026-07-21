@@ -70,11 +70,7 @@ def compare_versions(
     runtime: Runtime,
     arguments: dict[str, Any],
 ) -> dict[str, Any]:
-    """
-    Compare a base version to the current session state.
-
-    Direction: base_version → current_session
-    """
+    """Compare a base version to the current session state using reconstruction."""
     session_id = arguments.get("session_id")
     target_version_id = arguments.get("target_version_id")
 
@@ -87,19 +83,16 @@ def compare_versions(
     if session is None:
         return {"error": f"Session '{session_id}' not found."}
 
-    # Find the base version's structure
-    base_version = None
-    for v in session.version_history:
-        if v.version_id == target_version_id:
-            base_version = v
-            break
-    if base_version is None:
-        return {"error": f"Version '{target_version_id}' not found in session history."}
+    # Reconstruct the base version's structure using the new delta-aware method
+    try:
+        base_structure = session.get_version_state(target_version_id, runtime.core_bridge)
+    except ValueError as exc:
+        return {"error": f"Failed to reconstruct base version '{target_version_id}': {str(exc)}"}
 
     # Compute diff: base → current
     try:
         patch = runtime.core_bridge.diff(
-            source=base_version.knowledge_structure,
+            source=base_structure,
             target=session.knowledge_structure,
         )
     except Exception as e:

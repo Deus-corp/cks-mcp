@@ -3,6 +3,13 @@
 
 ---
 
+## [1.0.6] - 2026-07-21
+
+### Changed
+- `compare_versions` now uses `session.get_version_state()` to reconstruct base versions, compatible with `cks-runtime` v1.2.0's delta version storage.
+
+---
+
 ## [1.0.5] - 2026-07-20
 
 ### Fixed
