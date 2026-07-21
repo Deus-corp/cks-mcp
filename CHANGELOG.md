@@ -3,6 +3,13 @@
 
 ---
 
+## [1.0.7] - 2026-07-21
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.2.2` for full compatibility with delta version storage and performance improvements from `cks-core` v1.8.0.
+
+---
+
 ## [1.0.6] - 2026-07-21
 
 ### Changed
