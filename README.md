@@ -116,6 +116,7 @@ call the appropriate CKS tool.
 | `list_versions` | List all available versions of a session's history. |
 | `compare_versions` | Compute the structural difference between the current state of a session and a target version. |
 | `revert_version` | Revert a session's Knowledge Structure to a specific previous version. |
+| `merge_knowledge` | Three-way merge of knowledge structures with conflict detection. |
 
 ---
 

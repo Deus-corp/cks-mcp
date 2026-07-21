@@ -24,13 +24,14 @@ from cks_mcp.tools import (
 from cks_mcp.tools.verify_source import verify_source
 from cks_mcp.tools.revert import list_versions, revert_version
 from cks_mcp.tools.compare import compare_versions
+from cks_mcp.tools.merge import merge_knowledge
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.0.7"
+SERVER_VERSION = "1.0.8"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -179,6 +180,33 @@ TOOLS = {
             "required": ["json_data"],
         },
         "handler": evolve_knowledge,
+    },
+    "merge_knowledge": {
+        "name": "merge_knowledge",
+        "description": (
+            "Three-way merge of Knowledge Structures. Provide a common ancestor "
+            "(base) and two independently evolved branches. Returns the merged "
+            "structure or a list of conflicts if automatic resolution is impossible."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "json_data_base": {
+                    "type": "string",
+                    "description": "The common ancestor Knowledge Structure as a JSON string.",
+                },
+                "json_data_branch_a": {
+                    "type": "string",
+                    "description": "Branch A Knowledge Structure as a JSON string.",
+                },
+                "json_data_branch_b": {
+                    "type": "string",
+                    "description": "Branch B Knowledge Structure as a JSON string.",
+                },
+            },
+            "required": ["json_data_base", "json_data_branch_a", "json_data_branch_b"],
+        },
+        "handler": merge_knowledge,
     },
     "verify_source": {
         "name": "verify_source",

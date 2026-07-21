@@ -3,6 +3,14 @@
 
 ---
 
+## [1.0.8] - 2026-07-21
+
+### Changed
+- Bumped `cks-runtime` to `>=1.2.3` and `cks-core` to `>=1.8.2` for merge support.
+- `merge_knowledge` tool – three-way merge of Knowledge Structures with conflict detection.
+
+---
+
 ## [1.0.7] - 2026-07-21
 
 ### Changed
