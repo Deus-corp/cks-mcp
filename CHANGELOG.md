@@ -3,6 +3,14 @@
 
 ---
 
+## [1.2.6] - 2026-07-22
+
+### Fixed
+- **Critical provenance bypass:** `evolve_knowledge` and `merge_branch`/`merge_knowledge` now verify `VerificationRecord` signatures before committing new state. Previously, a hand‑written record with a fake signature could be inserted via evolution or merging, circumventing the check that `validate_knowledge` applies. This restores the invariant that only genuinely verified sources can appear as `VerificationRecord` objects in any session history.
+- Extracted `verify_structure_provenance` into `provenance.py` as a shared helper, used by all tools that modify knowledge state.
+
+---
+
 ## [1.2.5] - 2026-07-22
 
 ### Fixed

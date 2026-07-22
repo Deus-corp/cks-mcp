@@ -10,6 +10,8 @@ from cks_runtime.core_api.merge_conflict import RuntimeMergeConflictError
 from cks_runtime.execution.operation_executor import OperationStatus
 from cks_runtime.operations.operation_types import MergeOperation
 from cks_mcp.errors import missing_parameter, session_not_found
+from cks_mcp import provenance
+
 
 def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
@@ -24,11 +26,6 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         branch_a = cks.parse(arguments["json_data_branch_a"])
         branch_b = cks.parse(arguments["json_data_branch_b"])
         merged = base.merge(branch_a, branch_b)
-        serialized = runtime.core_bridge.serialize(merged)
-        return {
-            "merged": True,
-            "serialized": serialized,
-        }
     except Exception as e:
         # Check if this is a merge conflict error by duck-typing
         if hasattr(e, 'conflicts'):
@@ -45,6 +42,21 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
                 ],
             }
         return {"error": str(e)}
+
+    # Check provenance before returning merged result
+    diags = provenance.verify_structure_provenance(merged)
+    if diags:
+        return {
+            "merged": False,
+            "error": "Provenance verification failed in merged result.",
+            "details": diags,
+        }
+
+    serialized = runtime.core_bridge.serialize(merged)
+    return {
+        "merged": True,
+        "serialized": serialized,
+    }
 
 
 def _conflict_payload(error: RuntimeMergeConflictError) -> dict[str, Any]:
@@ -136,6 +148,15 @@ def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
         if isinstance(probe.error, RuntimeMergeConflictError):
             return _conflict_payload(probe.error)
         return {"error": f"merge_branch failed: {probe.error}"}
+
+    # Check provenance on the prospective merged structure
+    if probe.payload:
+        diags = provenance.verify_structure_provenance(probe.payload)
+        if diags:
+            return {
+                "error": "Cannot merge: VerificationRecord with invalid provenance found in merged result.",
+                "details": diags,
+            }
 
     try:
         tx = runtime.begin_transaction(target)

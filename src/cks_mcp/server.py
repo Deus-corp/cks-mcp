@@ -38,7 +38,7 @@ from cks_runtime.config import RuntimeConfig
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.2.5"
+SERVER_VERSION = "1.2.6"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------

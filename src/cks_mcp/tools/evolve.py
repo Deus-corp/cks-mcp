@@ -6,13 +6,7 @@ from cks_runtime.operations.operation_types import EvolveOperation
 from cks_mcp.errors import invalid_json_error
 
 def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
-    """
-    Evolve either:
-    - the current state of an existing session (if session_id is provided), or
-    - a freshly parsed JSON structure (fallback compatibility path).
-    """
     session_id = arguments.get("session_id")
-
     if session_id:
         session = runtime.get_session(session_id)
         if not session:
@@ -39,8 +33,25 @@ def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, A
             "message": "No evolution operations were provided.",
         }
 
+    # Dry-run to check provenance before committing
+    op = EvolveOperation("evolve", knowledge_structure=structure, evolution=operations)
+    result = runtime.executor.execute(op, session)
+    if result.status.value == "failed":
+        return {"error": f"Evolution failed: {result.error}"}
+    prospective_structure = result.payload
+
+    # Verify provenance of the prospective new state
+    from cks_mcp import provenance
+    diags = provenance.verify_structure_provenance(prospective_structure)
+    if diags:
+        return {
+            "error": "validation_failed",
+            "message": "Cannot commit evolution: VerificationRecord has invalid or missing provenance signature.",
+            "details": diags,
+        }
+
     tx = runtime.begin_transaction(session)
-    tx.add_operation(EvolveOperation("evolve", knowledge_structure=structure, evolution=operations))
+    tx.add_operation(op)
     version = runtime.commit_transaction(tx)
 
     serialized = runtime.core_bridge.serialize(session.knowledge_structure)

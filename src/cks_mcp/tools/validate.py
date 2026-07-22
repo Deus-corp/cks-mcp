@@ -55,85 +55,6 @@ def _has_type(structure: Any, object_type: str) -> bool:
     return any(obj.identity.type == object_type for obj in structure.objects)
 
 
-def _check_verification_record_provenance(structure: Any) -> list[dict[str, Any]]:
-    """
-    Checks that every VerificationRecord has a valid provenance signature.
-    Also reports ambiguous verified_by mappings explicitly.
-    """
-    record_to_subject: dict[str, str] = {}
-    ambiguous_records: set[str] = set()
-
-    for relation in structure.relations():
-        if relation.relation_type != "verified_by":
-            continue
-        if len(relation.participants) != 2:
-            continue
-
-        subject_id, record_id = relation.participants
-        existing = record_to_subject.get(record_id)
-        if existing is None:
-            record_to_subject[record_id] = subject_id
-        elif existing != subject_id:
-            ambiguous_records.add(record_id)
-
-    diagnostics: list[dict[str, Any]] = []
-
-    for record_id in ambiguous_records:
-        diagnostics.append({
-            "code": "CKS-MCP-AMBIGUOUS-VERIFICATION-REFERENCE",
-            "severity": "error",
-            "source": "mcp",
-            "message": (
-                f"VerificationRecord '{record_id}' is referenced by multiple subjects "
-                f"through 'verified_by'. This relationship is ambiguous and must be resolved."
-            ),
-            "metadata": {"location": record_id},
-        })
-
-    for obj in structure.objects:
-        if obj.identity.type != "VerificationRecord":
-            continue
-
-        if obj.identity.id in ambiguous_records:
-            continue
-
-        subject_id = record_to_subject.get(obj.identity.id)
-        if not subject_id:
-            diagnostics.append({
-                "code": "CKS-MCP-UNLINKED-VERIFICATION-RECORD",
-                "severity": "warning",
-                "source": "mcp",
-                "message": (
-                    f"VerificationRecord '{obj.identity.id}' has no verified_by relation. "
-                    f"It will not be treated as a trusted provenance record."
-                ),
-                "metadata": {"location": obj.identity.id},
-            })
-            continue
-
-        ok = provenance.verify(
-            record_id=obj.identity.id,
-            subject_id=subject_id,
-            checked_at=obj.structure.get("checked_at", ""),
-            checked_via=obj.structure.get("checked_via", ""),
-            http_status=obj.structure.get("http_status"),
-            signature=obj.structure.get(provenance.SIGNATURE_KEY),
-        )
-        if not ok:
-            diagnostics.append({
-                "code": "CKS-MCP-UNVERIFIED-PROVENANCE",
-                "severity": "error",
-                "source": "mcp",
-                "message": (
-                    f"VerificationRecord '{obj.identity.id}' does not carry a valid provenance signature. "
-                    f"It must be produced by calling verify_source, not authored directly."
-                ),
-                "metadata": {"location": obj.identity.id},
-            })
-
-    return diagnostics
-
-
 def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Validate either:
@@ -187,7 +108,7 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
     diagnostics = [_serialize_diagnostic(d) for d in session.diagnostics]
     core_valid = not any(d["severity"] == "error" for d in diagnostics)
 
-    diagnostics.extend(_check_verification_record_provenance(structure))
+    diagnostics.extend(provenance.verify_structure_provenance(structure))
 
     valid = core_valid and not any(d["severity"] == "error" for d in diagnostics)
 
