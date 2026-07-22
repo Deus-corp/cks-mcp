@@ -3,6 +3,14 @@
 
 ---
 
+## [1.2.2] - 2026-07-22
+
+### Added
+- Structured JSON logging for every tool invocation (written to stderr), recording tool name, session_id, duration_ms, and success/error.
+- Subscription to Runtime lifecycle events (`SessionCreated`, `TransactionCommitted`, `VersionCreated`, `ValidationFailed`, etc.) — all events are logged as JSON lines, providing a full operational audit trail.
+
+---
+
 ## [1.2.1] - 2026-07-22
 
 ### Changed

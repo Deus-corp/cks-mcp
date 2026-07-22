@@ -103,3 +103,27 @@ def test_unknown_method(mock_runtime):
     response = handle_request(mock_runtime, request)
     assert "error" in response
     assert response["error"]["code"] == -32601
+
+
+def test_observability_decorator_does_not_break_handler():
+    """log_tool_call must return the handler's result unchanged."""
+    from cks_mcp.observability import log_tool_call
+
+    @log_tool_call("test_tool")
+    def fake_handler(runtime, arguments):
+        return {"ok": True}
+
+    # runtime здесь не нужен, передаём None
+    result = fake_handler(None, {})
+    assert result == {"ok": True}
+
+
+def test_setup_event_subscriptions_does_not_raise():
+    """Calling setup_event_subscriptions must not throw."""
+    from cks_runtime.runtime import Runtime
+    from cks_runtime_plugins.cks_core import CksCoreAdapter
+    from cks_mcp.observability import setup_event_subscriptions
+
+    runtime = Runtime(core=CksCoreAdapter())
+    setup_event_subscriptions(runtime)
+    # Если исключений нет, тест пройден

@@ -27,13 +27,14 @@ from cks_mcp.tools.compare import compare_versions
 from cks_mcp.tools.merge import merge_knowledge, merge_branch
 from cks_mcp.tools.branch import create_branch, close_session
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
+from cks_mcp.observability import log_tool_call, setup_event_subscriptions
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.2.1"
+SERVER_VERSION = "1.2.2"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -94,7 +95,7 @@ TOOLS = {
             },
             "required": ["json_data"],
         },
-        "handler": validate_knowledge,
+        "handler": log_tool_call("validate_knowledge")(validate_knowledge),
     },
     "serialize_knowledge": {
         "name": "serialize_knowledge",
@@ -119,7 +120,7 @@ TOOLS = {
             },
             "required": ["json_data"],
         },
-        "handler": serialize_knowledge,
+        "handler": log_tool_call("serialize_knowledge")(serialize_knowledge),
     },
     "explain_knowledge": {
         "name": "explain_knowledge",
@@ -144,7 +145,7 @@ TOOLS = {
             },
             "required": ["json_data"],
         },
-        "handler": explain_knowledge,
+        "handler": log_tool_call("explain_knowledge")(explain_knowledge),
     },
     "evolve_knowledge": {
         "name": "evolve_knowledge",
@@ -181,7 +182,7 @@ TOOLS = {
             },
             "required": ["json_data"],
         },
-        "handler": evolve_knowledge,
+        "handler": log_tool_call("evolve_knowledge")(evolve_knowledge),
     },
     "merge_knowledge": {
         "name": "merge_knowledge",
@@ -208,7 +209,7 @@ TOOLS = {
             },
             "required": ["json_data_base", "json_data_branch_a", "json_data_branch_b"],
         },
-        "handler": merge_knowledge,
+        "handler": log_tool_call("merge_knowledge")(merge_knowledge),
     },
     "create_branch": {
         "name": "create_branch",
@@ -241,7 +242,7 @@ TOOLS = {
             },
             "required": ["session_id"],
         },
-        "handler": create_branch,
+        "handler": log_tool_call("create_branch")(create_branch),
     },
     "merge_branch": {
         "name": "merge_branch",
@@ -281,7 +282,7 @@ TOOLS = {
             },
             "required": ["target_session_id", "source_session_id"],
         },
-        "handler": merge_branch,
+        "handler": log_tool_call("merge_branch")(merge_branch),
     },
     "close_session": {
         "name": "close_session",
@@ -301,7 +302,7 @@ TOOLS = {
             },
             "required": ["session_id"],
         },
-        "handler": close_session,
+        "handler": log_tool_call("close_session")(close_session),
     },
     "query_subgraph": {
         "name": "query_subgraph",
@@ -356,7 +357,7 @@ TOOLS = {
             },
             "required": ["session_id", "seed_ids"],
         },
-        "handler": query_subgraph_tool,
+        "handler": log_tool_call("query_subgraph")(query_subgraph_tool),
     },
     "verify_source": {
         "name": "verify_source",
@@ -375,7 +376,7 @@ TOOLS = {
             },
             "required": ["url", "subject_id"]
         },
-        "handler": verify_source,
+        "handler": log_tool_call("verify_source")(verify_source),
     },
     "list_versions": {
         "name": "list_versions",
@@ -390,7 +391,7 @@ TOOLS = {
             },
             "required": ["session_id"]
         },
-        "handler": list_versions,
+        "handler": log_tool_call("list_versions")(list_versions),
     },
     "revert_version": {
         "name": "revert_version",
@@ -409,7 +410,7 @@ TOOLS = {
             },
             "required": ["session_id", "target_version_id"]
         },
-        "handler": revert_version,
+        "handler": log_tool_call("revert_version")(revert_version),
     },
     "compare_versions": {
         "name": "compare_versions",
@@ -443,7 +444,7 @@ TOOLS = {
                 "target_version_id"
             ]
         },
-        "handler": compare_versions,
+        "handler": log_tool_call("compare_versions")(compare_versions),
     },
 }
 
@@ -533,6 +534,7 @@ def handle_request(
 def main() -> None:
     """Entry point for the MCP server, supporting both Content-Length and line-delimited modes."""
     runtime = Runtime(core=CksCoreAdapter())
+    setup_event_subscriptions(runtime)
 
     while True:
         line = sys.stdin.readline()
