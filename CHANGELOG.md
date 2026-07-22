@@ -3,6 +3,13 @@
 
 ---
 
+## [1.3.1] - 2026-07-22
+
+### Fixed
+- Added `"resources": {}` to the server's `initialize` capabilities, enabling clients to discover MCP Resources.
+
+---
+
 ## [1.3.0] - 2026-07-22
 
 ### Added
