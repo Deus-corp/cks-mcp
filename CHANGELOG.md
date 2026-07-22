@@ -3,6 +3,15 @@
 
 ---
 
+## [1.1.1] - 2026-07-22
+
+### Fixed
+- `explain_knowledge` with `session_id` no longer creates a new empty version in the session's history. Read-only explanations now bypass the transaction pipeline and use the executor directly, preventing version history pollution. (#bug 1)
+- Bumped `cks-runtime` dependency to `>=1.3.2` and `cks-core` to `>=1.8.3`.
+
+
+---
+
 ## [1.1.0] - 2026-07-21
 
 ### Added
