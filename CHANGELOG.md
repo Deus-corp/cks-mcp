@@ -3,6 +3,15 @@
 
 ---
 
+## [1.3.0] - 2026-07-22
+
+### Added
+- **MCP Resources:** the server now exposes active sessions, their version histories, and each version's Knowledge Structure as virtual resources (`cks://sessions/...`). LLMs can read them directly without calling tools, making the knowledge graph instantly browsable.
+- New module `resources.py` implementing `resources/list` and `resources/read` handlers.
+
+
+---
+
 ## [1.2.6] - 2026-07-22
 
 ### Fixed

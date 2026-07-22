@@ -32,13 +32,14 @@ from cks_mcp.tools.branch import create_branch, close_session
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 from cks_mcp.observability import log_tool_call, setup_event_subscriptions
 from cks_runtime.config import RuntimeConfig
+from cks_mcp.resources import list_resources, read_resource
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.2.6"
+SERVER_VERSION = "1.3.0"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -528,6 +529,39 @@ def handle_request(
                 "content": [{"type": "text", "text": f"Error: {error_message}"}],
                 "isError": True
             })
+
+    if method == "resources/list":
+        try:
+            resources = list_resources(runtime)
+            return _make_response(req_id, {"resources": resources})
+        except Exception as e:
+            return _make_response(req_id, error={
+                "code": -32603,
+                "message": f"Failed to list resources: {e}",
+            })
+
+    if method == "resources/read":
+        uri = params.get("uri")
+        if not uri:
+            return _make_response(req_id, error={
+                "code": -32602,
+                "message": "Missing required parameter: uri",
+            })
+        content = read_resource(runtime, uri)
+        if content is None:
+            return _make_response(req_id, error={
+                "code": -32602,
+                "message": f"Resource not found: {uri}",
+            })
+        return _make_response(req_id, {
+            "contents": [
+                {
+                    "uri": uri,
+                    "mimeType": "application/json",
+                    "text": content,
+                }
+            ]
+        })
 
     return _make_response(req_id, error={
         "code": -32601,
