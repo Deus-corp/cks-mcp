@@ -3,6 +3,15 @@
 
 ---
 
+## [1.2.4] - 2026-07-22
+
+### Fixed
+- Server now explicitly creates the `data/` directory for SQLite storage on startup, preventing crashes when Claude Desktop launches the server in a clean environment.
+- Improved error logging during server initialization.
+
+
+---
+
 ## [1.2.3] - 2026-07-22
 
 ### Changed

@@ -36,7 +36,7 @@ from cks_runtime.config import RuntimeConfig
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.2.3"
+SERVER_VERSION = "1.2.4"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -534,11 +534,25 @@ def handle_request(
 
 
 def main() -> None:
-    """Entry point for the MCP server, supporting both Content-Length and line-delimited modes."""
+    """Entry point for the MCP server."""
+    # Ensure the data directory exists and is writable
     db_dir = "data"
-    os.makedirs(db_dir, exist_ok=True)
+    try:
+        os.makedirs(db_dir, exist_ok=True)
+    except OSError as e:
+        _log({"error": "cannot_create_data_dir", "path": db_dir, "detail": str(e)})
+        # Continue anyway? Better to fail early with a clear message.
+        sys.stderr.write(f"Fatal: cannot create or access '{db_dir}' directory: {e}\n")
+        sys.exit(1)
+
     config = RuntimeConfig(storage_path=os.path.join(db_dir, "cks_mcp.db"))
-    runtime = Runtime(core=CksCoreAdapter(), config=config)
+    try:
+        runtime = Runtime(core=CksCoreAdapter(), config=config)
+    except Exception as e:
+        _log({"error": "runtime_init_failed", "detail": str(e)})
+        sys.stderr.write(f"Fatal: failed to initialize CKS Runtime: {e}\n")
+        sys.exit(1)
+
     setup_event_subscriptions(runtime)
 
     while True:
