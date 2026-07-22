@@ -39,13 +39,14 @@ Other projects build upon it:
 3. Claude automatically picks the right tool from the 13 available — validation, evolution, branching, merging, source verification, subgraph queries, and more.
 4. Every operation is logged, versioned, and stored in a persistent SQLite database.
 
-**That's it.** No programming, no command line — just a conversation.
+**Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
+**No programming, no command line — just a conversation!**
+
 
 ![CKS Demo](demo/demo.gif)
 
-**Just type "Use cks-mcp to..." and Claude does the rest.**  
-No code, no scripts, no terminal — just a conversation.  
-In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Thirteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.
+  
+*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Thirteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.*
 
 ---
 
