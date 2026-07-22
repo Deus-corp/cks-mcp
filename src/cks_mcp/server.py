@@ -12,9 +12,11 @@ import os
 import json
 import sys
 from typing import Any
+import tempfile
 
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
+from cks_runtime.storage.memory_storage import InMemoryStorage
 
 from cks_mcp.tools import (
     validate_knowledge,
@@ -36,7 +38,7 @@ from cks_runtime.config import RuntimeConfig
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.2.4"
+SERVER_VERSION = "1.2.5"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -535,23 +537,56 @@ def handle_request(
 
 def main() -> None:
     """Entry point for the MCP server."""
-    # Ensure the data directory exists and is writable
+    # Determine a writable location for the SQLite database
     db_dir = "data"
+    db_path = os.path.join(db_dir, "cks_mcp.db")
+    storage = None
+    use_persistent = True
+
+    # Try to create the default data directory and check writability
     try:
         os.makedirs(db_dir, exist_ok=True)
-    except OSError as e:
-        _log({"error": "cannot_create_data_dir", "path": db_dir, "detail": str(e)})
-        # Continue anyway? Better to fail early with a clear message.
-        sys.stderr.write(f"Fatal: cannot create or access '{db_dir}' directory: {e}\n")
-        sys.exit(1)
+        # Test write access
+        test_file = os.path.join(db_dir, ".write_test")
+        with open(test_file, "w") as f:
+            f.write("test")
+        os.remove(test_file)
+    except (OSError, PermissionError) as e:
+        # Default directory not writable – fall back to system temp
+        use_persistent = False
+        try:
+            db_path = os.path.join(tempfile.gettempdir(), "cks_mcp.db")
+            # Temp directory should be writable, but double-check
+            with open(db_path, "a"):
+                pass
+            use_persistent = True
+        except Exception as e2:
+            # Even temp directory failed; use in-memory storage
+            storage = InMemoryStorage()
+            print(
+                f"[CKS-MCP] WARNING: Could not open writable database file: {e} / {e2}. "
+                "Using in-memory storage.",
+                file=sys.stderr,
+            )
 
-    config = RuntimeConfig(storage_path=os.path.join(db_dir, "cks_mcp.db"))
-    try:
-        runtime = Runtime(core=CksCoreAdapter(), config=config)
-    except Exception as e:
-        _log({"error": "runtime_init_failed", "detail": str(e)})
-        sys.stderr.write(f"Fatal: failed to initialize CKS Runtime: {e}\n")
-        sys.exit(1)
+    if storage is None and use_persistent:
+        try:
+            config = RuntimeConfig(storage_path=db_path)
+            runtime = Runtime(core=CksCoreAdapter(), config=config)
+        except Exception as e:
+            print(
+                f"[CKS-MCP] ERROR: Failed to initialize persistent storage: {e}. "
+                "Falling back to in-memory storage.",
+                file=sys.stderr,
+            )
+            storage = InMemoryStorage()
+            runtime = Runtime(core=CksCoreAdapter(), storage=storage)
+    elif storage is not None:
+        runtime = Runtime(core=CksCoreAdapter(), storage=storage)
+    else:
+        # use_persistent is False but storage is still None (shouldn't happen)
+        storage = InMemoryStorage()
+        runtime = Runtime(core=CksCoreAdapter(), storage=storage)
 
     setup_event_subscriptions(runtime)
 
@@ -565,7 +600,6 @@ def main() -> None:
             try:
                 content_length = int(line_stripped.split(":")[1].strip())
             except (ValueError, IndexError):
-                # Malformed Content-Length header – respond with parse error
                 error_response = json.dumps({
                     "jsonrpc": "2.0",
                     "error": {"code": -32700, "message": "Parse error"},
@@ -574,14 +608,12 @@ def main() -> None:
                 sys.stdout.write(error_response + "\n")
                 sys.stdout.flush()
                 continue
-            # Read the blank line after the header
-            sys.stdin.readline()
+            sys.stdin.readline()  # blank line after header
             body = sys.stdin.read(content_length)
             if not body:
                 return
             process_request(runtime, body, use_content_length=True)
         elif line_stripped:
-            # Line-delimited fallback (old MCP clients)
             process_request(runtime, line_stripped, use_content_length=False)
 
 

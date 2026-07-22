@@ -3,6 +3,13 @@
 
 ---
 
+## [1.2.5] - 2026-07-22
+
+### Fixed
+- Server now automatically falls back to a writable temporary directory (or in‑memory storage) when the default `data/` directory is read‑only, such as in Claude Desktop's sandboxed environment. This prevents `OSError: [Errno 30] Read-only file system` crashes.
+
+---
+
 ## [1.2.4] - 2026-07-22
 
 ### Fixed
