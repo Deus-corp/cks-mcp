@@ -3,6 +3,14 @@
 
 ---
 
+## [1.2.3] - 2026-07-22
+
+### Changed
+- Enabled persistent SQLite storage by default (`cks_mcp.db`), using `cks-runtime>=1.5.1`. Sessions and versions now survive server restarts.
+- Bumped `cks-runtime` dependency to `>=1.5.1`.
+
+---
+
 ## [1.2.2] - 2026-07-22
 
 ### Added

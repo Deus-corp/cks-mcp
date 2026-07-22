@@ -8,6 +8,7 @@ via the Model Context Protocol.
 
 from __future__ import annotations
 
+import os
 import json
 import sys
 from typing import Any
@@ -28,13 +29,14 @@ from cks_mcp.tools.merge import merge_knowledge, merge_branch
 from cks_mcp.tools.branch import create_branch, close_session
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 from cks_mcp.observability import log_tool_call, setup_event_subscriptions
+from cks_runtime.config import RuntimeConfig
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.2.2"
+SERVER_VERSION = "1.2.3"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -533,7 +535,10 @@ def handle_request(
 
 def main() -> None:
     """Entry point for the MCP server, supporting both Content-Length and line-delimited modes."""
-    runtime = Runtime(core=CksCoreAdapter())
+    db_dir = "data"
+    os.makedirs(db_dir, exist_ok=True)
+    config = RuntimeConfig(storage_path=os.path.join(db_dir, "cks_mcp.db"))
+    runtime = Runtime(core=CksCoreAdapter(), config=config)
     setup_event_subscriptions(runtime)
 
     while True:
