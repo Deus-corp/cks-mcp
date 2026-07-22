@@ -32,6 +32,23 @@ Other projects build upon it:
 
 ---
 
+# Quick Start
+
+1. Install and connect to Claude Desktop (see [Installation](#installation)).
+2. In the chat, start your message with **"Use cks-mcp to…"**.
+3. Claude automatically picks the right tool from the 13 available — validation, evolution, branching, merging, source verification, subgraph queries, and more.
+4. Every operation is logged, versioned, and stored in a persistent SQLite database.
+
+**That's it.** No programming, no command line — just a conversation.
+
+![CKS Demo](demo/demo.gif)
+
+**Just type "Use cks-mcp to..." and Claude does the rest.**  
+No code, no scripts, no terminal — just a conversation.  
+In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Thirteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.
+
+---
+
 # Why cks-mcp?
 
 LLMs generate plausible but unverified statements. `cks-mcp` gives them
@@ -63,9 +80,7 @@ The server requires `cks-runtime` (which includes `cks-core`) as a dependency.
 
 ---
 
-# Quick Start
-
-## Connect to Claude Desktop
+# Connect to Claude Desktop
 
 1. Install all three packages into a single virtual environment:
    ```bash

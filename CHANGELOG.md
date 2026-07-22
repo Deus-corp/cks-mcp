@@ -3,6 +3,17 @@
 
 ---
 
+## [1.3.2] - 2026-07-22
+
+### Added
+- **Demo GIF** showing a complete CKS workflow from a single sentence ("Use cks-mcp to create a knowledge graph about the water cycle…"), including validation and explanation, all within Claude Desktop.
+- Simplified **Quick Start** section explaining that CKS is just a conversation — no programming, no command line.
+
+### Changed
+- Updated README with demo GIF, streamlined installation instructions, and a new `query_subgraph` usage example.
+
+---
+
 ## [1.3.1] - 2026-07-22
 
 ### Fixed
