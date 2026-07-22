@@ -33,7 +33,7 @@ from cks_mcp.tools.query_subgraph import query_subgraph_tool
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.2.0"
+SERVER_VERSION = "1.2.1"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------

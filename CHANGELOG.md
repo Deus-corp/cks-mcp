@@ -3,6 +3,13 @@
 
 ---
 
+## [1.2.1] - 2026-07-22
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.4.1` and `cks-core` to `>=1.9.1` (includes query_subgraph ordering and relation-as-seed fixes).
+
+---
+
 ## [1.2.0] - 2026-07-22
 
 ### Added
