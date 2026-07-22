@@ -26,13 +26,14 @@ from cks_mcp.tools.revert import list_versions, revert_version
 from cks_mcp.tools.compare import compare_versions
 from cks_mcp.tools.merge import merge_knowledge, merge_branch
 from cks_mcp.tools.branch import create_branch, close_session
+from cks_mcp.tools.query_subgraph import query_subgraph_tool
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.1.1"
+SERVER_VERSION = "1.2.0"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -301,6 +302,61 @@ TOOLS = {
             "required": ["session_id"],
         },
         "handler": close_session,
+    },
+    "query_subgraph": {
+        "name": "query_subgraph",
+        "description": (
+            "Extract the local k‑hop neighbourhood around one or more seed ids "
+            "from a session's current Knowledge Structure. Returns a self‑contained "
+            "subgraph (serialized) and metadata: total_found_nodes, returned_nodes, "
+            "is_truncated, truncation_reason, suggested_next_seed. "
+            "Use filters (include_relation_types, include_object_types) to narrow "
+            "the traversal, and max_tokens/max_objects to cap the result. "
+            "type_weights can prioritise certain object types when the budget "
+            "forces truncation."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The session whose Knowledge Structure to query."
+                },
+                "seed_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of object ids to start traversal from."
+                },
+                "depth": {
+                    "type": "integer",
+                    "description": "Maximum hops from any seed. Default 1."
+                },
+                "include_relation_types": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional. Only traverse/include these relation types."
+                },
+                "include_object_types": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional. Only include discovered objects of these types (seeds always kept)."
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "description": "Optional token budget (approx)."
+                },
+                "max_objects": {
+                    "type": "integer",
+                    "description": "Optional hard cap on total objects returned."
+                },
+                "type_weights": {
+                    "type": "object",
+                    "description": "Optional mapping of object type to weight (float), used in budget ranking."
+                },
+            },
+            "required": ["session_id", "seed_ids"],
+        },
+        "handler": query_subgraph_tool,
     },
     "verify_source": {
         "name": "verify_source",

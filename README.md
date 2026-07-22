@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-41%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-42%20passing-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is an MCP (Model Context Protocol) server that gives LLMs
@@ -88,7 +88,7 @@ The server requires `cks-runtime` (which includes `cks-core`) as a dependency.
    ```
 
 3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
-   After restart, a connector icon will appear – `cks-mcp` with five tools
+   After restart, a connector icon will appear – `cks-mcp` with thirteen tools
    is ready to use.
 
 ## Interactive LLM client (Groq / DeepSeek / local)
@@ -119,6 +119,7 @@ call the appropriate CKS tool.
 | `create_branch` | Fork a new session from an existing one, optionally from a specific historical version. |
 | `merge_branch` | Session-aware three-way merge: merge a branch session into a target session, resolving the merge base automatically from the branch's recorded fork point. |
 | `close_session` | Close a session, releasing it from the runtime (e.g. a branch already merged in). |
+| `query_subgraph` | Extract a local k‑hop neighbourhood from a session's Knowledge Structure, with filters and optional budget. |
 
 ---
 
@@ -230,6 +231,40 @@ each one on the target session with `evolve_knowledge`, then
 
 ---
 
+## Query a subgraph
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "query_subgraph",
+    "arguments": {
+      "session_id": "...",
+      "seed_ids": ["obj-1"],
+      "depth": 2,
+      "max_objects": 10
+    }
+  }
+}
+```
+
+Response (truncated example):
+
+```json
+{
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"subgraph\": \"...\", \"total_found_nodes\": 15, \"returned_nodes\": 10, \"is_truncated\": true, \"suggested_next_seed\": \"obj-7\"}"
+      }
+    ]
+  }
+}
+```
+
+---
+
 # Security and Provenance
 
 `verify_source` includes built-in protections:
@@ -250,7 +285,7 @@ each one on the target session with `evolve_knowledge`, then
 python -m pytest -v
 ```
 
-41+ tests, all passing.
+42+ tests, all passing.
 
 ---
 

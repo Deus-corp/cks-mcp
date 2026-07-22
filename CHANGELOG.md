@@ -3,6 +3,15 @@
 
 ---
 
+## [1.2.0] - 2026-07-22
+
+### Added
+- `query_subgraph` tool – extracts a k‑hop neighbourhood from a session's Knowledge Structure as a self‑contained subgraph, with optional relation/object type filters and a token/object budget that ranks candidates by degree, type weight, and distance. Returns full truncation metadata (`total_found_nodes`, `returned_nodes`, `is_truncated`, `truncation_reason`, `suggested_next_seed`) so an LLM agent always knows whether the neighbourhood was truncated and can resume from the suggested next seed.
+- Bumped `cks-runtime` dependency to `>=1.4.0` and `cks-core` to `>=1.9.0`.
+
+
+---
+
 ## [1.1.1] - 2026-07-22
 
 ### Fixed

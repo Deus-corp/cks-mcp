@@ -143,3 +143,38 @@ def test_compare_versions(mock_runtime):
     assert result["direction"] == "base_to_current"
     assert "summary" in result
     assert "operations" in result
+
+
+def test_query_subgraph_basic():
+    """End-to-end test: создаём сессию и извлекаем подграф."""
+    from cks_runtime.runtime import Runtime
+    from cks_runtime_plugins.cks_core import CksCoreAdapter
+    from cks_mcp.tools.query_subgraph import query_subgraph_tool
+
+    runtime = Runtime(core=CksCoreAdapter())
+
+    # Создаём сессию с простым графом: A --r1-- B --r2-- C
+    from cks import parse
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "A", "type": "Node", "name": "a"}, "structure": {}},'
+        '{"identity": {"id": "B", "type": "Node", "name": "b"}, "structure": {}},'
+        '{"identity": {"id": "C", "type": "Node", "name": "c"}, "structure": {}},'
+        '{"identity": {"id": "r1", "type": "Relation", "name": "r1"}, "structure": {"participants": ["A", "B"], "relation_type": "links"}},'
+        '{"identity": {"id": "r2", "type": "Relation", "name": "r2"}, "structure": {"participants": ["B", "C"], "relation_type": "links"}}'
+        ']}'
+    )
+    session = runtime.create_session(structure)
+
+    # Вызываем query_subgraph
+    result = query_subgraph_tool(runtime, {
+        "session_id": session.session_id,
+        "seed_ids": ["A"],
+        "depth": 1
+    })
+
+    # Проверяем структуру ответа
+    assert "subgraph" in result
+    assert "total_found_nodes" in result
+    assert result["total_found_nodes"] == 2  # A, B
+    assert result["is_truncated"] == False
