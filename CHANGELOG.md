@@ -3,6 +3,14 @@
 
 ---
 
+## [1.5.0] - 2026-07-23
+
+### Added
+- `search_semantic` tool — performs semantic search over a session's Knowledge Structure. Accepts a natural language query and seed IDs, then expands the neighbourhood using `query_subgraph`. This is the first step towards a full vector-index-powered RAG pipeline.
+
+
+---
+
 ## [1.4.1] - 2026-07-23
 
 ### Added

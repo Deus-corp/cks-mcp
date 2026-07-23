@@ -34,13 +34,14 @@ from cks_mcp.observability import log_tool_call, setup_event_subscriptions
 from cks_runtime.config import RuntimeConfig
 from cks_mcp.resources import list_resources, read_resource
 from cks_mcp.prompts import list_prompts, get_prompt, PROMPTS
+from cks_mcp.tools.search_semantic import search_semantic
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.4.1"
+SERVER_VERSION = "1.5.0"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -364,6 +365,45 @@ TOOLS = {
             "required": ["session_id", "seed_ids"],
         },
         "handler": log_tool_call("query_subgraph")(query_subgraph_tool),
+    },
+    "search_semantic": {
+        "name": "search_semantic",
+        "description": (
+            "Semantically search the Knowledge Structure of a session. "
+            "Provide a natural language query and explicit seed object IDs "
+            "(vector index coming soon). The tool expands the neighbourhood "
+            "around the matched seeds using query_subgraph. "
+            "Use this when you don't know exact object IDs but have a "
+            "description of what you're looking for."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The session to search in."
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Natural language description of what to find."
+                },
+                "seed_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of object IDs to start the subgraph expansion from (required until vector index is available)."
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "Max number of seed objects to use (default 3)."
+                },
+                "depth": {
+                    "type": "integer",
+                    "description": "How many hops to expand around each seed (default 1)."
+                },
+            },
+            "required": ["session_id", "query", "seed_ids"],
+        },
+        "handler": log_tool_call("search_semantic")(search_semantic),
     },
     "verify_source": {
         "name": "verify_source",
