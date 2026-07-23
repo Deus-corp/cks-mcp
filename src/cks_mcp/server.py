@@ -41,7 +41,7 @@ from cks_mcp.tools.search_semantic import search_semantic
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.5.0"
+SERVER_VERSION = "1.5.1"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------

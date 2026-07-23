@@ -3,6 +3,14 @@
 
 ---
 
+## [1.5.1] - 2026-07-23
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.6.1` (fixes a critical bug where `Dispatcher.dispatch()` was not instantiating operations correctly, causing crashes for any `DispatchRequest`-based transactions).
+
+
+---
+
 ## [1.5.0] - 2026-07-23
 
 ### Added
