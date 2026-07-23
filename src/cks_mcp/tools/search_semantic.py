@@ -5,26 +5,12 @@ Uses vector embeddings stored by cks-runtime's OutboxEmbeddingWorker
 to find relevant object IDs, then expands them with query_subgraph.
 """
 
-import hashlib
-import struct
 from typing import Any
 
 from cks_runtime.runtime import Runtime
+from cks_runtime.embedding.client import StubEmbeddingClient
 from cks_mcp.errors import missing_parameter, session_not_found
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
-
-
-def _text_to_embedding(text: str) -> bytes:
-    """Stub embedding matching OutboxEmbeddingWorker._format_for_embedding."""
-    text_repr = text
-    digest = hashlib.sha256(text_repr.encode()).digest()
-    embedding = bytes()
-    for i in range(0, len(digest), 4):
-        val = struct.unpack("f", digest[i:i+4])[0]
-        embedding += struct.pack("f", val)
-    while len(embedding) < 384 * 4:
-        embedding += struct.pack("f", 0.0)
-    return embedding
 
 
 def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -44,7 +30,9 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
     seed_ids = arguments.get("seed_ids")
     if not seed_ids and hasattr(runtime.storage, "search_embeddings"):
         try:
-            query_embedding = _text_to_embedding(query)
+            # Use runtime's embedding client if available, else fallback to stub
+            client = getattr(runtime, '_embedding_client', None) or StubEmbeddingClient()
+            query_embedding = client.embed_batch([query])[0]
             seed_ids = runtime.storage.search_embeddings(
                 query_embedding,
                 session_id,

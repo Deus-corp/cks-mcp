@@ -3,6 +3,14 @@
 
 ---
 
+## [1.6.3] - 2026-07-23
+
+### Changed
+- `search_semantic` now uses the runtime's configured `EmbeddingClient` for query vectorization, enabling real semantic search when a real client is configured.
+- Bumped `cks-runtime` dependency to `>=1.9.0`.
+
+---
+
 ## [1.6.2] - 2026-07-23
 
 ### Fixed
