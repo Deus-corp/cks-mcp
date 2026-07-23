@@ -46,7 +46,7 @@ Other projects build upon it:
 ![CKS Demo](demo/demo.gif)
 
   
-*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Thirteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.*
+*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Fifteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.*
 
 ---
 
@@ -104,7 +104,7 @@ The server requires `cks-runtime` (which includes `cks-core`) as a dependency.
    ```
 
 3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
-   After restart, a connector icon will appear – `cks-mcp` with thirteen tools
+   After restart, a connector icon will appear – `cks-mcp` with fifteen tools
    is ready to use.
 
 ## Interactive LLM client (Groq / DeepSeek / local)
@@ -136,6 +136,8 @@ call the appropriate CKS tool.
 | `merge_branch` | Session-aware three-way merge: merge a branch session into a target session, resolving the merge base automatically from the branch's recorded fork point. |
 | `close_session` | Close a session, releasing it from the runtime (e.g. a branch already merged in). |
 | `query_subgraph` | Extract a local k‑hop neighbourhood from a session's Knowledge Structure, with filters and optional budget. |
+| `search_semantic` | Semantically search a session's Knowledge Structure using natural language and seed IDs, expanding the neighbourhood with `query_subgraph`. |
+| `get_metrics` | Return runtime metrics: invocation counts and average execution times per operation type. |
 
 ---
 
