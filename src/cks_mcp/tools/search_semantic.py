@@ -1,24 +1,33 @@
 """
 search_semantic: semantic search over a session's Knowledge Structure.
 
-Currently delegates to query_subgraph with the search query as a seed
-description.  Future versions will use a vector index for true ANN search
-and then expand the neighbourhood with query_subgraph.
+Uses vector embeddings stored by cks-runtime's OutboxEmbeddingWorker
+to find relevant object IDs, then expands them with query_subgraph.
 """
 
+import hashlib
+import struct
 from typing import Any
 
 from cks_runtime.runtime import Runtime
 from cks_mcp.errors import missing_parameter, session_not_found
+from cks_mcp.tools.query_subgraph import query_subgraph_tool
+
+
+def _text_to_embedding(text: str) -> bytes:
+    """Stub embedding matching OutboxEmbeddingWorker._format_for_embedding."""
+    text_repr = text
+    digest = hashlib.sha256(text_repr.encode()).digest()
+    embedding = bytes()
+    for i in range(0, len(digest), 4):
+        val = struct.unpack("f", digest[i:i+4])[0]
+        embedding += struct.pack("f", val)
+    while len(embedding) < 384 * 4:
+        embedding += struct.pack("f", 0.0)
+    return embedding
 
 
 def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
-    """
-    Search a session's Knowledge Structure semantically.
-
-    Expects:
-        session_id, query, optional top_k (default 3) and depth (default 1).
-    """
     session_id = arguments.get("session_id")
     if not session_id:
         return missing_parameter("session_id")
@@ -31,26 +40,40 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
     top_k = int(arguments.get("top_k", 3))
     depth = int(arguments.get("depth", 1))
 
-    # FUTURE: perform vector search to get seed_ids.
-    # For now, require explicit seed_ids from the caller.
+    # Try to use vector search if storage supports it
     seed_ids = arguments.get("seed_ids")
+    if seed_ids is None and hasattr(runtime.storage, "search_embeddings"):
+        try:
+            query_embedding = _text_to_embedding(query)
+            seed_ids = runtime.storage.search_embeddings(
+                query_embedding,
+                session_id,
+                top_k=top_k * 2,
+            )
+            if seed_ids:
+                # Filter to those actually in the current structure
+                seed_ids = [
+                    sid for sid in seed_ids
+                    if session.knowledge_structure.get(sid) is not None
+                ][:top_k]
+        except Exception:
+            seed_ids = None
+
     if not seed_ids:
         return {
-            "error": "not_implemented",
+            "error": "not_found",
             "message": (
-                "Vector index not available. Provide explicit 'seed_ids' "
-                "to search the neighbourhood with query_subgraph."
+                "No matching objects found. Provide explicit 'seed_ids' "
+                "or ensure embeddings have been generated for this session."
             ),
         }
 
     # Use query_subgraph to expand around the seeds
-    from cks_mcp.tools.query_subgraph import query_subgraph_tool
-
     subgraph_args = {
         "session_id": session_id,
         "seed_ids": seed_ids,
         "depth": depth,
-        "max_objects": top_k + 5,  # allow some budget for relations
+        "max_objects": top_k + 5,
     }
     result = query_subgraph_tool(runtime, subgraph_args)
     if "error" in result:

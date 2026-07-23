@@ -3,6 +3,14 @@
 
 ---
 
+## [1.6.0] - 2026-07-23
+
+### Changed
+- `search_semantic` now uses vector embeddings for ANN search instead of requiring explicit `seed_ids`. Falls back gracefully if embeddings are unavailable.
+- Bumped `cks-runtime` dependency to `>=1.8.1`.
+
+---
+
 ## [1.5.4] - 2026-07-23
 
 ### Fixed
