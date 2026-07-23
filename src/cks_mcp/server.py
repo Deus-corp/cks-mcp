@@ -39,7 +39,7 @@ from cks_mcp.resources import list_resources, read_resource
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.3.4"
+SERVER_VERSION = "1.3.5"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------

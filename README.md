@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-49%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-50%20passing-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is an MCP (Model Context Protocol) server that gives LLMs
@@ -301,7 +301,7 @@ Response (truncated example):
 python -m pytest -v
 ```
 
-49+ tests, all passing.
+50+ tests, all passing.
 
 ---
 

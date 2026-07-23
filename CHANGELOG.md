@@ -3,6 +3,16 @@
 
 ---
 
+## [1.3.5] - 2026-07-23
+
+### Fixed
+- **Session leak on provenance rejection:** `validate_knowledge` and `evolve_knowledge` (without `session_id`) no longer create and persist a session before checking provenance. A structure with a forged or missing `VerificationRecord` signature is fully rejected — no `session_id` is returned, and no session is registered in the runtime. Previously, the session was persisted immediately, making the forged content readable via `serialize_knowledge`, `explain_knowledge`, `query_subgraph`, and MCP Resources.
+- **Severity-blind blocking:** `evolve_knowledge`, `merge_knowledge`, and `merge_branch` now block only on `error`-severity provenance diagnostics (forged/ambiguous signatures). `warning`-severity diagnostics (e.g. a genuinely-signed but as-yet-unlinked `VerificationRecord`) no longer prevent a legitimate commit, restoring the two-step workflow of adding a signed record and linking it in separate operations.
+- **Truthiness bug in `merge_branch`:** `if probe.payload` replaced with `if probe.payload is not None` to avoid skipping provenance check on empty but valid merged structures.
+- Updated regression tests to cover session leak, severity-aware blocking, and false-positive unlinked-record scenario (50/50 tests passing).
+
+---
+
 ## [1.3.4] - 2026-07-23
 
 ### Changed

@@ -66,19 +66,28 @@ def _structure_with_record(signature: str | None) -> str:
 
 
 def test_forged_verification_record_is_not_committed():
+    """
+    Note: an earlier version of this fix (1.3.3) still called
+    create_session() before the provenance check, reasoning that
+    "the session itself is real, just never committed -- what
+    matters is that no version was persisted." Live testing against
+    a running server showed that reasoning doesn't hold:
+    runtime.create_session() persists immediately (storage.save_session),
+    and the resulting session_id was still fully readable via
+    serialize_knowledge/explain_knowledge/query_subgraph/MCP Resources,
+    exposing the exact forged content this gate exists to hide -- just
+    one layer up from the version-level leak this test file was
+    originally written to close. Nothing should be created or
+    retrievable for content that gets rejected.
+    """
     runtime = make_runtime()
     result = validate_knowledge(runtime, {"json_data": _structure_with_record("totally-fake-signature")})
 
     assert result["valid"] is False
     assert "version_id" not in result
+    assert "session_id" not in result
     assert any(d["code"] == "CKS-MCP-UNVERIFIED-PROVENANCE" for d in result["diagnostics"])
-
-    session = runtime.get_session(result["session_id"])
-    assert session.version_count == 0
-    # The forged record is still visible on the live, uncommitted
-    # in-memory structure (the session itself is real, just never
-    # committed) -- what matters is that no *version* was persisted.
-    assert any(o.identity.id == "vr-1" for o in session.knowledge_structure.objects)
+    assert runtime.sessions.list_sessions() == ()
 
 
 def test_missing_signature_is_not_committed():
@@ -87,9 +96,8 @@ def test_missing_signature_is_not_committed():
 
     assert result["valid"] is False
     assert "version_id" not in result
-
-    session = runtime.get_session(result["session_id"])
-    assert session.version_count == 0
+    assert "session_id" not in result
+    assert runtime.sessions.list_sessions() == ()
 
 
 def test_genuinely_signed_verification_record_is_committed():
@@ -121,6 +129,49 @@ def test_revalidating_an_existing_session_does_not_commit_on_forged_record():
     assert result["valid"] is False
     assert "version_id" not in result
     assert session.version_count == 0
+
+
+def test_evolve_does_not_block_on_unlinked_warning_only():
+    """
+    A genuinely-signed VerificationRecord with no verified_by relation
+    yet (e.g. added in one evolve_knowledge call, to be linked in a
+    later one) triggers only the 'warning'-severity
+    CKS-MCP-UNLINKED-VERIFICATION-RECORD diagnostic -- not an error.
+    evolve_knowledge must not block on this; only 'error'-severity
+    provenance diagnostics (forged/ambiguous) should. Confirmed live
+    against a running server that this previously hard-rejected a real
+    verify_source-produced record with a misleading "invalid or
+    missing provenance signature" message.
+    """
+    from cks_mcp.tools.evolve import evolve_knowledge
+    from cks_mcp.tools.validate import validate_knowledge
+
+    runtime = make_runtime()
+    base = validate_knowledge(runtime, {
+        "json_data": json.dumps({
+            "objects": [{"identity": {"id": "claim-1", "type": "Definition", "name": "Claim"}, "structure": {}}],
+        })
+    })
+    assert base["valid"] is True
+    session_id = base["session_id"]
+
+    signature = provenance.sign("vr-1", "claim-1", "2026-01-01T00:00:00Z", "automated_http_check", 200)
+    result = evolve_knowledge(runtime, {
+        "session_id": session_id,
+        "operations": [{
+            "type": "add_object",
+            "identity": {"id": "vr-1", "type": "VerificationRecord", "name": "check"},
+            "structure": {
+                "checked_at": "2026-01-01T00:00:00Z",
+                "checked_via": "automated_http_check",
+                "http_status": 200,
+                provenance.SIGNATURE_KEY: signature,
+            },
+        }],
+    })
+
+    assert result.get("evolved") is True, result
+    assert "version_id" in result
 
 
 def test_structure_without_any_verification_record_is_unaffected():

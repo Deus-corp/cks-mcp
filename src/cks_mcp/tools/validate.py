@@ -3,6 +3,7 @@ from typing import Any
 from cks.constraints.builtin import OPTIONAL_CONSTRAINTS_BY_NAME
 from cks_runtime.runtime import Runtime
 from cks_runtime.operations.operation_types import ValidateOperation
+from cks_runtime.session.session import RuntimeSession
 
 from cks_mcp import provenance
 from cks_mcp.errors import invalid_json_error
@@ -62,6 +63,7 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
     - a freshly parsed JSON structure (fallback compatibility path).
     """
     session_id = arguments.get("session_id")
+    session_existed = bool(session_id)
 
     if session_id:
         session = runtime.get_session(session_id)
@@ -73,7 +75,16 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
             structure = cks.parse(arguments["json_data"])
         except cks.SerializationError as exc:
             return invalid_json_error(str(exc))
-        session = runtime.create_session(structure)
+        # Do NOT call runtime.create_session() yet -- it persists
+        # immediately (storage.save_session), which would make a
+        # forged VerificationRecord live and readable via
+        # serialize_knowledge/explain_knowledge/query_subgraph/MCP
+        # Resources on the returned session_id even though the
+        # provenance gate below correctly refuses to commit a
+        # *version* for it. Use a throwaway, unregistered session for
+        # the dry-run instead; only create_session (which persists)
+        # once the structure has actually been accepted.
+        session = RuntimeSession(knowledge_structure=structure)
 
     requested = arguments.get("extensions") or []
     extensions, unknown = resolve_extensions(requested)
@@ -117,6 +128,8 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
     )
 
     if provenance_ok:
+        if not session_existed:
+            session = runtime.create_session(structure)
         tx = runtime.begin_transaction(session)
         tx.add_operation(op)
         version = runtime.commit_transaction(tx)
@@ -140,10 +153,15 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
 
     response: dict[str, Any] = {
         "valid": valid,
-        "session_id": session.session_id,
         "extensions_applied": requested,
         "diagnostics": diagnostics,
     }
+    # Only reference a session that was actually persisted. A fresh
+    # json_data structure rejected for provenance was never registered
+    # via create_session, so its session_id doesn't point at anything
+    # durable (same reasoning as omitting version_id below).
+    if session_existed or provenance_ok:
+        response["session_id"] = session.session_id
     if version_id is not None:
         response["version_id"] = version_id
     return response

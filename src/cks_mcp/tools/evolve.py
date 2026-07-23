@@ -3,10 +3,13 @@ from cks.evolution import parse_operations
 from typing import Any
 from cks_runtime.runtime import Runtime
 from cks_runtime.operations.operation_types import EvolveOperation
+from cks_runtime.session.session import RuntimeSession
 from cks_mcp.errors import invalid_json_error
+from cks_mcp import provenance
 
 def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     session_id = arguments.get("session_id")
+    session_existed = bool(session_id)
     if session_id:
         session = runtime.get_session(session_id)
         if not session:
@@ -17,7 +20,11 @@ def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, A
             structure = cks.parse(arguments["json_data"])
         except cks.SerializationError as exc:
             return invalid_json_error(str(exc))
-        session = runtime.create_session(structure)
+        # Same reasoning as validate_knowledge: don't persist a
+        # session for content that might still be rejected by the
+        # provenance check below. Use a throwaway, unregistered
+        # session for the dry-run.
+        session = RuntimeSession(knowledge_structure=structure)
 
     try:
         operations = parse_operations(arguments.get("operations", []))
@@ -40,15 +47,24 @@ def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, A
         return {"error": f"Evolution failed: {result.error}"}
     prospective_structure = result.payload
 
-    # Verify provenance of the prospective new state
-    from cks_mcp import provenance
+    # Verify provenance of the prospective new state. Only an
+    # 'error'-severity diagnostic (forged/tampered signature, or an
+    # ambiguous verified_by target) blocks the commit -- a 'warning'
+    # (e.g. CKS-MCP-UNLINKED-VERIFICATION-RECORD, a genuinely-signed
+    # record whose verified_by relation hasn't been added in *this*
+    # call) must not, or a legitimate record added and linked across
+    # two separate evolve_knowledge calls could never succeed.
     diags = provenance.verify_structure_provenance(prospective_structure)
-    if diags:
+    blocking = [d for d in diags if d["severity"] == "error"]
+    if blocking:
         return {
             "error": "validation_failed",
             "message": "Cannot commit evolution: VerificationRecord has invalid or missing provenance signature.",
-            "details": diags,
+            "details": blocking,
         }
+
+    if not session_existed:
+        session = runtime.create_session(structure)
 
     tx = runtime.begin_transaction(session)
     tx.add_operation(op)

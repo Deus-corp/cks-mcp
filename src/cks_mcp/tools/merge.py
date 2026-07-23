@@ -43,13 +43,17 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
             }
         return {"error": str(e)}
 
-    # Check provenance before returning merged result
+    # Check provenance before returning merged result. Only
+    # 'error'-severity diagnostics block -- see merge_branch for why
+    # 'warning' (e.g. an as-yet-unlinked but genuinely-signed record)
+    # must not.
     diags = provenance.verify_structure_provenance(merged)
-    if diags:
+    blocking = [d for d in diags if d["severity"] == "error"]
+    if blocking:
         return {
             "merged": False,
             "error": "Provenance verification failed in merged result.",
-            "details": diags,
+            "details": blocking,
         }
 
     serialized = runtime.core_bridge.serialize(merged)
@@ -149,13 +153,20 @@ def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
             return _conflict_payload(probe.error)
         return {"error": f"merge_branch failed: {probe.error}"}
 
-    # Check provenance on the prospective merged structure
-    if probe.payload:
+    # Check provenance on the prospective merged structure. `is not
+    # None` rather than truthiness: KnowledgeStructure defines
+    # __len__, so an empty-but-valid merge result would otherwise be
+    # falsy and silently skip this check. Only 'error'-severity
+    # diagnostics block -- a 'warning' (e.g. a genuinely-signed record
+    # whose verified_by relation lives in a change not yet merged)
+    # must not reject an otherwise-legitimate merge.
+    if probe.payload is not None:
         diags = provenance.verify_structure_provenance(probe.payload)
-        if diags:
+        blocking = [d for d in diags if d["severity"] == "error"]
+        if blocking:
             return {
                 "error": "Cannot merge: VerificationRecord with invalid provenance found in merged result.",
-                "details": diags,
+                "details": blocking,
             }
 
     try:
