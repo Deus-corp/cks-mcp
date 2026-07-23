@@ -3,6 +3,13 @@
 
 ---
 
+## [1.6.1] - 2026-07-23
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.8.2` (fixes session association for embeddings; `search_semantic` now works without explicit seed_ids).
+
+---
+
 ## [1.6.0] - 2026-07-23
 
 ### Changed
