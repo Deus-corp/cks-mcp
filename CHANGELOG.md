@@ -3,6 +3,13 @@
 
 ---
 
+## [1.6.4] - 2026-07-23
+
+### Added
+- Server now initializes `OpenAIEmbeddingClient` at startup, enabling real semantic embeddings for `search_semantic`. Falls back gracefully if `OPENAI_API_KEY` is not set or `openai` package is missing.
+
+---
+
 ## [1.6.3] - 2026-07-23
 
 ### Changed

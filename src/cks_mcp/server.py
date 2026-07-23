@@ -36,13 +36,14 @@ from cks_mcp.resources import list_resources, read_resource
 from cks_mcp.prompts import list_prompts, get_prompt, PROMPTS
 from cks_mcp.tools.search_semantic import search_semantic
 from cks_mcp.tools.get_metrics import get_metrics
+from cks_runtime.embedding.client import OpenAIEmbeddingClient
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.6.3"
+SERVER_VERSION = "1.6.4"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -686,10 +687,16 @@ def main() -> None:
                 file=sys.stderr,
             )
 
+    # Initialize embedding client (fallback to None if OpenAI unavailable)
+    try:
+        embedding_client = OpenAIEmbeddingClient()
+    except Exception:
+        embedding_client = None
+
     if storage is None and use_persistent:
         try:
             config = RuntimeConfig(storage_path=db_path)
-            runtime = Runtime(core=CksCoreAdapter(), config=config)
+            runtime = Runtime(core=CksCoreAdapter(), config=config, embedding_client=embedding_client)
         except Exception as e:
             print(
                 f"[CKS-MCP] ERROR: Failed to initialize persistent storage: {e}. "
@@ -697,13 +704,13 @@ def main() -> None:
                 file=sys.stderr,
             )
             storage = InMemoryStorage()
-            runtime = Runtime(core=CksCoreAdapter(), storage=storage)
+            runtime = Runtime(core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client)
     elif storage is not None:
-        runtime = Runtime(core=CksCoreAdapter(), storage=storage)
+        runtime = Runtime(core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client)
     else:
         # use_persistent is False but storage is still None (shouldn't happen)
         storage = InMemoryStorage()
-        runtime = Runtime(core=CksCoreAdapter(), storage=storage)
+        runtime = Runtime(core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client)
 
     setup_event_subscriptions(runtime)
 
