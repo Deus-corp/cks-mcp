@@ -3,6 +3,13 @@
 
 ---
 
+## [1.4.1] - 2026-07-23
+
+### Added
+- `evolve_knowledge` now returns an optional `cascade_removed_relations` field, listing relation IDs that were silently deleted because a referenced object was removed. This makes cascade side effects explicit and auditable.
+
+---
+
 ## [1.4.0] - 2026-07-23
 
 ### Added

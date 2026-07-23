@@ -40,7 +40,7 @@ from cks_mcp.prompts import list_prompts, get_prompt, PROMPTS
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.4.0"
+SERVER_VERSION = "1.4.1"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------

@@ -70,11 +70,27 @@ def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, A
     tx.add_operation(op)
     version = runtime.commit_transaction(tx)
 
+    # Detect cascade-deleted relations caused by RemoveObject operations
+    cascade_removed: list[str] = []
+    for op in operations:
+        if hasattr(op, '_object_id'):
+            removed_id = op._object_id
+            for rel in structure.relations():
+                if removed_id in rel.participants:
+                    # Check if this relation no longer exists in the evolved state
+                    if rel.identity.id not in {
+                        r.identity.id for r in session.knowledge_structure.relations()
+                    }:
+                        cascade_removed.append(rel.identity.id)
+
     serialized = runtime.core_bridge.serialize(session.knowledge_structure)
-    return {
+    response = {
         "evolved": True,
         "serialized": serialized,
         "operations_applied": len(operations),
         "version_id": version.version_id,
         "session_id": session.session_id,
     }
+    if cascade_removed:
+        response["cascade_removed_relations"] = cascade_removed
+    return response
