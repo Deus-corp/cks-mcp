@@ -42,7 +42,7 @@ from cks_mcp.tools.get_metrics import get_metrics
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.6.1"
+SERVER_VERSION = "1.6.2"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -402,7 +402,7 @@ TOOLS = {
                     "description": "How many hops to expand around each seed (default 1)."
                 },
             },
-            "required": ["session_id", "query", "seed_ids"],
+            "required": ["session_id", "query"],
         },
         "handler": log_tool_call("search_semantic")(search_semantic),
     },

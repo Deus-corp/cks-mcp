@@ -3,6 +3,13 @@
 
 ---
 
+## [1.6.2] - 2026-07-23
+
+### Fixed
+- `search_semantic` now correctly triggers vector search when `seed_ids` is omitted or empty, instead of requiring explicit IDs. The parameter is no longer listed as required.
+
+---
+
 ## [1.6.1] - 2026-07-23
 
 ### Changed

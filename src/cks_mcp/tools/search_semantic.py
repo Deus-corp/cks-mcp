@@ -42,7 +42,7 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
 
     # Try to use vector search if storage supports it
     seed_ids = arguments.get("seed_ids")
-    if seed_ids is None and hasattr(runtime.storage, "search_embeddings"):
+    if not seed_ids and hasattr(runtime.storage, "search_embeddings"):
         try:
             query_embedding = _text_to_embedding(query)
             seed_ids = runtime.storage.search_embeddings(
