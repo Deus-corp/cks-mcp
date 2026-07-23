@@ -95,27 +95,55 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
         if constraint not in extensions:
             extensions.append(constraint)
 
-    tx = runtime.begin_transaction(session)
-    tx.add_operation(
-        ValidateOperation(
-            "validate",
-            knowledge_structure=structure,
-            extra_constraints=extensions or None,
-        )
+    # Provenance signatures are an MCP-level concern cks-core has no
+    # way to check itself (it never sees the signing key), so they are
+    # verified separately from -- and BEFORE any decision to commit
+    # alongside -- core-level validation. A structure carrying a
+    # forged VerificationRecord must never become a persisted version,
+    # "invalid" or not: once committed, a version is exactly what a
+    # downstream reader (serialize_knowledge, explain_knowledge,
+    # query_subgraph, an MCP Resource, another agent's evolve_knowledge/
+    # merge_branch call) will treat as trustworthy, regardless of what
+    # this call's own 'valid' field said. This mirrors the dry-run-
+    # before-commit gate already used by evolve_knowledge and
+    # merge_branch/merge_knowledge for the same reason.
+    provenance_diagnostics = provenance.verify_structure_provenance(structure)
+    provenance_ok = not any(d["severity"] == "error" for d in provenance_diagnostics)
+
+    op = ValidateOperation(
+        "validate",
+        knowledge_structure=structure,
+        extra_constraints=extensions or None,
     )
-    version = runtime.commit_transaction(tx)
 
-    diagnostics = [_serialize_diagnostic(d) for d in session.diagnostics]
-    core_valid = not any(d["severity"] == "error" for d in diagnostics)
+    if provenance_ok:
+        tx = runtime.begin_transaction(session)
+        tx.add_operation(op)
+        version = runtime.commit_transaction(tx)
+        core_diagnostics = [_serialize_diagnostic(d) for d in session.diagnostics]
+        version_id = version.version_id
+    else:
+        # Dry-run only, straight through the executor (bypassing the
+        # transaction/commit pipeline entirely): still surface
+        # core-level diagnostics for a complete report, but never let
+        # this structure reach a persisted version. session.diagnostics
+        # is only ever populated by the commit pipeline (see
+        # ExecutionPipeline._handle_result), so diagnostics come from
+        # the ExecutionResult directly here instead.
+        result = runtime.executor.execute(op, session)
+        core_diagnostics = [_serialize_diagnostic(d) for d in (result.diagnostics or [])]
+        version_id = None
 
-    diagnostics.extend(provenance.verify_structure_provenance(structure))
+    core_valid = not any(d["severity"] == "error" for d in core_diagnostics)
+    diagnostics = core_diagnostics + provenance_diagnostics
+    valid = core_valid and provenance_ok
 
-    valid = core_valid and not any(d["severity"] == "error" for d in diagnostics)
-
-    return {
+    response: dict[str, Any] = {
         "valid": valid,
-        "version_id": version.version_id,
         "session_id": session.session_id,
         "extensions_applied": requested,
         "diagnostics": diagnostics,
     }
+    if version_id is not None:
+        response["version_id"] = version_id
+    return response

@@ -3,6 +3,14 @@
 
 ---
 
+## [1.3.3] - 2026-07-22
+
+### Fixed
+- **Remaining provenance bypass in `validate_knowledge`:** the provenance-signature gate added in 1.2.6 covered `evolve_knowledge` and `merge_knowledge`/`merge_branch`, but not `validate_knowledge` itself -- which is the tool that actually creates a session's first committed version. It previously committed unconditionally and only checked `VerificationRecord` signatures afterward to set the response's `valid` field, so a forged record still ended up as a real, persisted version regardless of `valid: false` -- visible to `serialize_knowledge`, `explain_knowledge`, `query_subgraph`, and the MCP Resources surface with no indication it had failed a check. `validate_knowledge` now verifies provenance before deciding whether to commit at all, mirroring the existing dry-run-then-commit pattern; a structure with a forged or missing signature is validated (all core-level diagnostics still returned) but never committed, and the response omits `version_id` entirely rather than returning one for a version that doesn't exist.
+- 5 new regression tests covering the forged-signature, missing-signature, genuine-signature, re-validation-of-an-existing-session, and no-VerificationRecord-present cases.
+
+---
+
 ## [1.3.2] - 2026-07-22
 
 ### Added
