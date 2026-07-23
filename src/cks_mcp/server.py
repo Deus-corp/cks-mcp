@@ -42,7 +42,7 @@ from cks_mcp.tools.get_metrics import get_metrics
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.5.2"
+SERVER_VERSION = "1.5.3"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------

@@ -3,6 +3,13 @@
 
 ---
 
+## [1.5.3] - 2026-07-23
+
+### Fixed
+- Registered `get_metrics` tool in `server.py` — it was implemented but not exposed to clients, so LLMs couldn't discover it.
+
+---
+
 ## [1.5.2] - 2026-07-23
 
 ### Added
