@@ -3,6 +3,17 @@
 
 ---
 
+## [1.5.4] - 2026-07-23
+
+### Fixed
+- **Content-Length parsing:** body is now read as bytes and decoded, fixing request corruption with multi-byte UTF-8 characters.
+- **Off-by-one errors in `resources.py`:** `read_resource` now correctly resolves session, version-list, and specific-version URIs.
+
+### Added
+- `get_metrics` tool is now registered and exposed to clients.
+
+---
+
 ## [1.5.3] - 2026-07-23
 
 ### Fixed

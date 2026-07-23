@@ -77,7 +77,7 @@ def read_resource(runtime: Runtime, uri: str) -> str | None:
         return json.dumps(session_list, indent=2, ensure_ascii=False)
 
     # /sessions/{sid}
-    if uri.startswith("cks://sessions/") and uri.count("/") == 2:
+    if uri.startswith("cks://sessions/") and uri.count("/") == 3:
         sid = uri.split("/")[-1]
         session = runtime.get_session(sid)
         if session is None:
@@ -90,8 +90,8 @@ def read_resource(runtime: Runtime, uri: str) -> str | None:
     # /sessions/{sid}/versions
     if uri.startswith("cks://sessions/") and uri.endswith("/versions"):
         parts = uri.split("/")
-        if len(parts) == 4:  # ['cks:', '', 'sessions', '{sid}', 'versions']
-            sid = parts[2]
+        if len(parts) == 5:  # ['cks:', '', 'sessions', '{sid}', 'versions']
+            sid = parts[3]
             session = runtime.get_session(sid)
             if session is None:
                 return None
@@ -109,9 +109,9 @@ def read_resource(runtime: Runtime, uri: str) -> str | None:
     # /sessions/{sid}/versions/{vid}
     if uri.startswith("cks://sessions/") and "/versions/" in uri:
         parts = uri.split("/")
-        if len(parts) == 5:  # ['cks:', '', 'sessions', '{sid}', 'versions', '{vid}']
-            sid = parts[2]
-            vid = parts[4]
+        if len(parts) == 6:  # ['cks:', '', 'sessions', '{sid}', 'versions', '{vid}']
+            sid = parts[3]
+            vid = parts[5]
             session = runtime.get_session(sid)
             if session is None:
                 return None

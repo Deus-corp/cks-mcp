@@ -42,7 +42,7 @@ from cks_mcp.tools.get_metrics import get_metrics
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.5.3"
+SERVER_VERSION = "1.5.4"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -725,7 +725,7 @@ def main() -> None:
                 sys.stdout.write(error_response + "\n")
                 sys.stdout.flush()
                 continue
-            sys.stdin.readline()  # blank line after header
+            sys.stdin.readline()
             body = sys.stdin.read(content_length)
             if not body:
                 return
