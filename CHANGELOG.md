@@ -3,11 +3,18 @@
 
 ---
 
+## [1.5.2] - 2026-07-23
+
+### Added
+- `get_metrics` tool — returns runtime metrics (invocation counts and average execution times per operation type).
+- Bumped `cks-runtime` dependency to `>=1.6.2`.
+
+---
+
 ## [1.5.1] - 2026-07-23
 
 ### Changed
 - Bumped `cks-runtime` dependency to `>=1.6.1` (fixes a critical bug where `Dispatcher.dispatch()` was not instantiating operations correctly, causing crashes for any `DispatchRequest`-based transactions).
-
 
 ---
 
@@ -15,7 +22,6 @@
 
 ### Added
 - `search_semantic` tool — performs semantic search over a session's Knowledge Structure. Accepts a natural language query and seed IDs, then expands the neighbourhood using `query_subgraph`. This is the first step towards a full vector-index-powered RAG pipeline.
-
 
 ---
 
@@ -31,7 +37,6 @@
 ### Added
 - **MCP Prompts:** the server now offers ready‑to‑use prompt templates (`create_knowledge_graph`, `verify_claim`, `explore_subgraph`, `branch_and_merge`) via `prompts/list` and `prompts/get`. Users can select a workflow from Claude Desktop's prompt menu and fill in parameters without knowing the tool names or JSON syntax.
 - New module `prompts.py` implementing the prompt handlers.
-
 
 ---
 
@@ -87,7 +92,6 @@
 - **MCP Resources:** the server now exposes active sessions, their version histories, and each version's Knowledge Structure as virtual resources (`cks://sessions/...`). LLMs can read them directly without calling tools, making the knowledge graph instantly browsable.
 - New module `resources.py` implementing `resources/list` and `resources/read` handlers.
 
-
 ---
 
 ## [1.2.6] - 2026-07-22
@@ -110,7 +114,6 @@
 ### Fixed
 - Server now explicitly creates the `data/` directory for SQLite storage on startup, preventing crashes when Claude Desktop launches the server in a clean environment.
 - Improved error logging during server initialization.
-
 
 ---
 
@@ -143,7 +146,6 @@
 - `query_subgraph` tool – extracts a k‑hop neighbourhood from a session's Knowledge Structure as a self‑contained subgraph, with optional relation/object type filters and a token/object budget that ranks candidates by degree, type weight, and distance. Returns full truncation metadata (`total_found_nodes`, `returned_nodes`, `is_truncated`, `truncation_reason`, `suggested_next_seed`) so an LLM agent always knows whether the neighbourhood was truncated and can resume from the suggested next seed.
 - Bumped `cks-runtime` dependency to `>=1.4.0` and `cks-core` to `>=1.9.0`.
 
-
 ---
 
 ## [1.1.1] - 2026-07-22
@@ -151,7 +153,6 @@
 ### Fixed
 - `explain_knowledge` with `session_id` no longer creates a new empty version in the session's history. Read-only explanations now bypass the transaction pipeline and use the executor directly, preventing version history pollution. (#bug 1)
 - Bumped `cks-runtime` dependency to `>=1.3.2` and `cks-core` to `>=1.8.3`.
-
 
 ---
 

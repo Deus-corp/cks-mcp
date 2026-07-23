@@ -35,13 +35,14 @@ from cks_runtime.config import RuntimeConfig
 from cks_mcp.resources import list_resources, read_resource
 from cks_mcp.prompts import list_prompts, get_prompt, PROMPTS
 from cks_mcp.tools.search_semantic import search_semantic
+from cks_mcp.tools.get_metrics import get_metrics
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.5.1"
+SERVER_VERSION = "1.5.2"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -404,6 +405,16 @@ TOOLS = {
             "required": ["session_id", "query", "seed_ids"],
         },
         "handler": log_tool_call("search_semantic")(search_semantic),
+    },
+    "get_metrics": {
+        "name": "get_metrics",
+        "description": "Return runtime metrics: invocation counts and average execution times for each operation type.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+        "handler": log_tool_call("get_metrics")(get_metrics),
     },
     "verify_source": {
         "name": "verify_source",
