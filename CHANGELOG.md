@@ -3,6 +3,16 @@
 
 ---
 
+## [1.3.4] - 2026-07-23
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.6.0`. Sessions and versions now persist across server restarts, fully restoring the operational state when Claude Desktop reconnects or the server process is restarted.
+
+### Fixed
+- After a server restart, all previously created sessions are now immediately available via `get_session()`, `list_sessions`, and the MCP Resources surface. No data is lost.
+
+---
+
 ## [1.3.3] - 2026-07-22
 
 ### Fixed
