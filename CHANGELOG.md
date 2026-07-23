@@ -3,6 +3,15 @@
 
 ---
 
+## [1.4.0] - 2026-07-23
+
+### Added
+- **MCP Prompts:** the server now offers ready‑to‑use prompt templates (`create_knowledge_graph`, `verify_claim`, `explore_subgraph`, `branch_and_merge`) via `prompts/list` and `prompts/get`. Users can select a workflow from Claude Desktop's prompt menu and fill in parameters without knowing the tool names or JSON syntax.
+- New module `prompts.py` implementing the prompt handlers.
+
+
+---
+
 ## [1.3.5] - 2026-07-23
 
 ### Fixed

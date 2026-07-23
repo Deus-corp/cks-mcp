@@ -33,13 +33,14 @@ from cks_mcp.tools.query_subgraph import query_subgraph_tool
 from cks_mcp.observability import log_tool_call, setup_event_subscriptions
 from cks_runtime.config import RuntimeConfig
 from cks_mcp.resources import list_resources, read_resource
+from cks_mcp.prompts import list_prompts, get_prompt, PROMPTS
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.3.5"
+SERVER_VERSION = "1.4.0"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -486,6 +487,7 @@ def handle_request(
             "capabilities": {
                 "tools": {},
                 "resources": {},
+                "prompts": {},
             },
         })
 
@@ -562,6 +564,35 @@ def handle_request(
                     "text": content,
                 }
             ]
+        })
+
+    if method == "prompts/list":
+        try:
+            prompts = list_prompts()
+            return _make_response(req_id, {"prompts": prompts})
+        except Exception as e:
+            return _make_response(req_id, error={
+                "code": -32603,
+                "message": f"Failed to list prompts: {e}",
+            })
+
+    if method == "prompts/get":
+        name = params.get("name")
+        if not name:
+            return _make_response(req_id, error={
+                "code": -32602,
+                "message": "Missing required parameter: name",
+            })
+        args = params.get("arguments", {})
+        prompt_message = get_prompt(name, args)
+        if prompt_message is None:
+            return _make_response(req_id, error={
+                "code": -32602,
+                "message": f"Prompt not found: {name}",
+            })
+        return _make_response(req_id, {
+            "description": PROMPTS.get(name, {}).get("description", ""),
+            "messages": prompt_message["messages"],
         })
 
     return _make_response(req_id, error={
