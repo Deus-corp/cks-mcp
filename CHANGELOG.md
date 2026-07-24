@@ -3,6 +3,14 @@
 
 ---
 
+## [1.6.12] - 2026-07-24
+
+### Changed
+- Merge conflict responses now include a human-readable `target_diff` and `source_diff` per conflict, instead of opaque `str()` dumps. This makes it easier for LLMs and users to understand what changed in each branch.
+- Bumped `cks-runtime` to `>=1.9.5` (restores version history for persistent sessions).
+
+---
+
 ## [1.6.11] - 2026-07-24
 
 ### Fixed

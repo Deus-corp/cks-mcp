@@ -13,6 +13,39 @@ from cks_mcp.errors import missing_parameter, session_not_found
 from cks_mcp import provenance
 
 
+def _generate_diff(base_obj: Any, branch_obj: Any) -> dict[str, Any]:
+    """
+    Generate a human-readable diff between two KnowledgeObjects.
+    """
+    if base_obj is None and branch_obj is None:
+        return {}
+    if base_obj is None:
+        return {
+            "action": "added",
+            "type": branch_obj.identity.type,
+            "name": branch_obj.identity.name,
+            "structure": dict(branch_obj.structure),
+        }
+    if branch_obj is None:
+        return {"action": "deleted"}
+    # Both exist — compute field-level changes
+    changes = {}
+    base_struct = dict(base_obj.structure)
+    branch_struct = dict(branch_obj.structure)
+    all_keys = set(base_struct) | set(branch_struct)
+    for key in sorted(all_keys):
+        old_val = base_struct.get(key)
+        new_val = branch_struct.get(key)
+        if old_val != new_val:
+            changes[key] = {"from": old_val, "to": new_val}
+    return {
+        "action": "modified" if changes else "unchanged",
+        "type": branch_obj.identity.type,
+        "name": branch_obj.identity.name,
+        "changes": changes,
+    }
+
+
 def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Perform a three-way merge.
@@ -78,9 +111,8 @@ def _conflict_payload(error: RuntimeMergeConflictError) -> dict[str, Any]:
         "conflicts": [
             {
                 "object_id": c.object_id,
-                "base_state": str(c.base) if c.base is not None else None,
-                "target_state": str(c.branch_a) if c.branch_a is not None else None,
-                "source_state": str(c.branch_b) if c.branch_b is not None else None,
+                "target_diff": _generate_diff(c.base, c.branch_a),
+                "source_diff": _generate_diff(c.base, c.branch_b),
             }
             for c in error.conflicts
         ],
