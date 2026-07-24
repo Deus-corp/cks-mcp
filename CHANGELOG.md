@@ -3,6 +3,13 @@
 
 ---
 
+## [1.6.6] - 2026-07-24
+
+### Fixed
+- Global `socket.getaddrinfo` monkey-patch replaced with temporary thread-local override, restoring DNS resolution for non-verification HTTP requests (e.g., Hugging Face API).
+
+---
+
 ## [1.6.5] - 2026-07-24
 
 ### Changed

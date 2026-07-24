@@ -53,9 +53,9 @@ def _is_public_ip(ip_str: str) -> bool:
 # DNS rebinding protection via thread-local getaddrinfo override
 # ---------------------------------------------------------------------------
 
+# DNS rebinding protection via temporary, thread-local getaddrinfo override
 _orig_getaddrinfo = socket.getaddrinfo
 _thread_local = threading.local()
-
 
 def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     overrides = getattr(_thread_local, "dns_overrides", {})
@@ -63,21 +63,20 @@ def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
         host = overrides[host]
     return _orig_getaddrinfo(host, port, family, type, proto, flags)
 
-
-socket.getaddrinfo = _patched_getaddrinfo
-
-
 @contextmanager
 def pin_dns(hostname: str, ip: str):
-    """Pin a hostname to a specific IP for the duration of the context."""
+    """Temporarily pin a hostname to a specific IP for the duration of the context."""
     if not hasattr(_thread_local, "dns_overrides"):
         _thread_local.dns_overrides = {}
-
     old_ip = _thread_local.dns_overrides.get(hostname)
     _thread_local.dns_overrides[hostname] = ip
+    # Activate the override only while inside this context
+    original_getaddrinfo = socket.getaddrinfo
+    socket.getaddrinfo = _patched_getaddrinfo
     try:
         yield
     finally:
+        socket.getaddrinfo = original_getaddrinfo
         if old_ip is None:
             del _thread_local.dns_overrides[hostname]
         else:
