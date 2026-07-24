@@ -3,6 +3,13 @@
 
 ---
 
+## [1.6.14] - 2026-07-24
+
+### Changed
+- Bumped `cks-runtime` to `>=1.10.0` — includes the new generalised Task Bus, enabling future background task types like conflict escalation.
+
+---
+
 ## [1.6.13] - 2026-07-24
 
 ### Added
