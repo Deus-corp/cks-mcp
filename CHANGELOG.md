@@ -3,6 +3,13 @@
 
 ---
 
+## [1.6.8] - 2026-07-24
+
+### Changed
+- Bumped `cks-runtime` to `>=1.9.3` — embedding worker now excludes relation objects, so `search_semantic` no longer returns false positives like relation IDs.
+
+---
+
 ## [1.6.7] - 2026-07-24
 
 ### Changed
