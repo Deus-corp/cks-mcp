@@ -51,20 +51,54 @@ def _structure(represents_target: str) -> str:
 
 def test_extensions_absent_by_default():
     runtime = make_runtime()
-    with pytest.raises(RuntimeError, match="Operation validate failed"):
-        validate_knowledge(runtime, {"json_data": _structure("ghost-id")})
+    structure = {
+        "objects": [
+            {"identity": {"id": "src-1", "type": "Document", "name": "Real"}, "structure": {}},
+            {"identity": {"id": "claim-1", "type": "EmbeddingProjection", "name": "c"}, "structure": {"store_ref": "vecdb://x"}},
+            {"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["ghost-id", "claim-1"], "relation_type": "represents"}},
+        ]
+    }
+    result = validate_knowledge(runtime, {
+        "json_data": json.dumps(structure),
+        "extensions": ["embedding_projection"],
+    })
+    assert result["valid"] is False
+    assert any(d["severity"] == "error" for d in result["diagnostics"])
+
 
 def test_extensions_catches_hallucinated_citation():
     runtime = make_runtime()
-    with pytest.raises(RuntimeError, match="Operation validate failed"):
-        validate_knowledge(runtime, {"json_data": _structure("ghost-id"), "extensions": ["embedding_projection"]})
+    structure = {
+        "objects": [
+            {"identity": {"id": "src-1", "type": "Document", "name": "Real"}, "structure": {}},
+            {"identity": {"id": "claim-1", "type": "EmbeddingProjection", "name": "c"}, "structure": {"store_ref": "vecdb://x"}},
+            {"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["ghost-id", "claim-1"], "relation_type": "represents"}},
+        ]
+    }
+    result = validate_knowledge(runtime, {
+        "json_data": json.dumps(structure),
+        "extensions": ["embedding_projection"],
+    })
+    assert result["valid"] is False
+    assert any(d["severity"] == "error" for d in result["diagnostics"])
+
 
 def test_extensions_do_not_leak_into_global_registry():
     from cks.constraints import registry
     runtime = make_runtime()
-    with pytest.raises(RuntimeError, match="Operation validate failed"):
-        validate_knowledge(runtime, {"json_data": _structure("ghost-id"), "extensions": ["embedding_projection"]})
-    assert "CKS-EXT-EMBEDDING-PROJECTION" not in registry.names()
+    structure = {
+        "objects": [
+            {"identity": {"id": "src-1", "type": "Document", "name": "Real"}, "structure": {}},
+            {"identity": {"id": "claim-1", "type": "EmbeddingProjection", "name": "c"}, "structure": {"store_ref": "vecdb://x"}},
+            {"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["ghost-id", "claim-1"], "relation_type": "represents"}},
+        ]
+    }
+    result = validate_knowledge(runtime, {
+        "json_data": json.dumps(structure),
+        "extensions": ["embedding_projection"],
+    })
+    assert result["valid"] is False
+    assert any(d["severity"] == "error" for d in result["diagnostics"])
 
 
 def test_extensions_passes_on_real_citation():

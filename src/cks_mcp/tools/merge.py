@@ -67,9 +67,8 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
                 "conflicts": [
                     {
                         "object_id": c.object_id,
-                        "base": str(c.base) if c.base else None,
-                        "branch_a": str(c.branch_a) if c.branch_a else None,
-                        "branch_b": str(c.branch_b) if c.branch_b else None,
+                        "target_diff": _generate_diff(c.base, c.branch_a),
+                        "source_diff": _generate_diff(c.base, c.branch_b),
                     }
                     for c in e.conflicts
                 ],
@@ -144,7 +143,7 @@ def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     it as a new version of the target session.
 
     On conflict, returns 'conflicts': a list of
-    {object_id, base_state, target_state, source_state}. Do not retry
+    {object_id, target_diff, source_diff}. Do not retry
     merge_branch as-is -- resolve each conflict with evolve_knowledge
     on the target session instead (see the returned 'message').
     """

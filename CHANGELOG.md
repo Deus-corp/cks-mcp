@@ -3,6 +3,15 @@
 
 ---
 
+## [1.6.18] - 2026-07-24
+
+### Fixed
+- **Inconsistent error handling in `validate_knowledge`:** validation failures during commit (e.g., dangling references) now return structured diagnostics instead of a raw `RuntimeError` traceback.
+- **`merge_knowledge` now returns structured diffs** for conflicts (`target_diff`/`source_diff`), matching `merge_branch`'s behavior instead of leaking Python `repr()` strings.
+- **Updated `merge_branch` documentation** to reflect actual field names (`target_diff`/`source_diff` instead of `base_state`/`target_state`/`source_state`).
+
+---
+
 ## [1.6.17] - 2026-07-24
 
 ### Changed

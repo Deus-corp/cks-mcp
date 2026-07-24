@@ -132,9 +132,29 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
             session = runtime.create_session(structure)
         tx = runtime.begin_transaction(session)
         tx.add_operation(op)
-        version = runtime.commit_transaction(tx)
-        core_diagnostics = [_serialize_diagnostic(d) for d in session.diagnostics]
-        version_id = version.version_id
+        try:
+            version = runtime.commit_transaction(tx)
+            core_diagnostics = [_serialize_diagnostic(d) for d in session.diagnostics]
+            version_id = version.version_id
+        except RuntimeError as exc:
+            # Validation failed during commit — extract diagnostics from the transaction result
+            if tx.results:
+                result = tx.results[0]
+                core_diagnostics = [_serialize_diagnostic(d) for d in (result.diagnostics or [])]
+            else:
+                core_diagnostics = [{
+                    "code": "VALIDATION_FAILED",
+                    "severity": "error",
+                    "source": "runtime",
+                    "message": str(exc),
+                    "metadata": {},
+                }]
+            version_id = None
+            # Rollback the failed transaction
+            try:
+                runtime.rollback_transaction(tx)
+            except Exception:
+                pass
     else:
         # Dry-run only, straight through the executor (bypassing the
         # transaction/commit pipeline entirely): still surface

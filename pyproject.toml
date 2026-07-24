@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cks-mcp"
-version = "1.6.17"
+version = "1.6.18"
 description = "CKS MCP Server — Canonical Knowledge Structure for LLMs"
 readme = "README.md"
 authors = [{name = "Vladyslav Hruznov"}]

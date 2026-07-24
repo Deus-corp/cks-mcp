@@ -97,8 +97,9 @@ def test_validate_with_extensions_via_server():
     }
     response = _call(request)
     assert "result" in response, f"Expected result, got {response}"
-    assert response["result"].get("isError") is True
-    assert "Operation validate failed" in response["result"]["content"][0]["text"]
+    content = json.loads(response["result"]["content"][0]["text"])
+    assert content["valid"] is False
+    assert any(d["severity"] == "error" for d in content["diagnostics"])
 
 
 def test_validate_unknown_extension_via_server():

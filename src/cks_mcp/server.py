@@ -43,7 +43,7 @@ from cks_runtime.embedding.client import HuggingFaceEmbeddingClient
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.6.17"
+SERVER_VERSION = "1.6.18"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -262,7 +262,7 @@ TOOLS = {
             "-- unlike merge_knowledge -- you never supply the base yourself. "
             "On success, commits the merged result as a new version of the "
             "target session. On conflict, returns a 'conflicts' list "
-            "(object_id, base_state, target_state, source_state) instead of "
+            "(object_id, target_diff, source_diff) instead of "
             "merging. Do not call merge_branch again unchanged after a "
             "conflict -- resolve each conflict on the target session with "
             "evolve_knowledge, then close_session the source branch once it "
