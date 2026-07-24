@@ -3,6 +3,13 @@
 
 ---
 
+## [1.6.17] - 2026-07-24
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.10.3` (fixes OutboxEmbeddingWorker crash, restoring semantic embedding generation and enabling `search_semantic` without explicit `seed_ids`).
+
+---
+
 ## [1.6.16] - 2026-07-24
 
 ### Changed
