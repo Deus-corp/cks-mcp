@@ -7,7 +7,7 @@ print(f"Token present: {token is not None}")
 if token:
     print(f"Token prefix: {token[:10]}... (length {len(token)})")
 
-    api_url = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+    api_url = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2/pipeline/feature-extraction"
     headers = {"Authorization": f"Bearer {token}"}
     response = requests.post(api_url, headers=headers, json={"inputs": ["test sentence"], "options": {"wait_for_model": True}})
     

@@ -3,6 +3,13 @@
 
 ---
 
+## [1.6.7] - 2026-07-24
+
+### Changed
+- Bumped `cks-runtime` to `>=1.9.2` (updated HuggingFace API endpoint).
+
+---
+
 ## [1.6.6] - 2026-07-24
 
 ### Fixed
