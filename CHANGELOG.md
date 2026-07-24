@@ -3,6 +3,13 @@
 
 ---
 
+## [1.6.9] - 2026-07-24
+
+### Fixed
+- `search_semantic` now filters out `Relation` type objects from the vector search results, ensuring that only domain objects (Concepts, Documents, etc.) are returned as seeds.
+
+---
+
 ## [1.6.8] - 2026-07-24
 
 ### Changed

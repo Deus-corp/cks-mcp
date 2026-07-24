@@ -40,9 +40,11 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
             )
             if seed_ids:
                 # Filter to those actually in the current structure
+                # and exclude relation objects
                 seed_ids = [
                     sid for sid in seed_ids
-                    if session.knowledge_structure.get(sid) is not None
+                    if (obj := session.knowledge_structure.get(sid)) is not None
+                    and getattr(obj.identity, 'type', '') != 'Relation'
                 ][:top_k]
         except Exception:
             seed_ids = None

@@ -43,7 +43,7 @@ from cks_runtime.embedding.client import HuggingFaceEmbeddingClient
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.6.8"
+SERVER_VERSION = "1.6.9"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
