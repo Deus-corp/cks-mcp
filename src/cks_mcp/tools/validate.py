@@ -137,9 +137,13 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
             core_diagnostics = [_serialize_diagnostic(d) for d in session.diagnostics]
             version_id = version.version_id
         except RuntimeError as exc:
-            # Validation failed during commit — extract diagnostics from the transaction result
+            # Validation failed during commit — extract diagnostics from the transaction result.
+            # The failing operation is always the most recently recorded
+            # result (results are appended in execution order and
+            # execution stops at the first failure), not necessarily
+            # index 0.
             if tx.results:
-                result = tx.results[0]
+                result = tx.results[-1]
                 core_diagnostics = [_serialize_diagnostic(d) for d in (result.diagnostics or [])]
             else:
                 core_diagnostics = [{

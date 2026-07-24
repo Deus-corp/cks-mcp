@@ -3,6 +3,14 @@
 
 ---
 
+## [1.6.19] - 2026-07-24
+
+### Fixed
+- `validate_knowledge` now retrieves the correct (most recent) failed operation result when recovering diagnostics from a `RuntimeError`, ensuring detailed error messages are returned instead of a generic "Validation failed".
+- Bumped `cks-runtime` to `>=1.11.0` (automatic `parent_version_id` for branches, improved diagnostics recording).
+
+---
+
 ## [1.6.18] - 2026-07-24
 
 ### Fixed
