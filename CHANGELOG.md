@@ -3,6 +3,13 @@
 
 ---
 
+## [1.6.11] - 2026-07-24
+
+### Fixed
+- **Provenance signing secret now persists across server restarts.** If `CKS_MCP_SECRET` is not set, the server generates a random secret on first launch and saves it to `data/.cks_provenance_secret`. Previously verified `VerificationRecord` objects remain valid after restart.
+
+---
+
 ## [1.6.10] - 2026-07-24
 
 ### Fixed

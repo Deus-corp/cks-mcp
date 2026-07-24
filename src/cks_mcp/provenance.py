@@ -5,6 +5,10 @@ Ensures that only verify_source (the sole sanctioned constructor of
 VerificationRecord objects) can produce a valid signature. Any
 VerificationRecord without a signature that verifies against the
 configured secret is rejected by validate_knowledge.
+
+The signing secret is persisted to disk on first use, so that
+restarting the server does not invalidate all previously signed
+records.  Set the CKS_MCP_SECRET environment variable to override.
 """
 
 from __future__ import annotations
@@ -13,32 +17,46 @@ import base64
 import hashlib
 import hmac
 import os
+from pathlib import Path
 from typing import Any
 
 SIGNATURE_KEY = "_cks_mcp_signature"
 
+_SECRET_FILE = Path("data/.cks_provenance_secret")
+
 
 def _load_secret() -> bytes:
     """
-    Load a stable secret from environment if provided.
+    Return a stable signing secret.
 
-    Supported formats:
-    - raw UTF-8 string
-    - hex string
-    - base64 string prefixed with 'base64:'
+    1. CKS_MCP_SECRET environment variable (raw, hex, or base64: prefix).
+    2. Previously persisted secret file.
+    3. Generate a new secret and persist it.
     """
     raw = os.environ.get("CKS_MCP_SECRET")
-    if not raw:
-        # Fallback for development only. For production, set CKS_MCP_SECRET.
-        return os.urandom(32)
+    if raw:
+        if raw.startswith("base64:"):
+            return base64.b64decode(raw.removeprefix("base64:"))
+        try:
+            return bytes.fromhex(raw)
+        except ValueError:
+            return raw.encode("utf-8")
 
-    if raw.startswith("base64:"):
-        return base64.b64decode(raw.removeprefix("base64:"))
-
+    # No environment variable — use persisted secret, or create one
     try:
-        return bytes.fromhex(raw)
-    except ValueError:
-        return raw.encode("utf-8")
+        return _SECRET_FILE.read_bytes()
+    except (FileNotFoundError, OSError):
+        pass
+
+    # First run: generate and persist
+    secret = os.urandom(32)
+    try:
+        _SECRET_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _SECRET_FILE.write_bytes(secret)
+    except OSError:
+        # Can't persist, but still usable for this process
+        pass
+    return secret
 
 
 _SECRET = _load_secret()
