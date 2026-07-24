@@ -36,14 +36,14 @@ from cks_mcp.resources import list_resources, read_resource
 from cks_mcp.prompts import list_prompts, get_prompt, PROMPTS
 from cks_mcp.tools.search_semantic import search_semantic
 from cks_mcp.tools.get_metrics import get_metrics
-from cks_runtime.embedding.client import OpenAIEmbeddingClient
+from cks_runtime.embedding.client import HuggingFaceEmbeddingClient
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.6.4"
+SERVER_VERSION = "1.6.5"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -689,7 +689,7 @@ def main() -> None:
 
     # Initialize embedding client (fallback to None if OpenAI unavailable)
     try:
-        embedding_client = OpenAIEmbeddingClient()
+        embedding_client = HuggingFaceEmbeddingClient()
     except Exception:
         embedding_client = None
 

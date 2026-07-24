@@ -3,6 +3,14 @@
 
 ---
 
+## [1.6.5] - 2026-07-24
+
+### Changed
+- Switched to `HuggingFaceEmbeddingClient` for free, token-based semantic embeddings via Hugging Face Inference API. Requires `HF_TOKEN` environment variable.
+- Bumped `cks-runtime` dependency to `>=1.9.1`.
+
+---
+
 ## [1.6.4] - 2026-07-23
 
 ### Added
