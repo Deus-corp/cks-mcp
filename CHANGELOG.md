@@ -3,6 +3,13 @@
 
 ---
 
+## [1.6.13] - 2026-07-24
+
+### Added
+- `query_subgraph` now supports `compact_mode`. When set to `true`, the response contains arrays of `nodes` and `edges` instead of full canonical JSON, making the output significantly smaller and easier for LLMs to process.
+
+---
+
 ## [1.6.12] - 2026-07-24
 
 ### Changed

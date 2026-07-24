@@ -43,7 +43,7 @@ from cks_runtime.embedding.client import HuggingFaceEmbeddingClient
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.6.12"
+SERVER_VERSION = "1.6.13"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -363,8 +363,12 @@ TOOLS = {
                     "type": "object",
                     "description": "Optional mapping of object type to weight (float), used in budget ranking."
                 },
+                "compact_mode": {
+                    "type": "boolean",
+                    "description": "If true, return a compact representation (nodes + edges) instead of full canonical JSON."
+                },
             },
-            "required": ["session_id", "seed_ids"],
+            "required": ["session_id"],
         },
         "handler": log_tool_call("query_subgraph")(query_subgraph_tool),
     },
