@@ -35,17 +35,16 @@ Other projects build upon it:
 # Quick Start
 
 1. Install and connect to Claude Desktop (see [Installation](#installation)).
-2. In the chat, start your message with **"Use cks-mcp to…"**.
-3. Claude automatically picks the right tool from the 13 available — validation, evolution, branching, merging, source verification, subgraph queries, and more.
-4. Every operation is logged, versioned, and stored in a persistent SQLite database.
+2. (Optional) For semantic search, set your Hugging Face token: `export HF_TOKEN=hf_...`
+3. In the chat, start your message with **"Use cks-mcp to…"**.
+4. Claude automatically picks the right tool from the 15 available — validation, evolution, branching, merging, source verification, semantic search, subgraph queries, and more.
+5. Every operation is logged, versioned, and stored in a persistent SQLite database.
 
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
 **No programming, no command line — just a conversation!**
 
-
 ![CKS Demo](demo/demo.gif)
 
-  
 *In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Fifteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.*
 
 ---
@@ -64,6 +63,8 @@ traceable to its origin.
   a real HTTP check and cryptographically signs the result. Any
   `VerificationRecord` without a valid signature is automatically
   rejected, even if the model fails to request the check.
+- **Semantic search with real embeddings** — the `search_semantic` tool uses HuggingFace models to find relevant nodes by meaning, not just keywords. A query for "how to train AI models" returns "Gradient Descent" and "Neural Network", not "Banana".
+- **Graph-based RAG** — combine semantic search with `query_subgraph` to retrieve a full neighbourhood around the found concepts, giving the LLM the context it needs without hallucinating connections.
 - **Full audit trail** — every operation is captured in an immutable
   version history, providing complete accountability for AI-generated
   knowledge.
@@ -78,6 +79,11 @@ pip install cks-mcp
 ```
 
 The server requires `cks-runtime` (which includes `cks-core`) as a dependency.
+
+For semantic search, you also need a Hugging Face token:
+```bash
+export HF_TOKEN=hf_...
+```
 
 ---
 
@@ -135,13 +141,70 @@ call the appropriate CKS tool.
 | `create_branch` | Fork a new session from an existing one, optionally from a specific historical version. |
 | `merge_branch` | Session-aware three-way merge: merge a branch session into a target session, resolving the merge base automatically from the branch's recorded fork point. |
 | `close_session` | Close a session, releasing it from the runtime (e.g. a branch already merged in). |
-| `query_subgraph` | Extract a local k‑hop neighbourhood from a session's Knowledge Structure, with filters and optional budget. |
-| `search_semantic` | Semantically search a session's Knowledge Structure using natural language and seed IDs, expanding the neighbourhood with `query_subgraph`. |
+| `query_subgraph` | Extract a local k‑hop neighbourhood from a session's Knowledge Structure, with filters, optional budget, and compact mode. |
+| `search_semantic` | **Real embedding-based semantic search.** Uses HuggingFace models to find relevant objects by meaning. Query "virtual machines" returns EC2, not S3. |
 | `get_metrics` | Return runtime metrics: invocation counts and average execution times per operation type. |
 
 ---
 
 # Usage Examples
+
+## Semantic search (no seed IDs required!)
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "search_semantic",
+    "arguments": {
+      "session_id": "...",
+      "query": "virtual machines in the cloud"
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "status": "success",
+  "matched_seeds": ["ec2", "compute-service", "aws"],
+  "subgraph": "...",
+  "meta": { ... }
+}
+```
+
+## Compact subgraph query
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "query_subgraph",
+    "arguments": {
+      "session_id": "...",
+      "seed_ids": ["earth", "mars"],
+      "depth": 2,
+      "compact_mode": true
+    }
+  }
+}
+```
+
+Response (compact, token-efficient):
+
+```json
+{
+  "nodes": [
+    {"id": "earth", "type": "Planet", "name": "Earth", "props": {...}},
+    {"id": "mars", "type": "Planet", "name": "Mars", "props": {...}}
+  ],
+  "edges": [
+    {"source": "earth", "target": "sun", "type": "orbits"}
+  ]
+}
+```
 
 ## Validate a structure with citation-hallucination detection
 
