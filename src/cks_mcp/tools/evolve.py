@@ -63,6 +63,29 @@ def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, A
             "details": blocking,
         }
 
+    # Validate the evolved structure before committing
+    try:
+        validation = cks.validate(prospective_structure)
+    except Exception as e:
+        return {
+            "error": "validation_error",
+            "message": f"Could not validate evolved structure: {e}",
+        }
+    if not validation.is_valid:
+        return {
+            "error": "validation_failed",
+            "message": "Evolution would produce an invalid structure.",
+            "diagnostics": [
+                {
+                    "code": d.identity,
+                    "severity": d.severity.value,
+                    "message": d.message,
+                    "location": d.location,
+                }
+                for d in validation.diagnostics
+            ],
+        }
+
     if not session_existed:
         session = runtime.create_session(structure)
 

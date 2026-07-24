@@ -3,6 +3,14 @@
 
 ---
 
+## [1.6.10] - 2026-07-24
+
+### Fixed
+- **`evolve_knowledge` now validates the evolved structure before committing.** If the evolution would produce an invalid structure (e.g., dangling references from a misused `remove_relation`), the commit is blocked with a clear error, preventing corrupted data from entering the session history.
+- Bumped `cks-runtime` to `>=1.9.4` (fixes embedding worker for delta versions).
+
+---
+
 ## [1.6.9] - 2026-07-24
 
 ### Fixed
