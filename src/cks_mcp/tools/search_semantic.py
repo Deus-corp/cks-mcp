@@ -32,7 +32,7 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         try:
             # Use runtime's embedding client if available, else fallback to stub
             client = getattr(runtime, '_embedding_client', None) or StubEmbeddingClient()
-            query_embedding = client.embed_batch([query])[0]
+            query_embedding = client.embed_batch([query], normalize=True)[0]
             seed_ids = runtime.storage.search_embeddings(
                 query_embedding,
                 session_id,

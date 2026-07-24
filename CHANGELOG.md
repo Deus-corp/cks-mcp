@@ -3,6 +3,14 @@
 
 ---
 
+## [1.6.16] - 2026-07-24
+
+### Changed
+- `search_semantic` now normalizes query vectors, improving semantic search accuracy when combined with normalized embeddings from `cks-runtime>=1.10.2`.
+- Bumped `cks-runtime` dependency to `>=1.10.2`.
+
+---
+
 ## [1.6.14] - 2026-07-24
 
 ### Changed
