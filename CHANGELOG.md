@@ -3,6 +3,18 @@
 
 ---
 
+## [1.7.3] - 2026-07-25
+
+### Added
+- 7 new tests for `merge_knowledge` covering conflicts, resolutions (branch_a, branch_b, custom object, malformed, partial).
+- 5 new tests for `merge_branch` with resolutions.
+- Bumped `cks-runtime` dependency to `>=1.14.0`.
+
+### Fixed
+- `_parse_resolutions` now correctly handles raw JSON object definitions for custom resolutions in both merge tools.
+
+---
+
 ## [1.7.2] - 2026-07-25
 
 ### Added
