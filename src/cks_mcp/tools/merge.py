@@ -4,6 +4,7 @@ merge_branch: session-aware three-way merge between two live sessions.
 """
 
 from typing import Any
+import json
 import cks
 from cks_runtime.runtime import Runtime
 from cks_runtime.core_api.merge_conflict import RuntimeMergeConflictError
@@ -11,6 +12,35 @@ from cks_runtime.execution.operation_executor import OperationStatus
 from cks_runtime.operations.operation_types import MergeOperation
 from cks_mcp.errors import missing_parameter, session_not_found
 from cks_mcp import provenance
+
+
+def _parse_resolutions(resolutions: dict[str, Any] | None) -> dict[str, Any] | None:
+    """
+    Convert any raw JSON object among ``resolutions``' values into an
+    actual ``KnowledgeObject``/``CanonicalRelation`` instance, since
+    ``cks.merge()`` only accepts the strings ``"branch_a"``/
+    ``"branch_b"``, ``None``, or a real instance for a custom
+    resolution -- never a bare dict.
+
+    Each candidate dict is run through ``cks.parse()`` (wrapped as a
+    single-object document) rather than hand-rolled here, so it gets
+    exactly the same identity/structure validation and
+    object-vs-relation detection (via 'participants' + 'relation_type'
+    in 'structure') as every other object the caller ever submits --
+    including a clear ``SerializationError`` if it's malformed, rather
+    than a confusing failure inside ``merge()`` itself.
+    """
+    if not resolutions:
+        return resolutions
+    parsed: dict[str, Any] = {}
+    for object_id, value in resolutions.items():
+        if isinstance(value, dict):
+            wrapped = cks.parse(json.dumps({"objects": [value]}))
+            (parsed_obj,) = wrapped.objects
+            parsed[object_id] = parsed_obj
+        else:
+            parsed[object_id] = value
+    return parsed
 
 
 def _generate_diff(base_obj: Any, branch_obj: Any) -> dict[str, Any]:
@@ -54,8 +84,8 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         json_data_base, json_data_branch_a, json_data_branch_b
     Returns the merged structure or a structured conflict report.
     """
-    resolutions = arguments.get("resolutions")
     try:
+        resolutions = _parse_resolutions(arguments.get("resolutions"))
         base = cks.parse(arguments["json_data_base"])
         branch_a = cks.parse(arguments["json_data_branch_a"])
         branch_b = cks.parse(arguments["json_data_branch_b"])
@@ -100,13 +130,19 @@ def _conflict_payload(error: RuntimeMergeConflictError) -> dict[str, Any]:
     return {
         "merged": False,
         "message": (
-            "Merge conflict detected. Do not call merge_branch again "
-            "unchanged -- inspect base_state/target_state/source_state "
-            "for each conflict below, decide the correct combined "
-            "content, and apply it to the target session yourself via "
-            "evolve_knowledge. Once every conflict is resolved and any "
-            "non-conflicting source changes you still want are carried "
-            "over, close_session the source branch."
+            "Merge conflict detected. For each entry in 'conflicts' below, "
+            "inspect 'target_diff' and 'source_diff' and decide the correct "
+            "content, then retry merge_branch with a 'resolutions' argument "
+            "mapping each object_id to 'branch_a' (keep target's version), "
+            "'branch_b' (keep source's version), null (drop it), or a "
+            "complete object definition (to synthesize a new value from "
+            "both sides). resolutions may cover only some of the conflicts "
+            "below -- everything else still merges normally, and only "
+            "identities still unresolved will be reported again. "
+            "Alternatively, apply the resolution directly to the target "
+            "session yourself via evolve_knowledge and retry merge_branch "
+            "with no resolutions. Once merged, close_session the source "
+            "branch."
         ),
         "conflicts": [
             {
@@ -150,7 +186,10 @@ def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     target_session_id = arguments.get("target_session_id")
     source_session_id = arguments.get("source_session_id")
-    resolutions = arguments.get("resolutions")
+    try:
+        resolutions = _parse_resolutions(arguments.get("resolutions"))
+    except cks.SerializationError as e:
+        return {"error": f"Invalid 'resolutions' entry: {e}"}
 
     if not target_session_id:
         return missing_parameter("target_session_id")

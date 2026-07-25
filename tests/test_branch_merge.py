@@ -111,6 +111,121 @@ def test_merge_branch_detects_conflicts():
     assert len(result["conflicts"]) == 1
     assert result["conflicts"][0]["object_id"] == "shared"
 
+
+def _make_conflicting_branch(runtime):
+    """Shared setup: trunk and branch both edit 'shared' differently."""
+    trunk = runtime.create_session(cks.parse(make_structure(["shared"])))
+    tx = runtime.begin_transaction(trunk)
+    runtime.commit_transaction(tx)
+    branch = runtime.create_branch(trunk, version_id=trunk.version_history[0].version_id)
+
+    evolve_knowledge(runtime, {
+        "json_data": make_structure(["shared"]),
+        "session_id": trunk.session_id,
+        "operations": [
+            {"type": "update_object", "object_id": "shared", "structure_patch": {"note": "trunk edit"}},
+        ],
+    })
+    evolve_knowledge(runtime, {
+        "json_data": make_structure(["shared"]),
+        "session_id": branch.session_id,
+        "operations": [
+            {"type": "update_object", "object_id": "shared", "structure_patch": {"note": "branch edit"}},
+        ],
+    })
+    return trunk, branch
+
+
+def test_merge_branch_resolutions_branch_a():
+    runtime = make_runtime()
+    trunk, branch = _make_conflicting_branch(runtime)
+    result = merge_branch(runtime, {
+        "target_session_id": trunk.session_id,
+        "source_session_id": branch.session_id,
+        "resolutions": {"shared": "branch_a"},
+    })
+    assert result["merged"] is True
+    assert "trunk edit" in result["serialized"]
+
+
+def test_merge_branch_resolutions_branch_b():
+    runtime = make_runtime()
+    trunk, branch = _make_conflicting_branch(runtime)
+    result = merge_branch(runtime, {
+        "target_session_id": trunk.session_id,
+        "source_session_id": branch.session_id,
+        "resolutions": {"shared": "branch_b"},
+    })
+    assert result["merged"] is True
+    assert "branch edit" in result["serialized"]
+
+
+def test_merge_branch_resolutions_custom_object():
+    """
+    Regression test: a resolution value can be a raw JSON object
+    definition (as documented in the tool schema), not just the
+    'branch_a'/'branch_b'/null sentinels -- it must be parsed into an
+    actual KnowledgeObject before being handed to cks.merge(), which
+    only accepts real instances for a custom resolution.
+    """
+    runtime = make_runtime()
+    trunk, branch = _make_conflicting_branch(runtime)
+    result = merge_branch(runtime, {
+        "target_session_id": trunk.session_id,
+        "source_session_id": branch.session_id,
+        "resolutions": {
+            "shared": {
+                "identity": {"id": "shared", "type": "Thing", "name": "shared"},
+                "structure": {"note": "synthesized from both edits"},
+            }
+        },
+    })
+    assert result["merged"] is True
+    assert "synthesized from both edits" in result["serialized"]
+
+
+def test_merge_branch_resolutions_malformed_custom_object():
+    runtime = make_runtime()
+    trunk, branch = _make_conflicting_branch(runtime)
+    result = merge_branch(runtime, {
+        "target_session_id": trunk.session_id,
+        "source_session_id": branch.session_id,
+        "resolutions": {"shared": {"structure": {"note": "no identity field"}}},
+    })
+    assert "error" in result
+    assert "resolutions" in result["error"].lower()
+
+
+def test_merge_branch_resolutions_partial_leaves_remaining_conflicts():
+    runtime = make_runtime()
+    trunk = runtime.create_session(cks.parse(make_structure(["a", "b"])))
+    tx = runtime.begin_transaction(trunk)
+    runtime.commit_transaction(tx)
+    branch = runtime.create_branch(trunk, version_id=trunk.version_history[0].version_id)
+
+    evolve_knowledge(runtime, {
+        "json_data": make_structure(["a", "b"]), "session_id": trunk.session_id,
+        "operations": [
+            {"type": "update_object", "object_id": "a", "structure_patch": {"note": "trunk-a"}},
+            {"type": "update_object", "object_id": "b", "structure_patch": {"note": "trunk-b"}},
+        ],
+    })
+    evolve_knowledge(runtime, {
+        "json_data": make_structure(["a", "b"]), "session_id": branch.session_id,
+        "operations": [
+            {"type": "update_object", "object_id": "a", "structure_patch": {"note": "branch-a"}},
+            {"type": "update_object", "object_id": "b", "structure_patch": {"note": "branch-b"}},
+        ],
+    })
+
+    result = merge_branch(runtime, {
+        "target_session_id": trunk.session_id,
+        "source_session_id": branch.session_id,
+        "resolutions": {"a": "branch_a"},
+    })
+    assert result["merged"] is False
+    assert [c["object_id"] for c in result["conflicts"]] == ["b"]
+
 def test_close_session_after_merge():
     runtime = make_runtime()
     trunk = runtime.create_session(cks.parse(make_structure(["root"])))

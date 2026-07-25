@@ -3,6 +3,17 @@
 
 ---
 
+## [1.7.2] - 2026-07-25
+
+### Added
+- `merge_branch` and `merge_knowledge` now accept raw JSON object definitions in the `resolutions` parameter, enabling custom synthesized conflict resolutions without pre-constructing KnowledgeObjects.
+- 5 new tests covering all `resolutions` scenarios (branch_a, branch_b, custom object, partial, malformed).
+
+### Changed
+- Updated `merge_branch` conflict message to recommend using the `resolutions` parameter for a one-shot resolution.
+
+---
+
 ## [1.7.1] - 2026-07-25
 
 ### Added
