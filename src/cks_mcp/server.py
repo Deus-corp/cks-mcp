@@ -43,7 +43,7 @@ from cks_runtime.embedding.client import HuggingFaceEmbeddingClient
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.7.0"
+SERVER_VERSION = "1.7.1"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -313,6 +313,10 @@ TOOLS = {
                         "create_branch's 'version_id' parameter."
                     ),
                 },
+                "resolutions": {
+                    "type": "object",
+                    "description": "Optional. Per-object conflict resolution strategies. Keys are object IDs. Values: 'branch_a' (take target's version), 'branch_b' (take source branch's version), null (drop the object), or a complete object definition to use as the merged result."
+                }
             },
             "required": ["target_session_id", "source_session_id"],
         },

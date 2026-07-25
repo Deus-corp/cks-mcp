@@ -3,6 +3,17 @@
 
 ---
 
+## [1.7.1] - 2026-07-25
+
+### Added
+- `merge_branch` now accepts optional `resolutions` parameter, enabling partial merges with per-object conflict resolution strategies.
+- Updated tool schema to document `resolutions` for `merge_branch`.
+
+### Changed
+- Improved default description for GPU in knowledge graph examples to enhance semantic search relevance.
+
+---
+
 ## [1.7.0] - 2026-07-25
 
 ### Added
