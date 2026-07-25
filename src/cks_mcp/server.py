@@ -43,7 +43,7 @@ from cks_runtime.embedding.client import HuggingFaceEmbeddingClient
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.7.3"
+SERVER_VERSION = "1.7.4"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -411,9 +411,14 @@ TOOLS = {
         "name": "search_semantic",
         "description": (
             "Semantically search the Knowledge Structure of a session. "
-            "Provide a natural language query and explicit seed object IDs "
-            "(vector index coming soon). The tool expands the neighbourhood "
-            "around the matched seeds using query_subgraph. "
+            "Provide a natural language query; if the storage backend has "
+            "a vector index (embeddings generated via the background "
+            "outbox worker), matching seed objects are found "
+            "automatically. Pass explicit 'seed_ids' instead when you "
+            "already know which objects to expand around, or as a "
+            "fallback if no embeddings have been generated yet for this "
+            "session. The tool expands the neighbourhood around the "
+            "matched seeds using query_subgraph. "
             "Use this when you don't know exact object IDs but have a "
             "description of what you're looking for."
         ),
@@ -431,7 +436,7 @@ TOOLS = {
                 "seed_ids": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of object IDs to start the subgraph expansion from (required until vector index is available)."
+                    "description": "Optional. List of object IDs to start the subgraph expansion from. Omit to use vector search automatically; required as a fallback if the storage backend has no embeddings for this session yet."
                 },
                 "top_k": {
                     "type": "integer",

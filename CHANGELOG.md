@@ -3,6 +3,18 @@
 
 ---
 
+## [1.7.4] - 2026-07-25
+
+### Changed
+- Updated `search_semantic` tool description to reflect that vector search is live and `seed_ids` is optional.
+- `merge_knowledge` now reports `dropped_relations` in its response when referential integrity causes relations to be excluded.
+- Bumped `cks-runtime` to `>=1.15.0` and `cks-core` to `>=1.11.0`.
+
+### Fixed
+- `merge_knowledge` no longer silently drops relations without informing the caller.
+
+---
+
 ## [1.7.3] - 2026-07-25
 
 ### Added

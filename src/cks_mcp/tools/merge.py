@@ -89,7 +89,8 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         base = cks.parse(arguments["json_data_base"])
         branch_a = cks.parse(arguments["json_data_branch_a"])
         branch_b = cks.parse(arguments["json_data_branch_b"])
-        merged = base.merge(branch_a, branch_b, resolutions=resolutions)
+        dropped_relations: list[str] = []
+        merged = base.merge(branch_a, branch_b, resolutions=resolutions, dropped_relations=dropped_relations)
     except Exception as e:
         # Check if this is a merge conflict error by duck-typing
         if hasattr(e, 'conflicts'):
@@ -120,10 +121,13 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         }
 
     serialized = runtime.core_bridge.serialize(merged)
-    return {
+    response = {
         "merged": True,
         "serialized": serialized,
     }
+    if dropped_relations:
+        response["dropped_relations"] = dropped_relations
+    return response
 
 
 def _conflict_payload(error: RuntimeMergeConflictError) -> dict[str, Any]:
