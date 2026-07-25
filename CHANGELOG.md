@@ -3,6 +3,18 @@
 
 ---
 
+## [1.7.0] - 2026-07-25
+
+### Added
+- `merge_knowledge` and `merge_branch` now accept an optional `resolutions` parameter for partial three-way merges, allowing callers to specify per-object conflict resolution strategies (`"branch_a"`, `"branch_b"`, `null`, or a custom object definition).
+- Updated tool schema in `server.py` to document the `resolutions` parameter for both merge tools.
+- Bumped `cks-runtime` dependency to `>=1.13.0` (adds `resolutions` support in `CoreBridge.merge()` and `MergeOperation`).
+
+### Changed
+- `search_semantic` now correctly triggers vector search when `seed_ids` is omitted or empty, instead of requiring explicit IDs. The parameter is no longer listed as required.
+
+---
+
 ## [1.6.19] - 2026-07-24
 
 ### Fixed

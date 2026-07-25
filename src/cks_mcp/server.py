@@ -43,7 +43,7 @@ from cks_runtime.embedding.client import HuggingFaceEmbeddingClient
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.6.19"
+SERVER_VERSION = "1.7.0"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -173,12 +173,33 @@ TOOLS = {
                     "type": "array",
                     "description": (
                         "List of evolution operators to apply, in order. Each operator is an "
-                        "object with a 'type' of 'add_object' | 'add_relation' | 'remove_object' "
-                        "| 'remove_relation'. Example: "
+                        "object with a 'type' field; the other required fields depend on that "
+                        "type and are NOT interchangeable between operators:\n"
+                        "  - 'add_object': requires 'identity' ({'id','type','name'}) and "
+                        "optional 'structure' (a free-form dict). Fails if the id already "
+                        "exists -- use 'update_object' to change an existing object instead.\n"
+                        "  - 'add_relation': requires 'identity', 'participants' (list of "
+                        "existing object ids), 'relation_type', and optional 'structure'.\n"
+                        "  - 'remove_object': requires 'object_id' (NOT 'identity'). Removing "
+                        "an object also cascade-removes every relation that references it; "
+                        "the response's 'cascade_removed_relations' lists what was removed.\n"
+                        "  - 'remove_relation': requires 'relation_id' (NOT 'identity'). Only "
+                        "valid for an id that is actually a relation -- use 'remove_object' "
+                        "for a plain object.\n"
+                        "  - 'update_object': requires 'object_id' and 'structure_patch' (a "
+                        "dict of fields to change), and optional 'mode' ('merge', the default "
+                        "-- shallow-merges structure_patch into the existing structure, and a "
+                        "patch value of null deletes that key -- or 'replace', which replaces "
+                        "the whole structure dict). Use this instead of remove_object + "
+                        "add_object to change an object's content: the object's id and every "
+                        "relation referencing it are left untouched, with no cascade.\n"
+                        "Example: "
                         '\'[{"type": "add_object", "identity": {"id": "obj-2", "type": "Lemma", '
                         '"name": "New"}, "structure": {}}, {"type": "add_relation", "identity": '
                         '{"id": "rel-1", "type": "Relation", "name": "r"}, "participants": '
-                        '["obj-1", "obj-2"], "relation_type": "derives"}]\'.'
+                        '["obj-1", "obj-2"], "relation_type": "derives"}, {"type": '
+                        '"update_object", "object_id": "obj-1", "structure_patch": '
+                        '{"summary": "revised text"}}]\'.'
                     ),
                 },
                 "session_id": {
@@ -215,6 +236,10 @@ TOOLS = {
                     "type": "string",
                     "description": "Branch B Knowledge Structure as a JSON string.",
                 },
+                "resolutions": {
+                    "type": "object",
+                    "description": "Optional. Per-object conflict resolution strategy. Keys are object IDs. Values: 'branch_a', 'branch_b', null (drop), or a full object definition to override the conflict."
+                }
             },
             "required": ["json_data_base", "json_data_branch_a", "json_data_branch_b"],
         },

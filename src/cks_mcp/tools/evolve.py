@@ -1,5 +1,5 @@
 import cks
-from cks.evolution import parse_operations
+from cks.evolution import RemoveObject, parse_operations
 from typing import Any
 from cks_runtime.runtime import Runtime
 from cks_runtime.operations.operation_types import EvolveOperation
@@ -96,7 +96,7 @@ def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, A
     # Detect cascade-deleted relations caused by RemoveObject operations
     cascade_removed: list[str] = []
     for op in operations:
-        if hasattr(op, '_object_id'):
+        if isinstance(op, RemoveObject):
             removed_id = op._object_id
             for rel in structure.relations():
                 if removed_id in rel.participants:

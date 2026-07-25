@@ -54,11 +54,12 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         json_data_base, json_data_branch_a, json_data_branch_b
     Returns the merged structure or a structured conflict report.
     """
+    resolutions = arguments.get("resolutions")
     try:
         base = cks.parse(arguments["json_data_base"])
         branch_a = cks.parse(arguments["json_data_branch_a"])
         branch_b = cks.parse(arguments["json_data_branch_b"])
-        merged = base.merge(branch_a, branch_b)
+        merged = base.merge(branch_a, branch_b, resolutions=resolutions)
     except Exception as e:
         # Check if this is a merge conflict error by duck-typing
         if hasattr(e, 'conflicts'):
@@ -149,6 +150,7 @@ def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     target_session_id = arguments.get("target_session_id")
     source_session_id = arguments.get("source_session_id")
+    resolutions = arguments.get("resolutions")
 
     if not target_session_id:
         return missing_parameter("target_session_id")
@@ -170,6 +172,7 @@ def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
             "merge",
             source_session=source,
             base_version_id=base_version_id,
+            resolutions=resolutions,
         )
 
     # Dry-run through the executor directly first (no transaction), so

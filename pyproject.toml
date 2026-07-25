@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cks-mcp"
-version = "1.6.19"
+version = "1.7.0"
 description = "CKS MCP Server — Canonical Knowledge Structure for LLMs"
 readme = "README.md"
 authors = [{name = "Vladyslav Hruznov"}]
 license = {text = "MIT"}
 requires-python = ">=3.12"
 dependencies = [
-    "cks-runtime>=1.11.0",
-    "cks-core>=1.9.1",
+    "cks-runtime>=1.13.0",
+    "cks-core>=1.10.6",
     "requests>=2.0",
 ]
 
