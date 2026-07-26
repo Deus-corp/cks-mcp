@@ -3,6 +3,13 @@
 
 ---
 
+## [1.7.5] - 2026-07-26
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.16.0` (adds operation log for field-level change tracking, ADR-007 Part 1).
+
+---
+
 ## [1.7.4] - 2026-07-25
 
 ### Changed
