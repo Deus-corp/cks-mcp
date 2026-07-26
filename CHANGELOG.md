@@ -3,6 +3,17 @@
 
 ---
 
+## [1.7.9] - 2026-07-26
+
+### Fixed
+- **Thread-safe DNS rebinding protection:** `verify_source`'s `pin_dns` context manager now uses reference-counted activation to prevent a race condition where a concurrent request could disable the DNS pinning for another in-flight request.
+- **`Runtime` now properly stores and exposes `embedding_client`:** `search_semantic` was silently falling back to `StubEmbeddingClient` for query encoding, returning irrelevant results. Now uses the same client configured for indexing.
+- **Embedding dimension mismatch detection:** `search_embeddings` now safely skips stored embeddings whose dimension differs from the query, instead of silently computing garbage similarity scores.
+- **`KnowledgeStructure.merge()` contract fix:** a `resolutions` entry for an id that both branches touched but converged on the same value is now correctly rejected with `ValueError`, as documented.
+- **Stable data directory:** provenance secret and SQLite database are now stored under `~/.cks-mcp` (overridable via `CKS_MCP_DATA_DIR`), so server restarts from different working directories no longer lose previously signed verifications or create empty databases.
+
+---
+
 ## [1.7.8] - 2026-07-26
 
 ### Fixed

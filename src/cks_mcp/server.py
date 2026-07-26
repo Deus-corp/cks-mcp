@@ -37,13 +37,14 @@ from cks_mcp.prompts import list_prompts, get_prompt, PROMPTS
 from cks_mcp.tools.search_semantic import search_semantic
 from cks_mcp.tools.get_metrics import get_metrics
 from cks_runtime.embedding.client import HuggingFaceEmbeddingClient
+from cks_mcp.paths import data_dir
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.7.8"
+SERVER_VERSION = "1.7.9"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -700,7 +701,7 @@ def handle_request(
 def main() -> None:
     """Entry point for the MCP server."""
     # Determine a writable location for the SQLite database
-    db_dir = "data"
+    db_dir = str(data_dir())
     db_path = os.path.join(db_dir, "cks_mcp.db")
     storage = None
     use_persistent = True

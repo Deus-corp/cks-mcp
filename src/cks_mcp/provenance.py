@@ -17,12 +17,13 @@ import base64
 import hashlib
 import hmac
 import os
-from pathlib import Path
 from typing import Any
+
+from cks_mcp.paths import data_dir
 
 SIGNATURE_KEY = "_cks_mcp_signature"
 
-_SECRET_FILE = Path("data/.cks_provenance_secret")
+_SECRET_FILE = data_dir() / ".cks_provenance_secret"
 
 
 def _load_secret() -> bytes:

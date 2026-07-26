@@ -57,6 +57,20 @@ def _is_public_ip(ip_str: str) -> bool:
 _orig_getaddrinfo = socket.getaddrinfo
 _thread_local = threading.local()
 
+# Reference-counted activation guard. socket.getaddrinfo is a single,
+# process-wide attribute: if two pin_dns() contexts are open on
+# different threads at once, a naive "save on entry / restore on exit"
+# pattern is unsafe -- whichever context exits first restores whatever
+# IT saw on entry, which can be the *other* thread's patched function,
+# silently reverting socket.getaddrinfo to the real, unpinned resolver
+# while that other thread still believes it is protected. That
+# reopens exactly the DNS-rebinding window this code exists to close.
+# Counting active contexts under a lock instead means the patch is
+# installed once (by the first context to open) and removed once (by
+# the last context to close), regardless of interleaving.
+_patch_lock = threading.Lock()
+_active_patches = 0
+
 def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     overrides = getattr(_thread_local, "dns_overrides", {})
     if host in overrides:
@@ -66,17 +80,22 @@ def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
 @contextmanager
 def pin_dns(hostname: str, ip: str):
     """Temporarily pin a hostname to a specific IP for the duration of the context."""
+    global _active_patches
     if not hasattr(_thread_local, "dns_overrides"):
         _thread_local.dns_overrides = {}
     old_ip = _thread_local.dns_overrides.get(hostname)
     _thread_local.dns_overrides[hostname] = ip
-    # Activate the override only while inside this context
-    original_getaddrinfo = socket.getaddrinfo
-    socket.getaddrinfo = _patched_getaddrinfo
+    with _patch_lock:
+        _active_patches += 1
+        if _active_patches == 1:
+            socket.getaddrinfo = _patched_getaddrinfo
     try:
         yield
     finally:
-        socket.getaddrinfo = original_getaddrinfo
+        with _patch_lock:
+            _active_patches -= 1
+            if _active_patches == 0:
+                socket.getaddrinfo = _orig_getaddrinfo
         if old_ip is None:
             del _thread_local.dns_overrides[hostname]
         else:
