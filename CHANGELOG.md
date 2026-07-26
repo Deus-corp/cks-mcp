@@ -3,6 +3,15 @@
 
 ---
 
+## [1.7.8] - 2026-07-26
+
+### Fixed
+- **Critical provenance bypass:** `verify_structure_provenance` now identifies `verified_by` relations structurally (via `structure.relations()`), not by the caller-chosen `identity.type` string. Previously, a forged `VerificationRecord` linked by a relation with any `identity.type` other than the literal string `"Relation"` was invisible to the signature check and could be committed as a valid version.
+- Added 2 regression tests confirming forged records are rejected and genuine records are accepted regardless of `identity.type`.
+- Bumped `cks-runtime` to `>=1.17.3` and `cks-core` to `>=1.11.1`.
+
+---
+
 ## [1.7.7] - 2026-07-26
 
 ### Fixed

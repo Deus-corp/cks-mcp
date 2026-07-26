@@ -96,13 +96,27 @@ def verify_structure_provenance(structure: Any) -> list[dict[str, Any]]:
     record_to_subject: dict[str, str] = {}
     ambiguous_records: set[str] = set()
 
-    # Build mapping from record_id -> subject_id
-    for obj in structure.objects:
-        if not hasattr(obj, 'identity') or obj.identity.type != "Relation":
+    # Build mapping from record_id -> subject_id.
+    #
+    # A relation is identified the same way cks-core itself identifies
+    # one: structurally, via structure.relations() -- which returns
+    # actual CanonicalRelation instances, built during parsing from the
+    # presence of 'participants' + 'relation_type' keys, never from
+    # identity.type (see CanonicalDeserializer._parse_object in
+    # cks-core's serialization.py; cks-core's own
+    # VerificationRecordIntegrityConstraint uses this exact same
+    # structure.relations() call for the same reason). identity.type is
+    # a free-form label the caller chooses and carries no structural
+    # meaning in cks-core, so using it here let a forged, unsigned
+    # VerificationRecord dodge this whole check just by giving its
+    # 'verified_by' link any identity.type other than the literal
+    # string "Relation" -- record_to_subject would stay empty, routing
+    # the record into the WARNING-only "unlinked" branch below instead
+    # of the ERROR branch that actually calls verify().
+    for rel in structure.relations():
+        if rel.structure.get("relation_type") != "verified_by":
             continue
-        if obj.structure.get("relation_type") != "verified_by":
-            continue
-        participants = obj.structure.get("participants", [])
+        participants = rel.participants
         if len(participants) != 2:
             continue
         subject_id, record_id = participants

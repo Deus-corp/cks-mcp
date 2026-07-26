@@ -90,6 +90,80 @@ def test_forged_verification_record_is_not_committed():
     assert runtime.sessions.list_sessions() == ()
 
 
+def _structure_with_record_and_relation_type(signature: str | None, relation_identity_type: str) -> str:
+    """Same as _structure_with_record, but with the linking relation's
+    identity.type overridable -- to test that relation detection is
+    structural (participants + relation_type), not keyed off this
+    caller-chosen label."""
+    record_structure = {
+        "checked_at": "2026-01-01T00:00:00Z",
+        "checked_via": "automated_http_check",
+        "http_status": 200,
+    }
+    if signature is not None:
+        record_structure[provenance.SIGNATURE_KEY] = signature
+
+    return json.dumps({
+        "objects": [
+            {
+                "identity": {"id": "claim-1", "type": "Definition", "name": "Claim"},
+                "structure": {"text": "the sky is blue"},
+            },
+            {
+                "identity": {"id": "vr-1", "type": "VerificationRecord", "name": "check"},
+                "structure": record_structure,
+            },
+            {
+                "identity": {"id": "rel-1", "type": relation_identity_type, "name": "r"},
+                "structure": {"participants": ["claim-1", "vr-1"], "relation_type": "verified_by"},
+            },
+        ]
+    })
+
+
+def test_forged_verification_record_is_not_committed_regardless_of_relation_identity_type():
+    """
+    Regression test for a critical provenance bypass: relation
+    detection in verify_structure_provenance used to key off the
+    linking relation's identity.type string (checking for the literal
+    "Relation"), but cks-core itself classifies relations structurally
+    -- from 'participants' + 'relation_type' in `structure`, never from
+    identity.type (see CanonicalDeserializer._parse_object in
+    cks-core). A relation labeled with any other identity.type (e.g.
+    "VerifiedByLink") was therefore invisible to the record_to_subject
+    mapping, routing even a fully forged, unsigned VerificationRecord
+    into the WARNING-only "unlinked" branch instead of the ERROR branch
+    that calls verify() -- letting it commit as a real, valid version.
+    """
+    runtime = make_runtime()
+    result = validate_knowledge(runtime, {
+        "json_data": _structure_with_record_and_relation_type("totally-fake-signature", "VerifiedByLink")
+    })
+
+    assert result["valid"] is False
+    assert "version_id" not in result
+    assert "session_id" not in result
+    assert any(d["code"] == "CKS-MCP-UNVERIFIED-PROVENANCE" for d in result["diagnostics"])
+    assert runtime.sessions.list_sessions() == ()
+
+
+def test_genuinely_signed_record_is_recognized_regardless_of_relation_identity_type():
+    """The fix must not overcorrect into rejecting everything whose
+    linking relation isn't labeled "Relation" -- a genuinely signed
+    record must still validate and commit no matter what identity.type
+    its 'verified_by' relation carries."""
+    runtime = make_runtime()
+    signature = provenance.sign("vr-1", "claim-1", "2026-01-01T00:00:00Z", "automated_http_check", 200)
+
+    result = validate_knowledge(runtime, {
+        "json_data": _structure_with_record_and_relation_type(signature, "VerifiedByLink")
+    })
+
+    assert result["valid"] is True
+    assert result["diagnostics"] == []
+    assert "version_id" in result
+
+
 def test_missing_signature_is_not_committed():
     runtime = make_runtime()
     result = validate_knowledge(runtime, {"json_data": _structure_with_record(None)})
