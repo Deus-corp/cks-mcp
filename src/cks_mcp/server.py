@@ -44,7 +44,7 @@ from cks_mcp.paths import data_dir
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.7.12"
+SERVER_VERSION = "1.7.13"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------

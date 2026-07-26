@@ -3,6 +3,13 @@
 
 ---
 
+## [1.7.13] - 2026-07-26
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.17.5` (fixes `OutboxEmbeddingWorker` JSON payload parsing, enabling embedding generation for semantic search).
+
+---
+
 ## [1.7.12] - 2026-07-26
 
 ### Added
