@@ -8,7 +8,6 @@ to find relevant object IDs, then expands them with query_subgraph.
 from typing import Any
 
 from cks_runtime.runtime import Runtime
-from cks_runtime.embedding.client import StubEmbeddingClient
 from cks_mcp.errors import missing_parameter, session_not_found
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 
@@ -30,9 +29,11 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
     seed_ids = arguments.get("seed_ids")
     if not seed_ids and hasattr(runtime.storage, "search_embeddings"):
         try:
-            # Use runtime's embedding client if available, else fallback to stub
-            client = getattr(runtime, '_embedding_client', None) or StubEmbeddingClient()
-            query_embedding = client.embed_batch([query], normalize=True)[0]
+            # Must be the exact same client instance used to index
+            # objects (Runtime.embedding_client), or the query vector
+            # lives in a different embedding space than what's stored
+            # and every similarity score is meaningless.
+            query_embedding = runtime.embedding_client.embed_batch([query], normalize=True)[0]
             seed_ids = runtime.storage.search_embeddings(
                 query_embedding,
                 session_id,

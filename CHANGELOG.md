@@ -3,6 +3,13 @@
 
 ---
 
+## [1.7.10] - 2026-07-26
+
+### Fixed
+- `search_semantic` now uses `runtime.embedding_client` (the same client instance used for indexing) instead of falling back to `StubEmbeddingClient`, restoring real semantic search functionality.
+
+---
+
 ## [1.7.9] - 2026-07-26
 
 ### Fixed
