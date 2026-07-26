@@ -3,6 +3,13 @@
 
 ---
 
+## [1.7.11] - 2026-07-26
+
+### Changed
+- Bumped `cks-runtime` to `>=1.17.4` (embedding dimension mismatch safety, proper `embedding_client` wiring) and `cks-core` to `>=1.11.2` (merge resolutions validation fix).
+
+---
+
 ## [1.7.10] - 2026-07-26
 
 ### Fixed
