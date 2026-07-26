@@ -44,7 +44,7 @@ from cks_mcp.paths import data_dir
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.7.11"
+SERVER_VERSION = "1.7.12"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -700,6 +700,8 @@ def handle_request(
 
 def main() -> None:
     """Entry point for the MCP server."""
+    from cks_mcp.paths import data_dir
+
     # Determine a writable location for the SQLite database
     db_dir = str(data_dir())
     db_path = os.path.join(db_dir, "cks_mcp.db")
@@ -731,6 +733,15 @@ def main() -> None:
                 "Using in-memory storage.",
                 file=sys.stderr,
             )
+    # Load environment from ~/.cks-mcp/.env if it exists
+    env_file = data_dir() / ".env"
+    if env_file.exists():
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, value = line.partition("=")
+                    os.environ.setdefault(key.strip(), value.strip())
 
     # Initialize embedding client (fallback to None if OpenAI unavailable)
     try:

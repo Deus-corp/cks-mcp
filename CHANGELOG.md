@@ -3,6 +3,14 @@
 
 ---
 
+## [1.7.12] - 2026-07-26
+
+### Added
+- `server.py` now loads environment variables from `~/.cks-mcp/.env` at startup, ensuring `HF_TOKEN` (and any future configuration) persists across restarts and is always available to the embedding client.
+- Removed old `src/cks_mcp/.env` and `src/cks_mcp/.env_example` in favour of the stable `~/.cks-mcp/` directory.
+
+---
+
 ## [1.7.11] - 2026-07-26
 
 ### Changed
