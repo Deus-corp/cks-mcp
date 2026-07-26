@@ -3,6 +3,13 @@
 
 ---
 
+## [1.7.6] - 2026-07-26
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.17.0` (adds field-level auto-merge for disjoint edits, ADR-007 Part 2). `merge_branch` and `merge_knowledge` automatically benefit from the new auto-resolution logic.
+
+---
+
 ## [1.7.5] - 2026-07-26
 
 ### Changed
