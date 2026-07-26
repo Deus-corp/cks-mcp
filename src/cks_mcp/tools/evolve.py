@@ -40,9 +40,13 @@ def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, A
             "message": "No evolution operations were provided.",
         }
 
-    # Dry-run to check provenance before committing
+    # Dry-run to check provenance before committing. Unmetered: this is
+    # a probe, not a committed operation -- the real execution (and the
+    # one that should show up in get_metrics) happens below via
+    # commit_transaction. Without record_metrics=False here, every
+    # successful evolve_knowledge call would be counted twice.
     op = EvolveOperation("evolve", knowledge_structure=structure, evolution=operations)
-    result = runtime.executor.execute(op, session)
+    result = runtime.executor.execute(op, session, record_metrics=False)
     if result.status.value == "failed":
         return {"error": f"Evolution failed: {result.error}"}
     prospective_structure = result.payload

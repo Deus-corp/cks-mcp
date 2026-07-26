@@ -130,8 +130,11 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
     return response
 
 
-def _conflict_payload(error: RuntimeMergeConflictError) -> dict[str, Any]:
-    return {
+def _conflict_payload(
+    error: RuntimeMergeConflictError,
+    diagnostics: tuple[Any, ...] = (),
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "merged": False,
         "message": (
             "Merge conflict detected. For each entry in 'conflicts' below, "
@@ -157,6 +160,16 @@ def _conflict_payload(error: RuntimeMergeConflictError) -> dict[str, Any]:
             for c in error.conflicts
         ],
     }
+    # Surface why the ADR-007 field-level auto-merge fast path (see
+    # MergeOperation._field_level_resolutions in cks-runtime) didn't
+    # resolve this automatically -- e.g. the storage backend doesn't
+    # support the operation log it relies on. Without this, identical
+    # disjoint-field edits can merge silently on one deployment and
+    # hard-conflict on another with no visible explanation.
+    for d in diagnostics:
+        if getattr(d, "code", None) == "CKS-RUNTIME-FIELD-MERGE-UNAVAILABLE":
+            payload["field_level_auto_merge_note"] = d.message
+    return payload
 
 
 def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:

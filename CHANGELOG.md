@@ -3,6 +3,16 @@
 
 ---
 
+## [1.7.7] - 2026-07-26
+
+### Fixed
+- `evolve_knowledge` and `merge_branch` probe calls are now unmetered, so `get_metrics` no longer reports double the actual number of tool invocations.
+
+### Added
+- `merge_branch` conflict responses now include a `field_level_auto_merge_note` when the ADR-007 fast path was unavailable, explaining why the conflict wasn't auto-resolved.
+
+---
+
 ## [1.7.6] - 2026-07-26
 
 ### Changed
