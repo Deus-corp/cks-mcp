@@ -3,6 +3,17 @@
 
 ---
 
+## [1.7.14] - 2026-07-26
+
+### Added
+- `search_semantic` now rejects an empty or whitespace-only `query` immediately with a clear `empty_query` error, instead of proceeding to (pointlessly) embed and vector-search on it.
+- `search_semantic` now includes a `scores` field in successful responses when seeds were found via vector search — a dict mapping each matched seed `object_id` to its similarity score, to help debug strong vs. weak matches. Omitted when `seed_ids` were supplied explicitly, since there's no similarity score to report for those.
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.17.7` (`search_embeddings` now returns `(object_id, similarity_score)` pairs instead of bare object IDs; `search_semantic` has been updated to consume the new return type).
+
+---
+
 ## [1.7.13] - 2026-07-26
 
 ### Changed

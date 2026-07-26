@@ -8,7 +8,7 @@ to find relevant object IDs, then expands them with query_subgraph.
 from typing import Any
 
 from cks_runtime.runtime import Runtime
-from cks_mcp.errors import missing_parameter, session_not_found
+from cks_mcp.errors import empty_query, missing_parameter, session_not_found
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 
 
@@ -22,11 +22,17 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         return session_not_found(session_id)
 
     query = arguments.get("query", "")
+    if not query or not query.strip():
+        return empty_query()
+
     top_k = int(arguments.get("top_k", 3))
     depth = int(arguments.get("depth", 1))
 
     # Try to use vector search if storage supports it
     seed_ids = arguments.get("seed_ids")
+    # Populated only when seed_ids come from vector search below --
+    # caller-supplied seed_ids have no similarity score to report.
+    scores: dict[str, float] | None = None
     if not seed_ids and hasattr(runtime.storage, "search_embeddings"):
         try:
             # Must be the exact same client instance used to index
@@ -34,11 +40,13 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
             # lives in a different embedding space than what's stored
             # and every similarity score is meaningless.
             query_embedding = runtime.embedding_client.embed_batch([query], normalize=True)[0]
-            seed_ids = runtime.storage.search_embeddings(
+            results = runtime.storage.search_embeddings(
                 query_embedding,
                 session_id,
                 top_k=top_k * 2,
             )
+            scores_by_id = {oid: sim for oid, sim in results}
+            seed_ids = [oid for oid, _ in results]
             if seed_ids:
                 # Filter to those actually in the current structure
                 # and exclude relation objects
@@ -47,8 +55,10 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
                     if (obj := session.knowledge_structure.get(sid)) is not None
                     and getattr(obj.identity, 'type', '') != 'Relation'
                 ][:top_k]
+                scores = {sid: scores_by_id[sid] for sid in seed_ids}
         except Exception:
             seed_ids = None
+            scores = None
 
     if not seed_ids:
         return {
@@ -70,7 +80,7 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
     if "error" in result:
         return result
 
-    return {
+    response: dict[str, Any] = {
         "status": "success",
         "matched_seeds": seed_ids,
         "subgraph": result["subgraph"],
@@ -81,3 +91,6 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
             "suggested_next_seed": result["suggested_next_seed"],
         },
     }
+    if scores is not None:
+        response["scores"] = scores
+    return response

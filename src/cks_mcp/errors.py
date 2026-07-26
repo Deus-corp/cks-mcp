@@ -36,3 +36,9 @@ def session_not_found(session_id: str) -> dict:
         "error": "session_not_found",
         "message": f"Session '{session_id}' not found.",
     }
+
+def empty_query() -> dict:
+    return {
+        "error": "empty_query",
+        "message": "Query must not be empty.",
+    }
