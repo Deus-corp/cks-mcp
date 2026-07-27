@@ -435,6 +435,10 @@ TOOLS = {
                     "type": "integer",
                     "description": "How many hops to expand around each seed (default 1)."
                 },
+                "min_score": {
+                    "type": "number",
+                    "description": "Minimum cosine similarity score (0.0 to 1.0). Results below this threshold are excluded. Default 0.0 (no filtering)."
+                },
             },
             "required": ["session_id", "query"],
         },

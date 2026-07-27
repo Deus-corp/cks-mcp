@@ -3,6 +3,13 @@
 
 ---
 
+## [1.10.1] - 2026-07-27
+
+### Added
+- `search_semantic` now supports an optional `min_score` parameter to filter results by minimum cosine similarity threshold. Results below the threshold are excluded, and an empty result set triggers a clear "nothing relevant found" message.
+
+---
+
 ## [1.10.0] - 2026-07-27
 
 ### Added

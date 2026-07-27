@@ -27,6 +27,7 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
 
     top_k = int(arguments.get("top_k", 3))
     depth = int(arguments.get("depth", 1))
+    min_score = float(arguments.get("min_score", 0.0))
 
     # Try to use vector search if storage supports it
     seed_ids = arguments.get("seed_ids")
@@ -59,6 +60,10 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
                     and getattr(obj.identity, 'type', '') != 'Relation'
                 ][:top_k]
                 scores = {sid: scores_by_id[sid] for sid in seed_ids}
+                # Filter by minimum relevance score
+                if min_score > 0.0:
+                    seed_ids = [sid for sid in seed_ids if scores.get(sid, 0.0) >= min_score]
+                    scores = {sid: scores_by_id[sid] for sid in seed_ids}
         except Exception as e:
             seed_ids = None
             scores = None
@@ -97,6 +102,7 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
             "is_truncated": result["is_truncated"],
             "suggested_next_seed": result["suggested_next_seed"],
         },
+        "min_score": min_score,
     }
     if scores is not None:
         response["scores"] = scores
