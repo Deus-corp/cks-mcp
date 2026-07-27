@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-94%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-95%20passing-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is an MCP (Model Context Protocol) server that gives LLMs
@@ -37,7 +37,7 @@ Other projects build upon it:
 1. Install and connect to Claude Desktop (see [Installation](#installation)).
 2. (Optional) For semantic search, set your Hugging Face token: `export HF_TOKEN=hf_...`
 3. In the chat, start your message with **"Use cks-mcp to…"**.
-4. Claude automatically picks the right tool from the 18 available — validation, evolution, branching, merging, source verification, semantic search, subgraph queries, and more.
+4. Claude automatically picks the right tool from the 19 available — validation, evolution, branching, merging, source verification, semantic search, subgraph queries, and more.
 5. Every operation is logged, versioned, and stored in a persistent SQLite database.
 
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
@@ -45,7 +45,7 @@ Other projects build upon it:
 
 ![CKS Demo](demo/demo.gif)
 
-*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Eighteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.*
+*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Nineteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.*
 
 ---
 
@@ -110,7 +110,7 @@ export HF_TOKEN=hf_...
    ```
 
 3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
-   After restart, a connector icon will appear – `cks-mcp` with eighteen tools
+   After restart, a connector icon will appear – `cks-mcp` with nineteen tools
    is ready to use.
 
 ---
@@ -137,6 +137,7 @@ export HF_TOKEN=hf_...
 | `visualize_graph` | Export a session's Knowledge Structure or a subgraph as a Mermaid diagram for native rendering in Claude Desktop. |
 | `explain_diff` | Produce a natural-language explanation of changes between two versions, complementing `compare_versions`. |
 | `suggest_evolution` | Inspect the current state of a session and receive guidance for constructing valid evolution operations. |
+| `export_knowledge` | Export a session's Knowledge Structure to JSON-LD, Turtle, or RDF/XML for use with Protégé, Neo4j, or triple stores. |
 
 ---
 
@@ -424,6 +425,35 @@ Response:
 }
 ```
 
+## Export to RDF/JSON-LD
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "export_knowledge",
+    "arguments": {
+      "session_id": "...",
+      "format": "turtle"
+    }
+  }
+}
+```
+
+Response:
+
+```turtle
+@prefix cks: <http://cks.org/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+<http://cks.org/sun> rdf:type <http://cks.org/Star> ;
+    rdfs:label "Sun" .
+
+<http://cks.org/earth> rdf:type <http://cks.org/Planet> ;
+    rdfs:label "Earth" ;
+    <http://cks.org/orbits> <http://cks.org/sun> .
+```
+
 ---
 
 # Security and Provenance
@@ -446,7 +476,7 @@ Response:
 python -m pytest -v
 ```
 
-94+ tests, all passing.
+95+ tests, all passing.
 
 ---
 

@@ -3,6 +3,19 @@
 
 ---
 
+## [1.10.0] - 2026-07-27
+
+### Added
+- **`export_knowledge` tool** — export a session's Knowledge Structure to JSON-LD, Turtle, or RDF/XML, leveraging cks-core's built-in RDF/JSON-LD adapters.
+- This is the 19th tool in the cks-mcp suite.
+
+### Fixed
+- `suggest_evolution` description in README and tool schema now accurately reflects its current behaviour.
+- Updated MCP protocol version from `2024-11-05` to `2025-11-25`.
+- Removed dead reference to non-existent `llm_client/cks_llm_client.py` from README.
+
+---
+
 ## [1.9.3] - 2026-07-27
 
 ### Fixed

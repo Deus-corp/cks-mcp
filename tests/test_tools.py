@@ -432,3 +432,10 @@ def test_suggest_evolution_basic():
     assert result["current_relations"][0]["id"] == "rel-1"
     assert result["current_relations"][0]["participants"] == ["obj-1", "obj-2"]
     assert "add_object" in " ".join(result["available_operation_types"])
+
+
+def test_export_knowledge_missing_session_id(mock_runtime):
+    from cks_mcp.tools.export_knowledge import export_knowledge
+    result = export_knowledge(mock_runtime, {})
+    assert result["error"] == "missing_parameter"
+    assert "session_id" in result["message"]

@@ -27,6 +27,7 @@ from cks_mcp.tools.get_metrics import get_metrics
 from cks_mcp.tools.visualize_graph import visualize_graph
 from cks_mcp.tools.explain_diff import explain_diff
 from cks_mcp.tools.suggest_evolution import suggest_evolution
+from cks_mcp.tools.export_knowledge import export_knowledge
 
 # ---------------------------------------------------------------------------
 # Shared parameter descriptions
@@ -590,6 +591,28 @@ TOOLS = {
             "required": ["session_id", "target_version_id"],
         },
         "handler": log_tool_call("explain_diff")(explain_diff),
+    },
+    "export_knowledge": {
+        "name": "export_knowledge",
+        "description": (
+            "Export a session's Knowledge Structure to another format. "
+            "Supports 'json-ld', 'turtle', and 'rdf-xml'."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The session to export."
+                },
+                "format": {
+                    "type": "string",
+                    "description": "Output format: 'json-ld', 'turtle', or 'rdf-xml'. Default 'json-ld'."
+                },
+            },
+            "required": ["session_id"],
+        },
+        "handler": log_tool_call("export_knowledge")(export_knowledge),
     },
     "suggest_evolution": {
         "name": "suggest_evolution",
