@@ -3,6 +3,15 @@
 
 ---
 
+## [1.9.2] - 2026-07-27
+
+### Fixed
+- `visualize_graph` now returns `total_found_nodes`, `returned_nodes`, and `is_truncated` metadata, matching the contract of other subgraph tools.
+- `max_objects` is now enforced consistently in both branches (with and without `seed_ids`), using `query_subgraph` with compact mode for all cases.
+- Replaced `hasattr` duck-typing with `isinstance` for relation detection, matching the rest of the codebase.
+
+---
+
 ## [1.9.1] - 2026-07-27
 
 ### Fixed
