@@ -3,6 +3,13 @@
 
 ---
 
+## [1.8.1] - 2026-07-27
+
+### Changed
+- Bumped `cks-runtime` to `>=1.18.1` (proper rollback with state restoration, DispatchRequest state mutation) and `cks-core` to `>=1.11.4` (UpdateObject export, iterative DFS, compose batching, CLI fixes, frozen metadata).
+
+---
+
 ## [1.8.0] - 2026-07-27
 
 ### Changed
