@@ -43,7 +43,7 @@ Other projects build upon it:
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
 **No programming, no command line — just a conversation!**
 
-![CKS Demo](demo/demo.gif)
+![CKS Demo](https://github.com/Deus-corp/cks-mcp/releases/download/v1.10.2/demo.gif)
 
 *In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Nineteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.*
 

@@ -34,4 +34,4 @@ Thumbs.db
 .pytest_cache/
 
 # Logs
-*.log
+*.logdemo/demo.gif
