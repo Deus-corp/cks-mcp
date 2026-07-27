@@ -3,6 +3,15 @@
 
 ---
 
+## [1.9.3] - 2026-07-27
+
+### Fixed
+- `suggest_evolution` description in README and tool schema now accurately reflects its current behaviour (state inspection + guidance), removing promises of non-existent AI-generated operations and dry-run validation.
+- Updated MCP protocol version from `2024-11-05` to `2025-11-25`.
+- Removed dead reference to non-existent `llm_client/cks_llm_client.py` from README.
+
+---
+
 ## [1.9.2] - 2026-07-27
 
 ### Fixed

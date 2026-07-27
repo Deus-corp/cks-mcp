@@ -31,8 +31,8 @@ from cks_mcp.tool_registry import TOOLS
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.9.2"
-PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
+SERVER_VERSION = "1.9.3"
+PROTOCOL_VERSION = "2025-11-25"  # latest stable MCP protocol version
 
 # ---------------------------------------------------------------------------
 # Request handler

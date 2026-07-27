@@ -113,16 +113,6 @@ export HF_TOKEN=hf_...
    After restart, a connector icon will appear – `cks-mcp` with eighteen tools
    is ready to use.
 
-## Interactive LLM client (Groq / DeepSeek / local)
-
-```bash
-export GROQ_API_KEY=your_key_here
-python llm_client/cks_llm_client.py --provider groq
-```
-
-You can then type natural language requests; the LLM will automatically
-call the appropriate CKS tool.
-
 ---
 
 # Available Tools
@@ -146,7 +136,7 @@ call the appropriate CKS tool.
 | `get_metrics` | Return runtime metrics: invocation counts and average execution times per operation type. |
 | `visualize_graph` | Export a session's Knowledge Structure or a subgraph as a Mermaid diagram for native rendering in Claude Desktop. |
 | `explain_diff` | Produce a natural-language explanation of changes between two versions, complementing `compare_versions`. |
-| `suggest_evolution` | Accept a textual description of a desired change and return a proposed list of valid evolution operators with a dry-run validation, without committing. |
+| `suggest_evolution` | Inspect the current state of a session and receive guidance for constructing valid evolution operations. |
 
 ---
 
@@ -411,7 +401,7 @@ Response:
     "name": "suggest_evolution",
     "arguments": {
       "session_id": "...",
-      "change_description": "Add a new planet Neptune that orbits the Sun"
+      "description": "Add a new planet Neptune that orbits the Sun"
     }
   }
 }
@@ -421,11 +411,16 @@ Response:
 
 ```json
 {
-  "suggested_operations": [
-    {"type": "add_object", "identity": {"id": "neptune", "type": "Planet", "name": "Neptune"}, "structure": {"description": "eighth planet from the Sun"}},
-    {"type": "add_relation", "identity": {"id": "rel-neptune-sun", "type": "Relation", "name": "orbits"}, "participants": ["neptune", "sun"], "relation_type": "orbits"}
+  "current_objects": [
+    {"id": "sun", "type": "Star", "name": "Sun"},
+    {"id": "earth", "type": "Planet", "name": "Earth"},
+    {"id": "moon", "type": "Moon", "name": "Moon"}
   ],
-  "dry_run_valid": true
+  "current_relations": [
+    {"type": "orbits", "from": "earth", "to": "sun"},
+    {"type": "orbits", "from": "moon", "to": "earth"}
+  ],
+  "guidance": "To add a new planet Neptune: use add_object with identity {id: 'neptune', type: 'Planet', name: 'Neptune'} and add_relation with participants ['neptune', 'sun'] and relation_type 'orbits'."
 }
 ```
 

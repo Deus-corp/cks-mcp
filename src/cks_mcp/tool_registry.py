@@ -596,14 +596,14 @@ TOOLS = {
         "description": (
             "Given a session and a description of what to change, return the current "
             "objects/relations and guidance for constructing valid evolution operations. "
-            "Use this before evolve_knowledge to reduce trial-and-error."
+            "Use this to inspect the current state before calling evolve_knowledge."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "The session to modify."
+                    "description": "The session to inspect."
                 },
                 "description": {
                     "type": "string",
