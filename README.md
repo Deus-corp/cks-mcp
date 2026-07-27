@@ -37,7 +37,7 @@ Other projects build upon it:
 1. Install and connect to Claude Desktop (see [Installation](#installation)).
 2. (Optional) For semantic search, set your Hugging Face token: `export HF_TOKEN=hf_...`
 3. In the chat, start your message with **"Use cks-mcp to…"**.
-4. Claude automatically picks the right tool from the 15 available — validation, evolution, branching, merging, source verification, semantic search, subgraph queries, and more.
+4. Claude automatically picks the right tool from the 18 available — validation, evolution, branching, merging, source verification, semantic search, subgraph queries, and more.
 5. Every operation is logged, versioned, and stored in a persistent SQLite database.
 
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
@@ -45,7 +45,7 @@ Other projects build upon it:
 
 ![CKS Demo](demo/demo.gif)
 
-*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Fifteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.*
+*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Eighteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.*
 
 ---
 
@@ -110,7 +110,7 @@ export HF_TOKEN=hf_...
    ```
 
 3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
-   After restart, a connector icon will appear – `cks-mcp` with fifteen tools
+   After restart, a connector icon will appear – `cks-mcp` with eighteen tools
    is ready to use.
 
 ## Interactive LLM client (Groq / DeepSeek / local)
@@ -144,6 +144,9 @@ call the appropriate CKS tool.
 | `query_subgraph` | Extract a local k‑hop neighbourhood from a session's Knowledge Structure, with filters, optional budget, and compact mode. |
 | `search_semantic` | **Real embedding-based semantic search.** Uses HuggingFace models to find relevant objects by meaning. Query "virtual machines" returns EC2, not S3. |
 | `get_metrics` | Return runtime metrics: invocation counts and average execution times per operation type. |
+| `visualize_graph` | Export a session's Knowledge Structure or a subgraph as a Mermaid diagram for native rendering in Claude Desktop. |
+| `explain_diff` | Produce a natural-language explanation of changes between two versions, complementing `compare_versions`. |
+| `suggest_evolution` | Accept a textual description of a desired change and return a proposed list of valid evolution operators with a dry-run validation, without committing. |
 
 ---
 
@@ -341,6 +344,88 @@ Response (truncated example):
       }
     ]
   }
+}
+```
+
+## Visualize a knowledge graph
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "visualize_graph",
+    "arguments": {
+      "session_id": "..."
+    }
+  }
+}
+```
+
+Response (Mermaid diagram):
+
+````markdown
+```mermaid
+graph TD
+    earth((Earth))
+    sun((Sun))
+    earth -->|orbits| sun
+```
+````
+
+## Explain the difference between two versions
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "explain_diff",
+    "arguments": {
+      "session_id": "...",
+      "base_version_id": "...",
+      "target_version_id": "..."
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "summary": "Added 2 objects and 1 relation. Modified 1 object.",
+  "changes": [
+    "Added object 'Pluto' (type: Planet)",
+    "Added object 'Charon' (type: Moon)",
+    "Added relation 'orbits' from 'Pluto' to 'Charon'",
+    "Modified object 'Earth': changed 'status' from 'active' to 'inactive'"
+  ]
+}
+```
+
+## Get AI assistance with evolution
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "suggest_evolution",
+    "arguments": {
+      "session_id": "...",
+      "change_description": "Add a new planet Neptune that orbits the Sun"
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "suggested_operations": [
+    {"type": "add_object", "identity": {"id": "neptune", "type": "Planet", "name": "Neptune"}, "structure": {"description": "eighth planet from the Sun"}},
+    {"type": "add_relation", "identity": {"id": "rel-neptune-sun", "type": "Relation", "name": "orbits"}, "participants": ["neptune", "sun"], "relation_type": "orbits"}
+  ],
+  "dry_run_valid": true
 }
 ```
 
