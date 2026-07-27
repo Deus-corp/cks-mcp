@@ -3,6 +3,14 @@
 
 ---
 
+## [1.10.2] - 2026-07-27
+
+### Changed
+- Added `ruff` linting and `mypy` type checking to CI pipeline.
+- Moved demo GIF to external hosting (GitHub Releases), reducing repository clone size by 6.7 MB.
+
+---
+
 ## [1.10.1] - 2026-07-27
 
 ### Added
