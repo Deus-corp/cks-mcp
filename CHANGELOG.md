@@ -3,6 +3,20 @@
 
 ---
 
+## [1.9.1] - 2026-07-27
+
+### Fixed
+- `visualize_graph` now generates valid Mermaid syntax for all node IDs, including those with special characters.
+- `explain_diff` now correctly distinguishes modified objects from add/remove pairs, and reports cascade-relinked relations as "relinked" rather than falsely claiming they were deleted and re-added.
+- `suggest_evolution` now uses `isinstance(obj, CanonicalRelation)` instead of fragile `hasattr` duck-typing.
+
+### Changed
+- Extracted shared `field_level_diff` helper into new `cks_mcp.diffing` module, used by both merge tools and `explain_diff`.
+- Extracted `TOOLS` registry into new `cks_mcp.tool_registry` module, reducing `server.py` from 929 to 322 lines.
+- Added 6 functional end-to-end tests for the three new tools.
+
+---
+
 ## [1.9.0] - 2026-07-27
 
 ### Added

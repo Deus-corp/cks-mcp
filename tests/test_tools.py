@@ -196,3 +196,239 @@ def test_suggest_evolution_missing_parameters(mock_runtime):
     from cks_mcp.tools.suggest_evolution import suggest_evolution
     result = suggest_evolution(mock_runtime, {})
     assert result["error"] == "missing_parameter"
+
+
+# ---------------------------------------------------------------------------
+# End-to-end tests for visualize_graph, explain_diff, suggest_evolution
+# (real Runtime + CksCoreAdapter, no mocks -- these exercise the actual
+# cks-core diff/query_subgraph machinery the mock-based tests above don't).
+# ---------------------------------------------------------------------------
+
+def _real_runtime():
+    from cks_runtime.runtime import Runtime
+    from cks_runtime_plugins.cks_core import CksCoreAdapter
+    return Runtime(core=CksCoreAdapter())
+
+
+def test_visualize_graph_basic():
+    """Typical ids (with hyphens, as used throughout this project's own
+    examples) must still produce syntactically valid Mermaid: a bare,
+    unquoted hyphenated id is not a legal Mermaid node id."""
+    from cks_mcp.tools.visualize_graph import visualize_graph
+    from cks import parse
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "obj-1", "type": "Concept", "name": "Natural Selection"}, "structure": {}},'
+        '{"identity": {"id": "obj-2", "type": "Document", "name": "Origin of Species"}, "structure": {}},'
+        '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["obj-1", "obj-2"], "relation_type": "derives_from"}}'
+        ']}'
+    )
+    session = runtime.create_session(structure)
+    result = visualize_graph(runtime, {"session_id": session.session_id})
+
+    # New format: just a "mermaid" key with the diagram text.
+    assert "mermaid" in result
+    mermaid = result["mermaid"]
+    # Nodes must be aliased safely (n0, n1, ...), not bare "obj-1".
+    assert "n0[" in mermaid
+    assert "n1[" in mermaid
+    assert "n2[" not in mermaid  # only 2 non-relation objects
+    # The hyphenated ids must NOT appear as bare node identifiers.
+    assert "obj-1[" not in mermaid
+    assert "obj-2[" not in mermaid
+
+
+def test_visualize_graph_sanitizes_special_characters():
+    """Ids containing spaces/colons/parentheses and names containing
+    double quotes must not break the generated Mermaid syntax."""
+    from cks_mcp.tools.visualize_graph import visualize_graph
+    from cks import parse
+
+    runtime = _real_runtime()
+    weird_id = 'urn:concept:weird id (test)'
+    structure = parse(json.dumps({
+        "objects": [
+            {"identity": {"id": weird_id, "type": "Concept", "name": 'Weird "Quoted" Name'}, "structure": {}},
+            {"identity": {"id": "obj-2", "type": "Concept", "name": "Other"}, "structure": {}},
+            {"identity": {"id": "rel-1", "type": "Relation", "name": "r"},
+             "structure": {"participants": [weird_id, "obj-2"], "relation_type": "relates_to"}},
+        ]
+    }))
+    session = runtime.create_session(structure)
+    result = visualize_graph(runtime, {"session_id": session.session_id})
+
+    mermaid = result["mermaid"]
+    # The raw id must never appear unescaped as a bare node identifier --
+    # spaces/colons/parens there would break Mermaid's parser.
+    assert f"{weird_id}[" not in mermaid
+    assert weird_id not in mermaid.split("\n")[1].split("[")[0]
+    # A literal double quote inside a label must use Mermaid's HTML-entity
+    # escape, not a backslash (which is not valid Mermaid syntax).
+    assert '#quot;Quoted#quot;' in mermaid
+    assert '\\"' not in mermaid
+    # Every line must be parseable at a basic structural level: node lines
+    # end with a closed ["..."] and edge lines have a matching arrow.
+    for line in mermaid.split("\n")[1:]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        assert stripped.endswith(']') or '-->' in stripped
+
+
+def test_explain_diff_pure_add():
+    """Adding a new object+relation with nothing else touched should be
+    reported purely as additions."""
+    from cks_mcp.tools.evolve import evolve_knowledge
+    from cks_mcp.tools.explain_diff import explain_diff
+    from cks import parse
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "obj-1", "type": "Concept", "name": "A"}, "structure": {}}'
+        ']}'
+    )
+    session = runtime.create_session(structure)
+    tx = runtime.begin_transaction(session)
+    runtime.commit_transaction(tx)
+    base_version = session.version_history[-1].version_id
+
+    evolve_knowledge(runtime, {
+        "session_id": session.session_id,
+        "operations": [
+            {"type": "add_object", "identity": {"id": "obj-2", "type": "Concept", "name": "B"}, "structure": {}},
+            {"type": "add_relation", "identity": {"id": "rel-1", "type": "Relation", "name": "r"},
+             "participants": ["obj-1", "obj-2"], "relation_type": "relates_to"},
+        ],
+    })
+
+    result = explain_diff(runtime, {"session_id": session.session_id, "target_version_id": base_version})
+
+    assert [o["id"] for o in result["details"]["added_objects"]] == ["obj-2"]
+    assert result["details"]["removed_objects"] == []
+    assert result["details"]["modified_objects"] == []
+    assert [r["id"] for r in result["details"]["added_relations"]] == ["rel-1"]
+    assert result["details"]["relinked_relations"] == []
+
+
+def test_explain_diff_modified_object_reported_as_modified_not_delete_add():
+    """A structure-only update to an existing object must be reported as
+    'modified' with a field-level diff -- not as a delete+add of the same
+    id -- and the untouched relation referencing it must be recognized as
+    an unaffected relink, not a spurious add+remove."""
+    from cks_mcp.tools.evolve import evolve_knowledge
+    from cks_mcp.tools.explain_diff import explain_diff
+    from cks import parse
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "obj-1", "type": "Concept", "name": "A"}, "structure": {"summary": "old"}},'
+        '{"identity": {"id": "obj-2", "type": "Concept", "name": "B"}, "structure": {}},'
+        '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["obj-1", "obj-2"], "relation_type": "relates_to"}}'
+        ']}'
+    )
+    session = runtime.create_session(structure)
+    tx = runtime.begin_transaction(session)
+    runtime.commit_transaction(tx)
+    base_version = session.version_history[-1].version_id
+
+    evolve_knowledge(runtime, {
+        "session_id": session.session_id,
+        "operations": [
+            {"type": "update_object", "object_id": "obj-1", "structure_patch": {"summary": "new"}},
+        ],
+    })
+
+    result = explain_diff(runtime, {"session_id": session.session_id, "target_version_id": base_version})
+    details = result["details"]
+
+    assert details["added_objects"] == []
+    assert details["removed_objects"] == []
+    assert len(details["modified_objects"]) == 1
+    assert details["modified_objects"][0]["id"] == "obj-1"
+    assert details["modified_objects"][0]["changes"] == {"summary": {"from": "old", "to": "new"}}
+
+    # rel-1's own content never changed -- it must not be counted as an
+    # add or a remove, only as an (unchanged) relink.
+    assert details["added_relations"] == []
+    assert details["removed_relations"] == []
+    assert details["modified_relations"] == []
+    assert [r["id"] for r in details["relinked_relations"]] == ["rel-1"]
+
+    assert "Modified 1 object" in result["summary"]
+    assert "Re-linked 1 relation" in result["summary"]
+
+
+def test_explain_diff_genuine_relation_content_change():
+    """When a relation's own content changes (e.g. its relation_type), it
+    must be reported as a modified relation with a field-level diff."""
+    from cks_mcp.tools.evolve import evolve_knowledge
+    from cks_mcp.tools.explain_diff import explain_diff
+    from cks import parse
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "obj-1", "type": "Concept", "name": "A"}, "structure": {}},'
+        '{"identity": {"id": "obj-2", "type": "Concept", "name": "B"}, "structure": {}},'
+        '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["obj-1", "obj-2"], "relation_type": "derives_from"}}'
+        ']}'
+    )
+    session = runtime.create_session(structure)
+    tx = runtime.begin_transaction(session)
+    runtime.commit_transaction(tx)
+    base_version = session.version_history[-1].version_id
+
+    evolve_knowledge(runtime, {
+        "session_id": session.session_id,
+        "operations": [
+            {"type": "remove_relation", "relation_id": "rel-1"},
+            {"type": "add_relation", "identity": {"id": "rel-1", "type": "Relation", "name": "r"},
+             "participants": ["obj-1", "obj-2"], "relation_type": "inspired_by"},
+        ],
+    })
+
+    result = explain_diff(runtime, {"session_id": session.session_id, "target_version_id": base_version})
+    details = result["details"]
+
+    assert details["relinked_relations"] == []
+    assert details["added_relations"] == []
+    assert details["removed_relations"] == []
+    assert len(details["modified_relations"]) == 1
+    assert details["modified_relations"][0]["changes"] == {
+        "relation_type": {"from": "derives_from", "to": "inspired_by"}
+    }
+
+
+def test_suggest_evolution_basic():
+    """current_objects must list only plain objects (not relations), and
+    current_relations must list relations with their real participants."""
+    from cks_mcp.tools.suggest_evolution import suggest_evolution
+    from cks import parse
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "obj-1", "type": "Concept", "name": "A"}, "structure": {}},'
+        '{"identity": {"id": "obj-2", "type": "Concept", "name": "B"}, "structure": {}},'
+        '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["obj-1", "obj-2"], "relation_type": "relates_to"}}'
+        ']}'
+    )
+    session = runtime.create_session(structure)
+
+    result = suggest_evolution(runtime, {
+        "session_id": session.session_id,
+        "description": "add a Concept about C and link it to A",
+    })
+
+    object_ids = {o["id"] for o in result["current_objects"]}
+    assert object_ids == {"obj-1", "obj-2"}
+    assert "rel-1" not in object_ids
+
+    assert len(result["current_relations"]) == 1
+    assert result["current_relations"][0]["id"] == "rel-1"
+    assert result["current_relations"][0]["participants"] == ["obj-1", "obj-2"]
+    assert "add_object" in " ".join(result["available_operation_types"])

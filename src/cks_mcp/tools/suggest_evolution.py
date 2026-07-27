@@ -4,6 +4,7 @@ suggest_evolution: propose valid evolution operations based on a description.
 
 from typing import Any
 
+from cks.core import CanonicalRelation
 from cks_runtime.runtime import Runtime
 from cks_mcp.errors import missing_parameter, session_not_found
 
@@ -38,7 +39,7 @@ def suggest_evolution(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, 
             "name": obj.identity.name,
         }
         for obj in session.knowledge_structure.objects
-        if not hasattr(obj, 'participants')  # exclude relations
+        if not isinstance(obj, CanonicalRelation)  # exclude relations
     ]
 
     existing_relations = [

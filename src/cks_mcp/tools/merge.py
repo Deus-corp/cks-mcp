@@ -12,6 +12,7 @@ from cks_runtime.execution.operation_executor import OperationStatus
 from cks_runtime.operations.operation_types import MergeOperation
 from cks_mcp.errors import missing_parameter, session_not_found
 from cks_mcp import provenance
+from cks_mcp.diffing import field_level_diff
 
 
 def _parse_resolutions(resolutions: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -43,39 +44,6 @@ def _parse_resolutions(resolutions: dict[str, Any] | None) -> dict[str, Any] | N
     return parsed
 
 
-def _generate_diff(base_obj: Any, branch_obj: Any) -> dict[str, Any]:
-    """
-    Generate a human-readable diff between two KnowledgeObjects.
-    """
-    if base_obj is None and branch_obj is None:
-        return {}
-    if base_obj is None:
-        return {
-            "action": "added",
-            "type": branch_obj.identity.type,
-            "name": branch_obj.identity.name,
-            "structure": dict(branch_obj.structure),
-        }
-    if branch_obj is None:
-        return {"action": "deleted"}
-    # Both exist — compute field-level changes
-    changes = {}
-    base_struct = dict(base_obj.structure)
-    branch_struct = dict(branch_obj.structure)
-    all_keys = set(base_struct) | set(branch_struct)
-    for key in sorted(all_keys):
-        old_val = base_struct.get(key)
-        new_val = branch_struct.get(key)
-        if old_val != new_val:
-            changes[key] = {"from": old_val, "to": new_val}
-    return {
-        "action": "modified" if changes else "unchanged",
-        "type": branch_obj.identity.type,
-        "name": branch_obj.identity.name,
-        "changes": changes,
-    }
-
-
 def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Perform a three-way merge.
@@ -99,8 +67,8 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
                 "conflicts": [
                     {
                         "object_id": c.object_id,
-                        "target_diff": _generate_diff(c.base, c.branch_a),
-                        "source_diff": _generate_diff(c.base, c.branch_b),
+                        "target_diff": field_level_diff(c.base, c.branch_a),
+                        "source_diff": field_level_diff(c.base, c.branch_b),
                     }
                     for c in e.conflicts
                 ],
@@ -154,8 +122,8 @@ def _conflict_payload(
         "conflicts": [
             {
                 "object_id": c.object_id,
-                "target_diff": _generate_diff(c.base, c.branch_a),
-                "source_diff": _generate_diff(c.base, c.branch_b),
+                "target_diff": field_level_diff(c.base, c.branch_a),
+                "source_diff": field_level_diff(c.base, c.branch_b),
             }
             for c in error.conflicts
         ],
