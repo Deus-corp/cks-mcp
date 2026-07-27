@@ -134,7 +134,7 @@ def _resolve_and_validate_host(url: str) -> tuple[str, list[str]]:
     ipv4: list[str] = []
     ipv6: list[str] = []
     for family, _, _, _, sockaddr in addrinfo:
-        ip = sockaddr[0]
+        ip = str(sockaddr[0])
         if ip in seen:
             continue
         seen.add(ip)
