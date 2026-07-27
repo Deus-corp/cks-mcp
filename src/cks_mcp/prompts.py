@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 PROMPTS = {
     "create_knowledge_graph": {
         "name": "create_knowledge_graph",
@@ -87,7 +86,9 @@ def list_prompts() -> list[dict[str, Any]]:
     ]
 
 
-def get_prompt(name: str, arguments: dict[str, str] | None = None) -> dict[str, Any] | None:
+def get_prompt(
+    name: str, arguments: dict[str, str] | None = None
+) -> dict[str, Any] | None:
     """Return a concrete MCP prompt message for the given name and arguments."""
     prompt = PROMPTS.get(name)
     if prompt is None:
@@ -102,7 +103,7 @@ def get_prompt(name: str, arguments: dict[str, str] | None = None) -> dict[str, 
             "with at least 5 objects and 3 relations. Then validate it."
         ),
         "verify_claim": (
-            f"Use cks-mcp to verify this claim: \"{args.get('claim', 'the claim')}\". "
+            f'Use cks-mcp to verify this claim: "{args.get("claim", "the claim")}". '
             f"Check the source at {args.get('url', 'the URL')} and create a signed VerificationRecord."
         ),
         "explore_subgraph": (

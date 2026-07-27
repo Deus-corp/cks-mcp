@@ -15,15 +15,15 @@ import ipaddress
 import socket
 import threading
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urljoin, urlparse
 from uuid import uuid4
 
 import requests
-
 from cks_runtime.runtime import Runtime
-from cks_mcp.provenance import sign, SIGNATURE_KEY
+
+from cks_mcp.provenance import SIGNATURE_KEY, sign
 
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
 _MAX_REDIRECTS = 3
@@ -71,11 +71,13 @@ _thread_local = threading.local()
 _patch_lock = threading.Lock()
 _active_patches = 0
 
+
 def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     overrides = getattr(_thread_local, "dns_overrides", {})
     if host in overrides:
         host = overrides[host]
     return _orig_getaddrinfo(host, port, family, type, proto, flags)
+
 
 @contextmanager
 def pin_dns(hostname: str, ip: str):
@@ -151,8 +153,8 @@ def _resolve_and_validate_host(url: str) -> tuple[str, list[str]]:
 def _safe_head_status(url: str) -> int | None:
     try:
         hostname, candidate_ips = _resolve_and_validate_host(url)
-    except UnsafeURLError:
-        raise
+    except UnsafeURLError as e:
+        raise UnsafeURLError(str(e)) from e
 
     session = requests.Session()
 
@@ -161,7 +163,9 @@ def _safe_head_status(url: str) -> int | None:
         for ip in candidate_ips:
             with pin_dns(hostname, ip):
                 try:
-                    resp = session.head(url, timeout=_TIMEOUT_SECONDS, allow_redirects=False)
+                    resp = session.head(
+                        url, timeout=_TIMEOUT_SECONDS, allow_redirects=False
+                    )
                     break
                 except requests.RequestException:
                     # This specific candidate address didn't work --
@@ -195,8 +199,7 @@ def verify_source(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
         return {
             "error": "unsafe_url",
             "message": (
-                f"Refusing to verify '{url}': {exc} No VerificationRecord "
-                f"was created."
+                f"Refusing to verify '{url}': {exc} No VerificationRecord was created."
             ),
         }
 
@@ -206,12 +209,11 @@ def verify_source(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
         return {
             "error": "unsafe_url",
             "message": (
-                f"Refusing to verify '{url}': {exc} No VerificationRecord "
-                f"was created."
+                f"Refusing to verify '{url}': {exc} No VerificationRecord was created."
             ),
         }
 
-    checked_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    checked_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     checked_via = "automated_http_check"
 
     record_id = f"vr-{uuid4().hex}"
@@ -236,7 +238,11 @@ def verify_source(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
     return {
         "objects": [
             {
-                "identity": {"id": record_id, "type": "VerificationRecord", "name": "verification"},
+                "identity": {
+                    "id": record_id,
+                    "type": "VerificationRecord",
+                    "name": "verification",
+                },
                 "structure": record_structure,
             },
             {

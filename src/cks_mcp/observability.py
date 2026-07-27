@@ -8,23 +8,24 @@ protocol (which uses stdout).
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 import time
-import dataclasses
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from cks_runtime.runtime import Runtime
 from cks_runtime.events.runtime_event import (
     RuntimeEvent,
-    SessionCreated,
     SessionClosed,
+    SessionCreated,
+    TransactionAborted,
     TransactionCommitted,
     TransactionRolledBack,
-    TransactionAborted,
-    VersionCreated,
     ValidationFailed,
+    VersionCreated,
 )
+from cks_runtime.runtime import Runtime
 
 
 def _log(entry: dict[str, Any]) -> None:
@@ -36,6 +37,7 @@ def _log(entry: dict[str, Any]) -> None:
 # Tool call decorator
 # ---------------------------------------------------------------------------
 
+
 def log_tool_call(tool_name: str) -> Callable:
     """
     Decorator that logs every invocation of an MCP tool handler.
@@ -43,6 +45,7 @@ def log_tool_call(tool_name: str) -> Callable:
     Log entries contain: tool, session_id (if present), duration_ms,
     success, and (on failure) error.
     """
+
     def decorator(handler: Callable) -> Callable:
         def wrapper(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
             start = time.monotonic()
@@ -51,31 +54,38 @@ def log_tool_call(tool_name: str) -> Callable:
                 result = handler(runtime, arguments)
                 duration_ms = (time.monotonic() - start) * 1000
                 is_error = isinstance(result, dict) and "error" in result
-                _log({
-                    "tool": tool_name,
-                    "session_id": session_id,
-                    "duration_ms": round(duration_ms, 2),
-                    "success": not is_error,
-                    "error": result.get("error") if is_error else None,
-                })
+                _log(
+                    {
+                        "tool": tool_name,
+                        "session_id": session_id,
+                        "duration_ms": round(duration_ms, 2),
+                        "success": not is_error,
+                        "error": result.get("error") if is_error else None,
+                    }
+                )
                 return result
             except Exception as exc:
                 duration_ms = (time.monotonic() - start) * 1000
-                _log({
-                    "tool": tool_name,
-                    "session_id": session_id,
-                    "duration_ms": round(duration_ms, 2),
-                    "success": False,
-                    "error": str(exc),
-                })
+                _log(
+                    {
+                        "tool": tool_name,
+                        "session_id": session_id,
+                        "duration_ms": round(duration_ms, 2),
+                        "success": False,
+                        "error": str(exc),
+                    }
+                )
                 raise
+
         return wrapper
+
     return decorator
 
 
 # ---------------------------------------------------------------------------
 # EventBus subscriptions
 # ---------------------------------------------------------------------------
+
 
 def setup_event_subscriptions(runtime: Runtime) -> None:
     """
@@ -89,11 +99,13 @@ def setup_event_subscriptions(runtime: Runtime) -> None:
         # Remove meta fields that are already in the log envelope
         for key in ("event_id", "created_at", "metadata"):
             detail.pop(key, None)
-        _log({
-            "event": event.event_type,
-            "timestamp": event.created_at.isoformat(),
-            "detail": detail,
-        })
+        _log(
+            {
+                "event": event.event_type,
+                "timestamp": event.created_at.isoformat(),
+                "detail": detail,
+            }
+        )
 
     runtime.events.subscribe(SessionCreated, _on_event)
     runtime.events.subscribe(SessionClosed, _on_event)

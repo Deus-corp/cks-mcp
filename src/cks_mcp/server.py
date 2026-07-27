@@ -8,22 +8,22 @@ via the Model Context Protocol.
 
 from __future__ import annotations
 
-import os
 import json
+import os
 import sys
-from typing import Any
 import tempfile
+from typing import Any
 
-from cks_runtime.runtime import Runtime
-from cks_runtime_plugins.cks_core import CksCoreAdapter
-from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime.config import RuntimeConfig
 from cks_runtime.embedding.client import HuggingFaceEmbeddingClient
+from cks_runtime.runtime import Runtime
+from cks_runtime.storage.memory_storage import InMemoryStorage
+from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.observability import setup_event_subscriptions
-from cks_mcp.resources import list_resources, read_resource
-from cks_mcp.prompts import list_prompts, get_prompt, PROMPTS
 from cks_mcp.paths import data_dir
+from cks_mcp.prompts import PROMPTS, get_prompt, list_prompts
+from cks_mcp.resources import list_resources, read_resource
 from cks_mcp.tool_registry import TOOLS
 
 # ---------------------------------------------------------------------------
@@ -38,7 +38,10 @@ PROTOCOL_VERSION = "2025-11-25"  # latest stable MCP protocol version
 # Request handler
 # ---------------------------------------------------------------------------
 
-def _make_response(request_id: Any, result: Any = None, error: dict | None = None) -> dict[str, Any]:
+
+def _make_response(
+    request_id: Any, result: Any = None, error: dict | None = None
+) -> dict[str, Any]:
     """Wrap result/error into a JSON-RPC 2.0 response."""
     resp: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id}
     if result is not None:
@@ -58,18 +61,21 @@ def handle_request(
     params = request.get("params", {})
 
     if method == "initialize":
-        return _make_response(req_id, {
-            "protocolVersion": PROTOCOL_VERSION,
-            "serverInfo": {
-                "name": SERVER_NAME,
-                "version": SERVER_VERSION,
+        return _make_response(
+            req_id,
+            {
+                "protocolVersion": PROTOCOL_VERSION,
+                "serverInfo": {
+                    "name": SERVER_NAME,
+                    "version": SERVER_VERSION,
+                },
+                "capabilities": {
+                    "tools": {},
+                    "resources": {},
+                    "prompts": {},
+                },
             },
-            "capabilities": {
-                "tools": {},
-                "resources": {},
-                "prompts": {},
-            },
-        })
+        )
 
     if method == "notifications/initialized":
         return {}
@@ -78,16 +84,19 @@ def handle_request(
         return _make_response(req_id, {})
 
     if method == "tools/list":
-        return _make_response(req_id, {
-            "tools": [
-                {
-                    "name": tool["name"],
-                    "description": tool["description"],
-                    "inputSchema": tool["inputSchema"],
-                }
-                for tool in TOOLS.values()
-            ],
-        })
+        return _make_response(
+            req_id,
+            {
+                "tools": [
+                    {
+                        "name": tool["name"],
+                        "description": tool["description"],
+                        "inputSchema": tool["inputSchema"],
+                    }
+                    for tool in TOOLS.values()
+                ],
+            },
+        )
 
     if method == "tools/call":
         tool_name = params.get("name")
@@ -95,90 +104,128 @@ def handle_request(
         tool = TOOLS.get(tool_name)
 
         if tool is None:
-            return _make_response(req_id, error={
-                "code": -32601,
-                "message": f"Unknown tool: {tool_name}",
-            })
+            return _make_response(
+                req_id,
+                error={
+                    "code": -32601,
+                    "message": f"Unknown tool: {tool_name}",
+                },
+            )
 
         handler = tool["handler"]
         try:
             result = handler(runtime, arguments)
-            return _make_response(req_id, {
-                "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]
-            })
+            return _make_response(
+                req_id,
+                {
+                    "content": [
+                        {"type": "text", "text": json.dumps(result, ensure_ascii=False)}
+                    ]
+                },
+            )
         except Exception as e:
             error_message = str(e) if str(e) else "An internal error occurred."
-            return _make_response(req_id, {
-                "content": [{"type": "text", "text": f"Error: {error_message}"}],
-                "isError": True
-            })
+            return _make_response(
+                req_id,
+                {
+                    "content": [{"type": "text", "text": f"Error: {error_message}"}],
+                    "isError": True,
+                },
+            )
 
     if method == "resources/list":
         try:
             resources = list_resources(runtime)
             return _make_response(req_id, {"resources": resources})
         except Exception as e:
-            return _make_response(req_id, error={
-                "code": -32603,
-                "message": f"Failed to list resources: {e}",
-            })
+            return _make_response(
+                req_id,
+                error={
+                    "code": -32603,
+                    "message": f"Failed to list resources: {e}",
+                },
+            )
 
     if method == "resources/read":
         uri = params.get("uri")
         if not uri:
-            return _make_response(req_id, error={
-                "code": -32602,
-                "message": "Missing required parameter: uri",
-            })
+            return _make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": "Missing required parameter: uri",
+                },
+            )
         content = read_resource(runtime, uri)
         if content is None:
-            return _make_response(req_id, error={
-                "code": -32602,
-                "message": f"Resource not found: {uri}",
-            })
-        return _make_response(req_id, {
-            "contents": [
-                {
-                    "uri": uri,
-                    "mimeType": "application/json",
-                    "text": content,
-                }
-            ]
-        })
+            return _make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"Resource not found: {uri}",
+                },
+            )
+        return _make_response(
+            req_id,
+            {
+                "contents": [
+                    {
+                        "uri": uri,
+                        "mimeType": "application/json",
+                        "text": content,
+                    }
+                ]
+            },
+        )
 
     if method == "prompts/list":
         try:
             prompts = list_prompts()
             return _make_response(req_id, {"prompts": prompts})
         except Exception as e:
-            return _make_response(req_id, error={
-                "code": -32603,
-                "message": f"Failed to list prompts: {e}",
-            })
+            return _make_response(
+                req_id,
+                error={
+                    "code": -32603,
+                    "message": f"Failed to list prompts: {e}",
+                },
+            )
 
     if method == "prompts/get":
         name = params.get("name")
         if not name:
-            return _make_response(req_id, error={
-                "code": -32602,
-                "message": "Missing required parameter: name",
-            })
+            return _make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": "Missing required parameter: name",
+                },
+            )
         args = params.get("arguments", {})
         prompt_message = get_prompt(name, args)
         if prompt_message is None:
-            return _make_response(req_id, error={
-                "code": -32602,
-                "message": f"Prompt not found: {name}",
-            })
-        return _make_response(req_id, {
-            "description": PROMPTS.get(name, {}).get("description", ""),
-            "messages": prompt_message["messages"],
-        })
+            return _make_response(
+                req_id,
+                error={
+                    "code": -32602,
+                    "message": f"Prompt not found: {name}",
+                },
+            )
+        return _make_response(
+            req_id,
+            {
+                "description": PROMPTS.get(name, {}).get("description", ""),
+                "messages": prompt_message["messages"],
+            },
+        )
 
-    return _make_response(req_id, error={
-        "code": -32601,
-        "message": f"Method not found: {method}",
-    })
+    return _make_response(
+        req_id,
+        error={
+            "code": -32601,
+            "message": f"Method not found: {method}",
+        },
+    )
 
 
 def main() -> None:
@@ -233,7 +280,9 @@ def main() -> None:
     if storage is None and use_persistent:
         try:
             config = RuntimeConfig(storage_path=db_path)
-            runtime = Runtime(core=CksCoreAdapter(), config=config, embedding_client=embedding_client)
+            runtime = Runtime(
+                core=CksCoreAdapter(), config=config, embedding_client=embedding_client
+            )
         except Exception as e:
             print(
                 f"[CKS-MCP] ERROR: Failed to initialize persistent storage: {e}. "
@@ -241,13 +290,21 @@ def main() -> None:
                 file=sys.stderr,
             )
             storage = InMemoryStorage()
-            runtime = Runtime(core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client)
+            runtime = Runtime(
+                core=CksCoreAdapter(),
+                storage=storage,
+                embedding_client=embedding_client,
+            )
     elif storage is not None:
-        runtime = Runtime(core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client)
+        runtime = Runtime(
+            core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client
+        )
     else:
         # use_persistent is False but storage is still None (shouldn't happen)
         storage = InMemoryStorage()
-        runtime = Runtime(core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client)
+        runtime = Runtime(
+            core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client
+        )
 
     setup_event_subscriptions(runtime)
 
@@ -261,11 +318,13 @@ def main() -> None:
             try:
                 content_length = int(line_stripped.split(":")[1].strip())
             except (ValueError, IndexError):
-                error_response = json.dumps({
-                    "jsonrpc": "2.0",
-                    "error": {"code": -32700, "message": "Parse error"},
-                    "id": None,
-                })
+                error_response = json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32700, "message": "Parse error"},
+                        "id": None,
+                    }
+                )
                 sys.stdout.write(error_response + "\n")
                 sys.stdout.flush()
                 continue
@@ -283,13 +342,17 @@ def process_request(runtime: Runtime, body: str, *, use_content_length: bool) ->
     try:
         raw = json.loads(body)
     except json.JSONDecodeError:
-        error_response = json.dumps({
-            "jsonrpc": "2.0",
-            "error": {"code": -32700, "message": "Parse error"},
-            "id": None,
-        })
+        error_response = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "error": {"code": -32700, "message": "Parse error"},
+                "id": None,
+            }
+        )
         if use_content_length:
-            sys.stdout.write(f"Content-Length: {len(error_response.encode('utf-8'))}\r\n\r\n{error_response}")
+            sys.stdout.write(
+                f"Content-Length: {len(error_response.encode('utf-8'))}\r\n\r\n{error_response}"
+            )
         else:
             sys.stdout.write(error_response + "\n")
         sys.stdout.flush()
@@ -309,7 +372,9 @@ def process_request(runtime: Runtime, body: str, *, use_content_length: bool) ->
             _send_response(resp, use_content_length=use_content_length)
 
 
-def _send_response(response_obj: dict | list, *, use_content_length: bool = False) -> None:
+def _send_response(
+    response_obj: dict | list, *, use_content_length: bool = False
+) -> None:
     """Helper to send a response, optionally with Content-Length header."""
     body = json.dumps(response_obj, ensure_ascii=False)
     if use_content_length:

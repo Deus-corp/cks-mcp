@@ -3,16 +3,18 @@ merge_knowledge: three-way merge of Knowledge Structures.
 merge_branch: session-aware three-way merge between two live sessions.
 """
 
-from typing import Any
 import json
+from typing import Any
+
 import cks
-from cks_runtime.runtime import Runtime
 from cks_runtime.core_api.merge_conflict import RuntimeMergeConflictError
 from cks_runtime.execution.operation_executor import OperationStatus
 from cks_runtime.operations.operation_types import MergeOperation
-from cks_mcp.errors import missing_parameter, session_not_found
+from cks_runtime.runtime import Runtime
+
 from cks_mcp import provenance
 from cks_mcp.diffing import field_level_diff
+from cks_mcp.errors import missing_parameter, session_not_found
 
 
 def _parse_resolutions(resolutions: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -58,10 +60,15 @@ def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         branch_a = cks.parse(arguments["json_data_branch_a"])
         branch_b = cks.parse(arguments["json_data_branch_b"])
         dropped_relations: list[str] = []
-        merged = base.merge(branch_a, branch_b, resolutions=resolutions, dropped_relations=dropped_relations)
+        merged = base.merge(
+            branch_a,
+            branch_b,
+            resolutions=resolutions,
+            dropped_relations=dropped_relations,
+        )
     except Exception as e:
         # Check if this is a merge conflict error by duck-typing
-        if hasattr(e, 'conflicts'):
+        if hasattr(e, "conflicts"):
             return {
                 "merged": False,
                 "conflicts": [
@@ -232,7 +239,7 @@ def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
         tx.add_operation(_operation())
         version = runtime.commit_transaction(tx)
     except Exception as e:
-        return {"error": f"merge_branch failed: {str(e)}"}
+        return {"error": f"merge_branch failed: {e!s}"}
 
     serialized = runtime.core_bridge.serialize(target.knowledge_structure)
 

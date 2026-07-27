@@ -12,7 +12,6 @@ import json
 from typing import Any
 
 from cks_runtime.runtime import Runtime
-from cks_runtime.session.session import RuntimeSession
 
 
 def list_resources(runtime: Runtime) -> list[dict[str, Any]]:
@@ -20,43 +19,52 @@ def list_resources(runtime: Runtime) -> list[dict[str, Any]]:
     resources: list[dict[str, Any]] = []
 
     # Top-level directory
-    resources.append({
-        "uri": "cks://sessions",
-        "name": "CKS Sessions",
-        "description": "List of all active CKS session IDs",
-        "mimeType": "application/json",
-    })
+    resources.append(
+        {
+            "uri": "cks://sessions",
+            "name": "CKS Sessions",
+            "description": "List of all active CKS session IDs",
+            "mimeType": "application/json",
+        }
+    )
 
     for session in runtime.sessions.list_sessions():
         sid = session.session_id
         # Session resource
-        resources.append({
-            "uri": f"cks://sessions/{sid}",
-            "name": f"Session {sid[:8]}…",
-            "description": f"Knowledge Structure of session {sid}",
-            "mimeType": "application/json",
-        })
+        resources.append(
+            {
+                "uri": f"cks://sessions/{sid}",
+                "name": f"Session {sid[:8]}…",
+                "description": f"Knowledge Structure of session {sid}",
+                "mimeType": "application/json",
+            }
+        )
         # Version list resource
-        resources.append({
-            "uri": f"cks://sessions/{sid}/versions",
-            "name": f"Versions of {sid[:8]}…",
-            "description": f"Version history of session {sid}",
-            "mimeType": "application/json",
-        })
+        resources.append(
+            {
+                "uri": f"cks://sessions/{sid}/versions",
+                "name": f"Versions of {sid[:8]}…",
+                "description": f"Version history of session {sid}",
+                "mimeType": "application/json",
+            }
+        )
         # Individual version resources
         for v in session.version_history:
-            resources.append({
-                "uri": f"cks://sessions/{sid}/versions/{v.version_id}",
-                "name": f"Version {v.version_id[:8]}…",
-                "description": f"Snapshot of session {sid} at version {v.version_id}",
-                "mimeType": "application/json",
-            })
+            resources.append(
+                {
+                    "uri": f"cks://sessions/{sid}/versions/{v.version_id}",
+                    "name": f"Version {v.version_id[:8]}…",
+                    "description": f"Snapshot of session {sid} at version {v.version_id}",
+                    "mimeType": "application/json",
+                }
+            )
 
     return resources
 
 
 def read_resource(runtime: Runtime, uri: str) -> str | None:
     """Return the JSON content for a CKS resource URI, or None if not found."""
+
     # Helper to serialize a Knowledge Structure
     def serialize_ks(ks):
         try:
@@ -69,7 +77,9 @@ def read_resource(runtime: Runtime, uri: str) -> str | None:
         session_list = [
             {
                 "session_id": s.session_id,
-                "created": s.version_history[0].created_at.isoformat() if s.version_history else None,
+                "created": s.version_history[0].created_at.isoformat()
+                if s.version_history
+                else None,
                 "version_count": s.version_count,
             }
             for s in runtime.sessions.list_sessions()

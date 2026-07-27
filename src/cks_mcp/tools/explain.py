@@ -1,8 +1,11 @@
-import cks
 from typing import Any
-from cks_runtime.runtime import Runtime
+
+import cks
 from cks_runtime.operations.operation_types import ExplainOperation
+from cks_runtime.runtime import Runtime
+
 from cks_mcp.errors import invalid_json_error
+
 
 def explain_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
@@ -23,7 +26,9 @@ def explain_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, 
         # executor instead -- the same mechanism merge_branch already uses
         # for its conflict-detection dry-run.
         result = runtime.executor.execute(
-            ExplainOperation("explain", knowledge_structure=session.knowledge_structure),
+            ExplainOperation(
+                "explain", knowledge_structure=session.knowledge_structure
+            ),
             session,
         )
         return {

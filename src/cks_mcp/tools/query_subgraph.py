@@ -6,10 +6,12 @@ Read‑only – never creates a transaction or version.
 """
 
 from __future__ import annotations
+
 from typing import Any
 
-from cks_runtime.runtime import Runtime
 from cks_runtime.operations.operation_types import QuerySubgraphOperation
+from cks_runtime.runtime import Runtime
+
 from cks_mcp.errors import missing_parameter, session_not_found
 
 
@@ -60,22 +62,31 @@ def query_subgraph_tool(runtime: Runtime, arguments: dict[str, Any]) -> dict[str
 
     if compact_mode:
         from cks.core import CanonicalRelation
+
         nodes = []
         edges = []
         for obj in subgraph_result.structure.objects:
             if isinstance(obj, CanonicalRelation):
-                edges.append({
-                    "source": obj.participants[0] if len(obj.participants) > 0 else None,
-                    "target": obj.participants[1] if len(obj.participants) > 1 else None,
-                    "type": obj.relation_type,
-                })
+                edges.append(
+                    {
+                        "source": obj.participants[0]
+                        if len(obj.participants) > 0
+                        else None,
+                        "target": obj.participants[1]
+                        if len(obj.participants) > 1
+                        else None,
+                        "type": obj.relation_type,
+                    }
+                )
             else:
-                nodes.append({
-                    "id": obj.identity.id,
-                    "type": obj.identity.type,
-                    "name": obj.identity.name,
-                    "props": dict(obj.structure),
-                })
+                nodes.append(
+                    {
+                        "id": obj.identity.id,
+                        "type": obj.identity.type,
+                        "name": obj.identity.name,
+                        "props": dict(obj.structure),
+                    }
+                )
 
         return {
             "session_id": session_id,

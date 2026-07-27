@@ -6,8 +6,9 @@ from typing import Any
 
 from cks import AddObject, AddRelation, RemoveObject, RemoveRelation
 from cks_runtime.runtime import Runtime
-from cks_mcp.errors import missing_parameter, session_not_found
+
 from cks_mcp.diffing import field_level_diff
+from cks_mcp.errors import missing_parameter, session_not_found
 
 
 def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -26,9 +27,13 @@ def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
 
     # Reconstruct the base version's state
     try:
-        base_structure = session.get_version_state(target_version_id, runtime.core_bridge)
+        base_structure = session.get_version_state(
+            target_version_id, runtime.core_bridge
+        )
     except ValueError as exc:
-        return {"error": f"Failed to reconstruct base version '{target_version_id}': {str(exc)}"}
+        return {
+            "error": f"Failed to reconstruct base version '{target_version_id}': {exc!s}"
+        }
 
     current_structure = session.knowledge_structure
 
@@ -39,7 +44,7 @@ def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
             target=current_structure,
         )
     except Exception as e:
-        return {"error": f"Failed to compute diff: {str(e)}"}
+        return {"error": f"Failed to compute diff: {e!s}"}
 
     touched_object_ids: set[str] = set()
     touched_relation_ids: set[str] = set()
@@ -51,15 +56,22 @@ def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
             )
         elif isinstance(op, (AddRelation, RemoveRelation)):
             touched_relation_ids.add(
-                op._relation.identity.id if isinstance(op, AddRelation) else op._relation_id
+                op._relation.identity.id
+                if isinstance(op, AddRelation)
+                else op._relation_id
             )
 
     def _classify(ids: set[str]) -> dict[str, list[dict[str, Any]]]:
         buckets: dict[str, list[dict[str, Any]]] = {
-            "added": [], "deleted": [], "modified": [], "unchanged": [],
+            "added": [],
+            "deleted": [],
+            "modified": [],
+            "unchanged": [],
         }
         for identity_id in sorted(ids):
-            diff_entry = field_level_diff(base_structure.get(identity_id), current_structure.get(identity_id))
+            diff_entry = field_level_diff(
+                base_structure.get(identity_id), current_structure.get(identity_id)
+            )
             action = diff_entry.get("action")
             if action in buckets:
                 buckets[action].append({"id": identity_id, **diff_entry})

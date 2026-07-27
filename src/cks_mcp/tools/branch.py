@@ -3,8 +3,11 @@ branch: create_branch and close_session tools for session management.
 """
 
 from typing import Any
+
 from cks_runtime.runtime import Runtime
+
 from cks_mcp.errors import missing_parameter, session_not_found
+
 
 def create_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
@@ -30,6 +33,7 @@ def create_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
         "parent_version_id": branch.parent_version_id,
         "message": f"Branch session {branch.session_id} created from parent {parent.session_id}.",
     }
+
 
 def close_session(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """Close a session, releasing it from the runtime."""

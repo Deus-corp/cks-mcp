@@ -1,8 +1,11 @@
-import cks
 from typing import Any
-from cks_runtime.runtime import Runtime
+
+import cks
 from cks_runtime.operations.operation_types import SerializeOperation
+from cks_runtime.runtime import Runtime
+
 from cks_mcp.errors import invalid_json_error
+
 
 def serialize_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> Any:
     """
@@ -19,7 +22,9 @@ def serialize_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> Any:
         try:
             return {
                 "session_id": session.session_id,
-                "serialized": runtime.core_bridge.serialize(session.knowledge_structure),
+                "serialized": runtime.core_bridge.serialize(
+                    session.knowledge_structure
+                ),
             }
         except Exception as exc:
             return {

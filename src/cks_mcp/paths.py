@@ -9,9 +9,11 @@ Resolved once at import time from, in order:
 import os
 from pathlib import Path
 
-_DATA_DIR = Path(
-    os.environ.get("CKS_MCP_DATA_DIR", Path.home() / ".cks-mcp")
-).expanduser().resolve()
+_DATA_DIR = (
+    Path(os.environ.get("CKS_MCP_DATA_DIR", Path.home() / ".cks-mcp"))
+    .expanduser()
+    .resolve()
+)
 
 
 def data_dir() -> Path:

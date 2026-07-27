@@ -1,11 +1,14 @@
+from typing import Any
+
 import cks
 from cks.evolution import RemoveObject, parse_operations
-from typing import Any
-from cks_runtime.runtime import Runtime
 from cks_runtime.operations.operation_types import EvolveOperation
+from cks_runtime.runtime import Runtime
 from cks_runtime.session.session import RuntimeSession
-from cks_mcp.errors import invalid_json_error
+
 from cks_mcp import provenance
+from cks_mcp.errors import invalid_json_error
+
 
 def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     session_id = arguments.get("session_id")
@@ -103,12 +106,10 @@ def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, A
         if isinstance(op, RemoveObject):
             removed_id = op._object_id
             for rel in structure.relations():
-                if removed_id in rel.participants:
-                    # Check if this relation no longer exists in the evolved state
-                    if rel.identity.id not in {
-                        r.identity.id for r in session.knowledge_structure.relations()
-                    }:
-                        cascade_removed.append(rel.identity.id)
+                if removed_id in rel.participants and rel.identity.id not in {
+                    r.identity.id for r in session.knowledge_structure.relations()
+                }:
+                    cascade_removed.append(rel.identity.id)
 
     serialized = runtime.core_bridge.serialize(session.knowledge_structure)
     response = {

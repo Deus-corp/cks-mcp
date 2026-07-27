@@ -6,9 +6,11 @@ visually. Use this after query_subgraph to show the structure.
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 from cks_runtime.runtime import Runtime
+
 from cks_mcp.errors import missing_parameter, session_not_found
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 
@@ -33,6 +35,7 @@ def visualize_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         # When no seeds are given, treat every non-relation object as a seed
         # with depth=0, so max_objects limits total nodes in a predictable way.
         from cks.core import CanonicalRelation
+
         seed_ids = [
             obj.identity.id
             for obj in session.knowledge_structure.objects
@@ -40,13 +43,16 @@ def visualize_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         ]
         depth = 0
 
-    subgraph_result = query_subgraph_tool(runtime, {
-        "session_id": session_id,
-        "seed_ids": seed_ids,
-        "depth": depth,
-        "max_objects": max_objects,
-        "compact_mode": True,
-    })
+    subgraph_result = query_subgraph_tool(
+        runtime,
+        {
+            "session_id": session_id,
+            "seed_ids": seed_ids,
+            "depth": depth,
+            "max_objects": max_objects,
+            "compact_mode": True,
+        },
+    )
 
     if "error" in subgraph_result:
         return subgraph_result
@@ -74,7 +80,7 @@ def visualize_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
     lines = ["graph TD"]
     for node in nodes:
         alias = safe_alias[node["id"]]
-        label = f"{node['name']} ({node['type']})".replace('"', '#quot;')
+        label = f"{node['name']} ({node['type']})".replace('"', "#quot;")
         lines.append(f'    {alias}["{label}"]')
 
     for edge in edges:
@@ -82,7 +88,7 @@ def visualize_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         tgt = safe_alias.get(edge["target"])
         if src is None or tgt is None:
             continue
-        rel_type = edge["type"].replace('"', '#quot;')
+        rel_type = edge["type"].replace('"', "#quot;")
         lines.append(f'    {src} -->|"{rel_type}"| {tgt}')
 
     return {

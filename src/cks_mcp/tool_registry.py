@@ -11,23 +11,23 @@ from __future__ import annotations
 
 from cks_mcp.observability import log_tool_call
 from cks_mcp.tools import (
-    validate_knowledge,
-    serialize_knowledge,
-    explain_knowledge,
     evolve_knowledge,
+    explain_knowledge,
+    serialize_knowledge,
+    validate_knowledge,
 )
-from cks_mcp.tools.verify_source import verify_source
-from cks_mcp.tools.revert import list_versions, revert_version
+from cks_mcp.tools.branch import close_session, create_branch
 from cks_mcp.tools.compare import compare_versions
-from cks_mcp.tools.merge import merge_knowledge, merge_branch
-from cks_mcp.tools.branch import create_branch, close_session
-from cks_mcp.tools.query_subgraph import query_subgraph_tool
-from cks_mcp.tools.search_semantic import search_semantic
-from cks_mcp.tools.get_metrics import get_metrics
-from cks_mcp.tools.visualize_graph import visualize_graph
 from cks_mcp.tools.explain_diff import explain_diff
-from cks_mcp.tools.suggest_evolution import suggest_evolution
 from cks_mcp.tools.export_knowledge import export_knowledge
+from cks_mcp.tools.get_metrics import get_metrics
+from cks_mcp.tools.merge import merge_branch, merge_knowledge
+from cks_mcp.tools.query_subgraph import query_subgraph_tool
+from cks_mcp.tools.revert import list_versions, revert_version
+from cks_mcp.tools.search_semantic import search_semantic
+from cks_mcp.tools.suggest_evolution import suggest_evolution
+from cks_mcp.tools.verify_source import verify_source
+from cks_mcp.tools.visualize_graph import visualize_graph
 
 # ---------------------------------------------------------------------------
 # Shared parameter descriptions
@@ -42,7 +42,7 @@ JSON_DATA_DESCRIPTION = (
     '"name": "Photosynthesis"}, "structure": {"content": "..."}}, '
     '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, '
     '"structure": {"participants": ["obj-1", "obj-2"], "relation_type": '
-    '\'derives"}}]}\'.'
+    "'derives\"}}]}'."
 )
 
 TOOLS = {
@@ -82,12 +82,12 @@ TOOLS = {
                         '{"identity": {"id": "src-1", "type": "Document", "name": "Real paper"}, "structure": {}}, '
                         '{"identity": {"id": "proj-1", "type": "EmbeddingProjection", "name": "projection"}, "structure": {"store_ref": "vecdb://xyz"}}, '
                         '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["src-1", "proj-1"], "relation_type": "represents"}}'
-                        ']}.'
+                        "]}."
                         " Example of TypeDefinition and TypeRule for ontology validation: "
                         '{"objects": ['
                         '{"identity": {"id": "td-1", "type": "TypeDefinition", "name": "Planet"}, "structure": {"type_name": "Planet", "parent_type": "CelestialBody"}}, '
                         '{"identity": {"id": "tr-1", "type": "TypeRule", "name": "orbits rule"}, "structure": {"relation_type": "orbits", "allowed_source_types": ["Planet", "Moon"], "allowed_target_types": ["Star", "Planet"]}}'
-                        ']}.'
+                        "]}."
                     ),
                 },
             },
@@ -196,7 +196,7 @@ TOOLS = {
                     "description": (
                         "Optional. If provided, evolve the current structure of this session "
                         "instead of creating a new session from json_data."
-                    )
+                    ),
                 },
             },
             "required": ["json_data"],
@@ -227,8 +227,8 @@ TOOLS = {
                 },
                 "resolutions": {
                     "type": "object",
-                    "description": "Optional. Per-object conflict resolution strategy. Keys are object IDs. Values: 'branch_a', 'branch_b', null (drop), or a full object definition to override the conflict."
-                }
+                    "description": "Optional. Per-object conflict resolution strategy. Keys are object IDs. Values: 'branch_a', 'branch_b', null (drop), or a full object definition to override the conflict.",
+                },
             },
             "required": ["json_data_base", "json_data_branch_a", "json_data_branch_b"],
         },
@@ -310,8 +310,8 @@ TOOLS = {
                 },
                 "resolutions": {
                     "type": "object",
-                    "description": "Optional. Per-object conflict resolution strategies. Keys are object IDs. Values: 'branch_a' (take target's version), 'branch_b' (take source branch's version), null (drop the object), or a complete object definition to use as the merged result."
-                }
+                    "description": "Optional. Per-object conflict resolution strategies. Keys are object IDs. Values: 'branch_a' (take target's version), 'branch_b' (take source branch's version), null (drop the object), or a complete object definition to use as the merged result.",
+                },
             },
             "required": ["target_session_id", "source_session_id"],
         },
@@ -354,42 +354,42 @@ TOOLS = {
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "The session whose Knowledge Structure to query."
+                    "description": "The session whose Knowledge Structure to query.",
                 },
                 "seed_ids": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of object ids to start traversal from."
+                    "description": "List of object ids to start traversal from.",
                 },
                 "depth": {
                     "type": "integer",
-                    "description": "Maximum hops from any seed. Default 1."
+                    "description": "Maximum hops from any seed. Default 1.",
                 },
                 "include_relation_types": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional. Only traverse/include these relation types."
+                    "description": "Optional. Only traverse/include these relation types.",
                 },
                 "include_object_types": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional. Only include discovered objects of these types (seeds always kept)."
+                    "description": "Optional. Only include discovered objects of these types (seeds always kept).",
                 },
                 "max_tokens": {
                     "type": "integer",
-                    "description": "Optional token budget (approx)."
+                    "description": "Optional token budget (approx).",
                 },
                 "max_objects": {
                     "type": "integer",
-                    "description": "Optional hard cap on total objects returned."
+                    "description": "Optional hard cap on total objects returned.",
                 },
                 "type_weights": {
                     "type": "object",
-                    "description": "Optional mapping of object type to weight (float), used in budget ranking."
+                    "description": "Optional mapping of object type to weight (float), used in budget ranking.",
                 },
                 "compact_mode": {
                     "type": "boolean",
-                    "description": "If true, return a compact representation (nodes + edges) instead of full canonical JSON."
+                    "description": "If true, return a compact representation (nodes + edges) instead of full canonical JSON.",
                 },
             },
             "required": ["session_id"],
@@ -416,28 +416,28 @@ TOOLS = {
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "The session to search in."
+                    "description": "The session to search in.",
                 },
                 "query": {
                     "type": "string",
-                    "description": "Natural language description of what to find."
+                    "description": "Natural language description of what to find.",
                 },
                 "seed_ids": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional. List of object IDs to start the subgraph expansion from. Omit to use vector search automatically; required as a fallback if the storage backend has no embeddings for this session yet."
+                    "description": "Optional. List of object IDs to start the subgraph expansion from. Omit to use vector search automatically; required as a fallback if the storage backend has no embeddings for this session yet.",
                 },
                 "top_k": {
                     "type": "integer",
-                    "description": "Max number of seed objects to use (default 3)."
+                    "description": "Max number of seed objects to use (default 3).",
                 },
                 "depth": {
                     "type": "integer",
-                    "description": "How many hops to expand around each seed (default 1)."
+                    "description": "How many hops to expand around each seed (default 1).",
                 },
                 "min_score": {
                     "type": "number",
-                    "description": "Minimum cosine similarity score (0.0 to 1.0). Results below this threshold are excluded. Default 0.0 (no filtering)."
+                    "description": "Minimum cosine similarity score (0.0 to 1.0). Results below this threshold are excluded. Default 0.0 (no filtering).",
                 },
             },
             "required": ["session_id", "query"],
@@ -462,14 +462,14 @@ TOOLS = {
             "properties": {
                 "url": {
                     "type": "string",
-                    "description": "The URL of the source to verify."
+                    "description": "The URL of the source to verify.",
                 },
                 "subject_id": {
                     "type": "string",
-                    "description": "The ID of the Knowledge Object that this verification is about."
-                }
+                    "description": "The ID of the Knowledge Object that this verification is about.",
+                },
             },
-            "required": ["url", "subject_id"]
+            "required": ["url", "subject_id"],
         },
         "handler": log_tool_call("verify_source")(verify_source),
     },
@@ -481,10 +481,10 @@ TOOLS = {
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "The ID of the session to list versions for."
+                    "description": "The ID of the session to list versions for.",
                 }
             },
-            "required": ["session_id"]
+            "required": ["session_id"],
         },
         "handler": log_tool_call("list_versions")(list_versions),
     },
@@ -496,14 +496,14 @@ TOOLS = {
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "The ID of the session to revert."
+                    "description": "The ID of the session to revert.",
                 },
                 "target_version_id": {
                     "type": "string",
-                    "description": "The ID of the version to revert to."
-                }
+                    "description": "The ID of the version to revert to.",
+                },
             },
-            "required": ["session_id", "target_version_id"]
+            "required": ["session_id", "target_version_id"],
         },
         "handler": log_tool_call("revert_version")(revert_version),
     },
@@ -523,7 +523,7 @@ TOOLS = {
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "The session whose current state will be compared."
+                    "description": "The session whose current state will be compared.",
                 },
                 "target_version_id": {
                     "type": "string",
@@ -531,13 +531,10 @@ TOOLS = {
                         "Historical version to compare against. "
                         "The comparison is performed between this version "
                         "and the current state of the session."
-                    )
-                }
+                    ),
+                },
             },
-            "required": [
-                "session_id",
-                "target_version_id"
-            ]
+            "required": ["session_id", "target_version_id"],
         },
         "handler": log_tool_call("compare_versions")(compare_versions),
     },
@@ -553,20 +550,20 @@ TOOLS = {
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "The session to visualize."
+                    "description": "The session to visualize.",
                 },
                 "seed_ids": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional. Object IDs to start from. Defaults to all objects."
+                    "description": "Optional. Object IDs to start from. Defaults to all objects.",
                 },
                 "depth": {
                     "type": "integer",
-                    "description": "How many hops to expand. Default 1."
+                    "description": "How many hops to expand. Default 1.",
                 },
                 "max_objects": {
                     "type": "integer",
-                    "description": "Max objects to include. Default 20."
+                    "description": "Max objects to include. Default 20.",
                 },
             },
             "required": ["session_id"],
@@ -585,11 +582,11 @@ TOOLS = {
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "The session to analyze."
+                    "description": "The session to analyze.",
                 },
                 "target_version_id": {
                     "type": "string",
-                    "description": "The version to compare against."
+                    "description": "The version to compare against.",
                 },
             },
             "required": ["session_id", "target_version_id"],
@@ -607,11 +604,11 @@ TOOLS = {
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "The session to export."
+                    "description": "The session to export.",
                 },
                 "format": {
                     "type": "string",
-                    "description": "Output format: 'json-ld', 'turtle', or 'rdf-xml'. Default 'json-ld'."
+                    "description": "Output format: 'json-ld', 'turtle', or 'rdf-xml'. Default 'json-ld'.",
                 },
             },
             "required": ["session_id"],
@@ -630,11 +627,11 @@ TOOLS = {
             "properties": {
                 "session_id": {
                     "type": "string",
-                    "description": "The session to inspect."
+                    "description": "The session to inspect.",
                 },
                 "description": {
                     "type": "string",
-                    "description": "What you want to change (e.g. 'add a new Concept about photosynthesis')."
+                    "description": "What you want to change (e.g. 'add a new Concept about photosynthesis').",
                 },
             },
             "required": ["session_id", "description"],

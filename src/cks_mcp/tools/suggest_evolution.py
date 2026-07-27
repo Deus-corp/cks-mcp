@@ -6,6 +6,7 @@ from typing import Any
 
 from cks.core import CanonicalRelation
 from cks_runtime.runtime import Runtime
+
 from cks_mcp.errors import missing_parameter, session_not_found
 
 
@@ -25,7 +26,10 @@ def suggest_evolution(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, 
 
     description = arguments.get("description", "")
     if not description.strip():
-        return {"error": "missing_parameter", "message": "Description must not be empty."}
+        return {
+            "error": "missing_parameter",
+            "message": "Description must not be empty.",
+        }
 
     # This tool does NOT generate operations itself — it provides a template
     # and guidance for the LLM to generate valid operations.

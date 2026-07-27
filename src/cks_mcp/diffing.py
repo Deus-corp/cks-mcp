@@ -8,6 +8,7 @@ cks-mcp, instead of two subtly-different reimplementations drifting apart.
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 

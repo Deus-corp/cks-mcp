@@ -8,6 +8,7 @@ to find relevant object IDs, then expands them with query_subgraph.
 from typing import Any
 
 from cks_runtime.runtime import Runtime
+
 from cks_mcp.errors import empty_query, missing_parameter, session_not_found
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 
@@ -43,7 +44,9 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
             # objects (Runtime.embedding_client), or the query vector
             # lives in a different embedding space than what's stored
             # and every similarity score is meaningless.
-            query_embedding = runtime.embedding_client.embed_batch([query], normalize=True)[0]
+            query_embedding = runtime.embedding_client.embed_batch(
+                [query], normalize=True
+            )[0]
             results = runtime.storage.search_embeddings(
                 query_embedding,
                 session_id,
@@ -55,14 +58,17 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
                 # Filter to those actually in the current structure
                 # and exclude relation objects
                 seed_ids = [
-                    sid for sid in seed_ids
+                    sid
+                    for sid in seed_ids
                     if (obj := session.knowledge_structure.get(sid)) is not None
-                    and getattr(obj.identity, 'type', '') != 'Relation'
+                    and getattr(obj.identity, "type", "") != "Relation"
                 ][:top_k]
                 scores = {sid: scores_by_id[sid] for sid in seed_ids}
                 # Filter by minimum relevance score
                 if min_score > 0.0:
-                    seed_ids = [sid for sid in seed_ids if scores.get(sid, 0.0) >= min_score]
+                    seed_ids = [
+                        sid for sid in seed_ids if scores.get(sid, 0.0) >= min_score
+                    ]
                     scores = {sid: scores_by_id[sid] for sid in seed_ids}
         except Exception as e:
             seed_ids = None

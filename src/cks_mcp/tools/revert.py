@@ -3,9 +3,12 @@ revert: Time-travel operations for session version history.
 """
 
 from typing import Any
-from cks_runtime.runtime import Runtime
+
 from cks_runtime.operations.operation_types import RevertVersionOperation
+from cks_runtime.runtime import Runtime
+
 from cks_mcp.errors import internal_error, missing_parameter, session_not_found
+
 
 def list_versions(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """Return a lightweight list of all versions in the given session."""
@@ -51,7 +54,9 @@ def revert_version(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any
 
     try:
         tx = runtime.begin_transaction(session)
-        tx.add_operation(RevertVersionOperation("revert", target_version_id=target_version_id))
+        tx.add_operation(
+            RevertVersionOperation("revert", target_version_id=target_version_id)
+        )
         version = runtime.commit_transaction(tx)
 
         serialized = runtime.core_bridge.serialize(session.knowledge_structure)

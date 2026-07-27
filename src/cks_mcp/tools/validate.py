@@ -1,8 +1,9 @@
-import cks
 from typing import Any
+
+import cks
 from cks.constraints.builtin import OPTIONAL_CONSTRAINTS_BY_NAME
-from cks_runtime.runtime import Runtime
 from cks_runtime.operations.operation_types import ValidateOperation
+from cks_runtime.runtime import Runtime
 from cks_runtime.session.session import RuntimeSession
 
 from cks_mcp import provenance
@@ -100,7 +101,8 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
         }
 
     forced_names = {
-        name for name in _ALWAYS_ENFORCED_EXTENSIONS
+        name
+        for name in _ALWAYS_ENFORCED_EXTENSIONS
         if _has_type(structure, "VerificationRecord")
     }
     forced_constraints, _ = resolve_extensions(sorted(forced_names))
@@ -146,20 +148,24 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
             # index 0.
             if tx.results:
                 result = tx.results[-1]
-                core_diagnostics = [_serialize_diagnostic(d) for d in (result.diagnostics or [])]
+                core_diagnostics = [
+                    _serialize_diagnostic(d) for d in (result.diagnostics or [])
+                ]
             else:
-                core_diagnostics = [{
-                    "code": "VALIDATION_FAILED",
-                    "severity": "error",
-                    "source": "runtime",
-                    "message": str(exc),
-                    "metadata": {},
-                }]
+                core_diagnostics = [
+                    {
+                        "code": "VALIDATION_FAILED",
+                        "severity": "error",
+                        "source": "runtime",
+                        "message": str(exc),
+                        "metadata": {},
+                    }
+                ]
             version_id = None
             # Rollback the failed transaction
             try:
                 runtime.rollback_transaction(tx)
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
     else:
         # Dry-run only, straight through the executor (bypassing the
@@ -170,7 +176,9 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
         # ExecutionPipeline._handle_result), so diagnostics come from
         # the ExecutionResult directly here instead.
         result = runtime.executor.execute(op, session)
-        core_diagnostics = [_serialize_diagnostic(d) for d in (result.diagnostics or [])]
+        core_diagnostics = [
+            _serialize_diagnostic(d) for d in (result.diagnostics or [])
+        ]
         version_id = None
 
     core_valid = not any(d["severity"] == "error" for d in core_diagnostics)
