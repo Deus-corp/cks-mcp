@@ -38,13 +38,16 @@ from cks_mcp.tools.search_semantic import search_semantic
 from cks_mcp.tools.get_metrics import get_metrics
 from cks_runtime.embedding.client import HuggingFaceEmbeddingClient
 from cks_mcp.paths import data_dir
+from cks_mcp.tools.visualize_graph import visualize_graph
+from cks_mcp.tools.explain_diff import explain_diff
+from cks_mcp.tools.suggest_evolution import suggest_evolution
 
 # ---------------------------------------------------------------------------
 # Server metadata
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.8.2"
+SERVER_VERSION = "1.9.0"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -554,6 +557,84 @@ TOOLS = {
             ]
         },
         "handler": log_tool_call("compare_versions")(compare_versions),
+    },
+    "visualize_graph": {
+        "name": "visualize_graph",
+        "description": (
+            "Export a subgraph as a Mermaid diagram. Claude Desktop renders Mermaid "
+            "natively, so the user sees the graph visually. Use this after "
+            "query_subgraph to show the structure."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The session to visualize."
+                },
+                "seed_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional. Object IDs to start from. Defaults to all objects."
+                },
+                "depth": {
+                    "type": "integer",
+                    "description": "How many hops to expand. Default 1."
+                },
+                "max_objects": {
+                    "type": "integer",
+                    "description": "Max objects to include. Default 20."
+                },
+            },
+            "required": ["session_id"],
+        },
+        "handler": log_tool_call("visualize_graph")(visualize_graph),
+    },
+    "explain_diff": {
+        "name": "explain_diff",
+        "description": (
+            "Explain the differences between the current state of a session and a "
+            "target version in plain English. Useful for understanding what changed "
+            "without parsing raw diff output."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The session to analyze."
+                },
+                "target_version_id": {
+                    "type": "string",
+                    "description": "The version to compare against."
+                },
+            },
+            "required": ["session_id", "target_version_id"],
+        },
+        "handler": log_tool_call("explain_diff")(explain_diff),
+    },
+    "suggest_evolution": {
+        "name": "suggest_evolution",
+        "description": (
+            "Given a session and a description of what to change, return the current "
+            "objects/relations and guidance for constructing valid evolution operations. "
+            "Use this before evolve_knowledge to reduce trial-and-error."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The session to modify."
+                },
+                "description": {
+                    "type": "string",
+                    "description": "What you want to change (e.g. 'add a new Concept about photosynthesis')."
+                },
+            },
+            "required": ["session_id", "description"],
+        },
+        "handler": log_tool_call("suggest_evolution")(suggest_evolution),
     },
 }
 

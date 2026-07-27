@@ -3,6 +3,20 @@
 
 ---
 
+## [1.9.0] - 2026-07-27
+
+### Added
+- **`visualize_graph`** tool — exports a subgraph in Mermaid format for native rendering in Claude Desktop.
+- **`explain_diff`** tool — produces a natural-language explanation of changes between two versions, complementing `compare_versions`.
+- **`suggest_evolution`** tool — accepts a textual description of a desired change and returns a proposed list of valid evolution operators with a dry-run validation, without committing.
+- 3 new tests covering the new tools' parameter validation.
+
+### Changed
+- `validate_knowledge` now supports `type_hierarchy` and `relation_type` extensions.
+- Bumped `cks-runtime` to `>=1.18.2` and `cks-core` to `>=1.12.0`.
+
+---
+
 ## [1.8.2] - 2026-07-27
 
 ### Added

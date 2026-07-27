@@ -178,3 +178,21 @@ def test_query_subgraph_basic():
     assert "total_found_nodes" in result
     assert result["total_found_nodes"] == 2  # A, B
     assert result["is_truncated"] == False
+
+def test_visualize_graph_missing_session_id(mock_runtime):
+    from cks_mcp.tools.visualize_graph import visualize_graph
+    result = visualize_graph(mock_runtime, {})
+    assert result["error"] == "missing_parameter"
+    assert "session_id" in result["message"]
+
+
+def test_explain_diff_missing_parameters(mock_runtime):
+    from cks_mcp.tools.explain_diff import explain_diff
+    result = explain_diff(mock_runtime, {})
+    assert result["error"] == "missing_parameter"
+
+
+def test_suggest_evolution_missing_parameters(mock_runtime):
+    from cks_mcp.tools.suggest_evolution import suggest_evolution
+    result = suggest_evolution(mock_runtime, {})
+    assert result["error"] == "missing_parameter"
