@@ -165,8 +165,11 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
             # Rollback the failed transaction
             try:
                 runtime.rollback_transaction(tx)
-            except Exception:  # noqa: S110
-                pass
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Failed to rollback transaction after validation error: %s", exc
+                )
     else:
         # Dry-run only, straight through the executor (bypassing the
         # transaction/commit pipeline entirely): still surface
