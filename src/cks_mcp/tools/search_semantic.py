@@ -33,6 +33,9 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
     # Populated only when seed_ids come from vector search below --
     # caller-supplied seed_ids have no similarity score to report.
     scores: dict[str, float] | None = None
+    # Set only if vector search itself raised, so a real failure can
+    # be told apart from a genuine no-match.
+    search_error: str | None = None
     if not seed_ids and hasattr(runtime.storage, "search_embeddings"):
         try:
             # Must be the exact same client instance used to index
@@ -56,17 +59,21 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
                     and getattr(obj.identity, 'type', '') != 'Relation'
                 ][:top_k]
                 scores = {sid: scores_by_id[sid] for sid in seed_ids}
-        except Exception:
+        except Exception as e:
             seed_ids = None
             scores = None
+            search_error = str(e)
 
     if not seed_ids:
+        message = (
+            "No matching objects found. Provide explicit 'seed_ids' "
+            "or ensure embeddings have been generated for this session."
+        )
+        if search_error is not None:
+            message += f" (semantic search failed: {search_error})"
         return {
             "error": "not_found",
-            "message": (
-                "No matching objects found. Provide explicit 'seed_ids' "
-                "or ensure embeddings have been generated for this session."
-            ),
+            "message": message,
         }
 
     # Use query_subgraph to expand around the seeds

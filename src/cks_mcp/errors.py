@@ -42,3 +42,9 @@ def empty_query() -> dict:
         "error": "empty_query",
         "message": "Query must not be empty.",
     }
+
+def internal_error(details: str) -> dict:
+    return {
+        "error": "internal_error",
+        "message": f"Internal error: {details}",
+    }

@@ -3,6 +3,20 @@
 
 ---
 
+## [1.8.0] - 2026-07-27
+
+### Changed
+- **Breaking:** `revert_version` and `list_versions` now return the same structured `{"error": "<code>", "message": "<text>"}` shape as every other tool, instead of ad-hoc human sentences.
+- `search_semantic` no longer silently swallows exceptions raised during vector search. The `not_found` response's `message` now includes the underlying error when one occurred.
+
+### Added
+- New `internal_error()` helper in `cks_mcp.errors`.
+- New tests: `tests/test_revert.py` (9 tests) and `tests/test_search_semantic.py` (12 tests), including real end-to-end vector-search tests against a `SQLiteStorage`-backed `Runtime`.
+- `search_semantic` now rejects an empty query immediately.
+- `search_semantic` now includes a `scores` field in successful responses.
+
+---
+
 ## [1.7.14] - 2026-07-26
 
 ### Added
