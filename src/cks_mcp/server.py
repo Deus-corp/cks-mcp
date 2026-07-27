@@ -44,7 +44,7 @@ from cks_mcp.paths import data_dir
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.8.1"
+SERVER_VERSION = "1.8.2"
 PROTOCOL_VERSION = "2024-11-05"  # latest MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -93,12 +93,18 @@ TOOLS = {
                     "description": (
                         "Optional list of opt-in validation extensions to apply for this call "
                         "only (does not affect other calls). Currently available: "
-                        "'embedding_projection' and 'verification_record'. "
+                        "'embedding_projection', 'verification_record', 'type_hierarchy', "
+                        "'relation_type'. "
                         "Example of a correct EmbeddingProjection with its 'represents' relation: "
                         '{"objects": ['
                         '{"identity": {"id": "src-1", "type": "Document", "name": "Real paper"}, "structure": {}}, '
                         '{"identity": {"id": "proj-1", "type": "EmbeddingProjection", "name": "projection"}, "structure": {"store_ref": "vecdb://xyz"}}, '
                         '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["src-1", "proj-1"], "relation_type": "represents"}}'
+                        ']}.'
+                        " Example of TypeDefinition and TypeRule for ontology validation: "
+                        '{"objects": ['
+                        '{"identity": {"id": "td-1", "type": "TypeDefinition", "name": "Planet"}, "structure": {"type_name": "Planet", "parent_type": "CelestialBody"}}, '
+                        '{"identity": {"id": "tr-1", "type": "TypeRule", "name": "orbits rule"}, "structure": {"relation_type": "orbits", "allowed_source_types": ["Planet", "Moon"], "allowed_target_types": ["Star", "Planet"]}}'
                         ']}.'
                     ),
                 },

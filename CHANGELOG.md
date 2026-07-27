@@ -3,6 +3,14 @@
 
 ---
 
+## [1.8.2] - 2026-07-27
+
+### Added
+- `validate_knowledge` now supports `type_hierarchy` and `relation_type` extensions, enabling ontology-based type checking and relation validation.
+- Bumped `cks-runtime` to `>=1.18.2` and `cks-core` to `>=1.12.0`.
+
+---
+
 ## [1.8.1] - 2026-07-27
 
 ### Changed

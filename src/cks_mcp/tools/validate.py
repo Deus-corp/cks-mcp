@@ -22,6 +22,8 @@ def _serialize_diagnostic(diagnostic: Any) -> dict[str, Any]:
 EXTENSION_ALIASES: dict[str, str] = {
     "embedding_projection": "CKS-EXT-EMBEDDING-PROJECTION",
     "verification_record": "CKS-EXT-VERIFICATION-RECORD",
+    "type_hierarchy": "CKS-EXT-TYPE-HIERARCHY-CYCLE",
+    "relation_type": "CKS-EXT-RELATION-TYPE",
 }
 
 # Trust-bearing types are enforced unconditionally the moment they
