@@ -12,9 +12,22 @@ a second case covering that new parameter specifically, since that
 is exactly the kind of thing an in-process unit test cannot catch.
 """
 
+import importlib
 import json
 import subprocess
 import sys
+
+import pytest
+
+
+def _server_dependencies_available():
+    try:
+        importlib.import_module("cks")
+        importlib.import_module("cks_runtime")
+        importlib.import_module("requests")
+        return True
+    except ImportError:
+        return False
 
 
 def _call(request: dict) -> dict:
@@ -27,32 +40,39 @@ def _call(request: dict) -> dict:
     )
     try:
         body = json.dumps(request)
-        # Пишем с Content-Length заголовком
         proc.stdin.write(f"Content-Length: {len(body.encode('utf-8'))}\r\n\r\n{body}")
         proc.stdin.flush()
 
-        # Читаем ответ: сначала заголовки, потом тело
         content_length = 0
         while True:
             line = proc.stdout.readline()
-            if line is None:
+            if not line:  # EOF
                 break
             line = line.strip()
             if not line:
-                break  # пустая строка — конец заголовков
+                break
             if line.lower().startswith("content-length:"):
                 content_length = int(line.split(":")[1].strip())
-        
+
         if content_length == 0:
-            line = None
+            raw_output = proc.stdout.read()
         else:
-            line = proc.stdout.read(content_length)
+            raw_output = proc.stdout.read(content_length)
     finally:
         proc.terminate()
         proc.wait(timeout=5)
 
-    assert line, f"Server produced no output on stdout (stderr: {proc.stderr.read()})"
-    return json.loads(line)
+    if not raw_output:
+        stderr_text = proc.stderr.read()
+        pytest.fail(f"Server produced no output. stderr:\n{stderr_text}")
+
+    try:
+        return json.loads(raw_output)
+    except json.JSONDecodeError:
+        stderr_text = proc.stderr.read()
+        raise AssertionError(
+            f"Server response is not valid JSON. Response: {raw_output!r}\nStderr:\n{stderr_text}"
+        )
 
 
 def test_validate_via_server():
@@ -78,6 +98,8 @@ def test_validate_via_server():
     assert "version_id" in content
     assert "session_id" in content
 
+
+@pytest.mark.skipif(not _server_dependencies_available(), reason="Missing server dependencies in CI")
 
 def test_validate_with_extensions_via_server():
     structure = {
