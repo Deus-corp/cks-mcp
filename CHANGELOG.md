@@ -3,6 +3,13 @@
 
 ---
 
+## [1.10.5] - 2026-07-28
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.20.0` (VersionVector and fast-path merge, ADR-007 Part 2). `merge_branch` and `merge_knowledge` automatically benefit from no-op and fast-forward detection.
+
+---
+
 ## [1.10.4] - 2026-07-28
 
 ### Changed
