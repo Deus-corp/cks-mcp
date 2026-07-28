@@ -47,6 +47,16 @@ JSON_DATA_DESCRIPTION = (
     "'derives\"}}]}'."
 )
 
+CONTRADICTION_RULE_EXAMPLES = (
+    "Examples of contradiction rules:\n"
+    '- MutualExclusionRule: {"identity": {"id": "rule-1", "type": "MutualExclusionRule", "name": "no-support-and-refute"}, '
+    '"structure": {"relation_type_a": "supports", "relation_type_b": "refutes"}}. '
+    "This flags when the SAME source-target pair has BOTH a 'supports' and a 'refutes' relation.\n"
+    '- FunctionalRelationRule: {"identity": {"id": "rule-2", "type": "FunctionalRelationRule", "name": "single-orbit"}, '
+    '"structure": {"relation_type": "orbits"}}. '
+    "This flags when a single source has MORE THAN ONE target via 'orbits'."
+)
+
 TOOLS = {
     "validate_knowledge": {
         "name": "validate_knowledge",
@@ -78,8 +88,9 @@ TOOLS = {
                         "Optional list of opt-in validation extensions to apply for this call "
                         "only (does not affect other calls). Currently available: "
                         "'embedding_projection', 'verification_record', 'type_hierarchy', "
-                        "'relation_type'. "
-                        "Example of a correct EmbeddingProjection with its 'represents' relation: "
+                        "'relation_type', 'mutual_exclusion', 'functional_relation'. "
+                        + CONTRADICTION_RULE_EXAMPLES +
+                        " Example of a correct EmbeddingProjection with its 'represents' relation: "
                         '{"objects": ['
                         '{"identity": {"id": "src-1", "type": "Document", "name": "Real paper"}, "structure": {}}, '
                         '{"identity": {"id": "proj-1", "type": "EmbeddingProjection", "name": "projection"}, "structure": {"store_ref": "vecdb://xyz"}}, '
@@ -657,9 +668,12 @@ TOOLS = {
         "name": "detect_contradictions",
         "description": (
             "Detect logical contradictions in a Knowledge Structure using "
-            "the contradiction extension constraints (mutual_exclusion, "
-            "functional_relation). Returns a compact list of contradictions "
-            "without running full validation."
+            "the contradiction extension constraints. "
+            "Supports two types of contradiction detection:\n"
+            "- mutual_exclusion: Flags when the same source-target pair has both of two declared relation types.\n"
+            "- functional_relation: Flags when a source has multiple targets via a declared single-valued relation type.\n"
+            + CONTRADICTION_RULE_EXAMPLES +
+            "\nTo use, ensure your structure contains MutualExclusionRule and/or FunctionalRelationRule objects."
         ),
         "inputSchema": {
             "type": "object",

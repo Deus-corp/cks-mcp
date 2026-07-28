@@ -3,6 +3,14 @@
 
 ---
 
+## [1.12.1] - 2026-07-28
+
+### Changed
+- Added concrete examples of `MutualExclusionRule` and `FunctionalRelationRule` structures to `detect_contradictions` and `validate_knowledge` tool schemas, so LLMs no longer need to guess field names.
+- Updated README with contradiction rule examples.
+
+---
+
 ## [1.12.0] - 2026-07-28
 
 ### Added

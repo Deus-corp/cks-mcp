@@ -487,6 +487,25 @@ Response:
 }
 ```
 
+## Detect contradictions
+
+`detect_contradictions` uses `MutualExclusionRule` and `FunctionalRelationRule`
+objects to find logical conflicts. For mutual exclusion, both conflicting
+relations must connect the **same ordered pair** (same source and same target).
+
+Example of a MutualExclusionRule:
+```json
+{"identity": {"id": "rule-1", "type": "MutualExclusionRule", "name": "no-support-and-refute"},
+ "structure": {"relation_type_a": "confirms", "relation_type_b": "refutes"}}
+ ```
+
+Example of a FunctionalRelationRule:
+
+```json
+{"identity": {"id": "rule-2", "type": "FunctionalRelationRule", "name": "single-orbit"},
+ "structure": {"relation_type": "orbits"}}
+```
+
 ## Fork a sandbox and test a hypothesis
 
 ```json
