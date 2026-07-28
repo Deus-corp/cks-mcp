@@ -1,6 +1,6 @@
+import cks
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
-import cks
 
 runtime = Runtime(core=CksCoreAdapter())
 

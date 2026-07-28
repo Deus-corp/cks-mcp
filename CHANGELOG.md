@@ -3,6 +3,20 @@
 
 ---
 
+## [1.11.0] - 2026-07-28
+
+### Added
+- `suggest_evolution` now accepts an optional `operations` parameter: when
+  provided, it dry-runs those candidate operations against the session
+  (the same non-committing path `evolve_knowledge` uses internally) and
+  returns `would_apply`/`diagnostics`/`preview_serialized` instead of the
+  template/guidance response. Lets a caller check a concrete operations
+  list before spending a real `evolve_knowledge` call — and a real
+  version — on a guess. Fully backward compatible: omitting `operations`
+  returns the same template response as before.
+
+---
+
 ## [1.10.6] - 2026-07-28
 
 ### Changed

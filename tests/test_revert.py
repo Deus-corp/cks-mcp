@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,13 +18,13 @@ def mock_runtime():
     session = MagicMock(session_id="s1")
     v1 = MagicMock(
         version_id="v1",
-        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
         transaction_id="tx-1",
         metadata={"note": "first"},
     )
     v2 = MagicMock(
         version_id="v2",
-        created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        created_at=datetime(2026, 1, 2, tzinfo=UTC),
         transaction_id="tx-2",
         metadata={},
     )

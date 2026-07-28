@@ -7,16 +7,14 @@ from __future__ import annotations
 import time
 from unittest.mock import MagicMock
 
-import pytest
-
 import cks
+import pytest
 from cks_runtime.config import RuntimeConfig
 from cks_runtime.operations.operation_types import ValidateOperation
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.tools.search_semantic import search_semantic
-
 
 # ---------------------------------------------------------------------------
 # Parameter validation (mocked runtime)

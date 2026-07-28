@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
 import json
+from unittest.mock import MagicMock
+
 import pytest
 
 from cks_mcp.server import handle_request
@@ -122,6 +123,7 @@ def test_setup_event_subscriptions_does_not_raise():
     """Calling setup_event_subscriptions must not throw."""
     from cks_runtime.runtime import Runtime
     from cks_runtime_plugins.cks_core import CksCoreAdapter
+
     from cks_mcp.observability import setup_event_subscriptions
 
     runtime = Runtime(core=CksCoreAdapter())

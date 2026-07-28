@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
 import json
+from unittest.mock import MagicMock
+
 import pytest
 
 from cks_mcp.tools import (
-    validate_knowledge,
-    serialize_knowledge,
-    explain_knowledge,
     evolve_knowledge,
+    explain_knowledge,
+    serialize_knowledge,
+    validate_knowledge,
 )
 
 VALID_KNOWLEDGE_JSON = (
@@ -58,6 +59,8 @@ def test_validate_knowledge_valid(mock_runtime):
 def test_validate_knowledge_invalid(mock_runtime):
     from cks_runtime.diagnostics.diagnostic import (
         Diagnostic as RuntimeDiagnostic,
+    )
+    from cks_runtime.diagnostics.diagnostic import (
         DiagnosticSeverity,
         DiagnosticSource,
     )
@@ -126,8 +129,9 @@ def test_evolve_knowledge(mock_runtime):
 
 
 def test_compare_versions(mock_runtime):
-    from cks_mcp.tools.compare import compare_versions
     from cks_runtime.versioning.version import RuntimeVersion
+
+    from cks_mcp.tools.compare import compare_versions
 
     session = MagicMock(session_id="s1")
     session.version_history = [
@@ -149,6 +153,7 @@ def test_query_subgraph_basic():
     """End-to-end test: создаём сессию и извлекаем подграф."""
     from cks_runtime.runtime import Runtime
     from cks_runtime_plugins.cks_core import CksCoreAdapter
+
     from cks_mcp.tools.query_subgraph import query_subgraph_tool
 
     runtime = Runtime(core=CksCoreAdapter())
@@ -214,8 +219,9 @@ def test_visualize_graph_basic():
     """Typical ids (with hyphens, as used throughout this project's own
     examples) must still produce syntactically valid Mermaid: a bare,
     unquoted hyphenated id is not a legal Mermaid node id."""
-    from cks_mcp.tools.visualize_graph import visualize_graph
     from cks import parse
+
+    from cks_mcp.tools.visualize_graph import visualize_graph
 
     runtime = _real_runtime()
     structure = parse(
@@ -243,8 +249,9 @@ def test_visualize_graph_basic():
 def test_visualize_graph_sanitizes_special_characters():
     """Ids containing spaces/colons/parentheses and names containing
     double quotes must not break the generated Mermaid syntax."""
-    from cks_mcp.tools.visualize_graph import visualize_graph
     from cks import parse
+
+    from cks_mcp.tools.visualize_graph import visualize_graph
 
     runtime = _real_runtime()
     weird_id = 'urn:concept:weird id (test)'
@@ -280,9 +287,10 @@ def test_visualize_graph_sanitizes_special_characters():
 def test_explain_diff_pure_add():
     """Adding a new object+relation with nothing else touched should be
     reported purely as additions."""
+    from cks import parse
+
     from cks_mcp.tools.evolve import evolve_knowledge
     from cks_mcp.tools.explain_diff import explain_diff
-    from cks import parse
 
     runtime = _real_runtime()
     structure = parse(
@@ -318,9 +326,10 @@ def test_explain_diff_modified_object_reported_as_modified_not_delete_add():
     'modified' with a field-level diff -- not as a delete+add of the same
     id -- and the untouched relation referencing it must be recognized as
     an unaffected relink, not a spurious add+remove."""
+    from cks import parse
+
     from cks_mcp.tools.evolve import evolve_knowledge
     from cks_mcp.tools.explain_diff import explain_diff
-    from cks import parse
 
     runtime = _real_runtime()
     structure = parse(
@@ -365,9 +374,10 @@ def test_explain_diff_modified_object_reported_as_modified_not_delete_add():
 def test_explain_diff_genuine_relation_content_change():
     """When a relation's own content changes (e.g. its relation_type), it
     must be reported as a modified relation with a field-level diff."""
+    from cks import parse
+
     from cks_mcp.tools.evolve import evolve_knowledge
     from cks_mcp.tools.explain_diff import explain_diff
-    from cks import parse
 
     runtime = _real_runtime()
     structure = parse(
@@ -406,8 +416,9 @@ def test_explain_diff_genuine_relation_content_change():
 def test_suggest_evolution_basic():
     """current_objects must list only plain objects (not relations), and
     current_relations must list relations with their real participants."""
-    from cks_mcp.tools.suggest_evolution import suggest_evolution
     from cks import parse
+
+    from cks_mcp.tools.suggest_evolution import suggest_evolution
 
     runtime = _real_runtime()
     structure = parse(
@@ -439,3 +450,95 @@ def test_export_knowledge_missing_session_id(mock_runtime):
     result = export_knowledge(mock_runtime, {})
     assert result["error"] == "missing_parameter"
     assert "session_id" in result["message"]
+
+
+def test_suggest_evolution_preview_valid_operations():
+    """Passing 'operations' previews them via the same dry-run
+    evolve_knowledge uses internally, but must not create a version or
+    otherwise mutate the session."""
+    from cks import parse
+
+    from cks_mcp.tools.suggest_evolution import suggest_evolution
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "obj-1", "type": "Concept", "name": "A"}, "structure": {}}'
+        ']}'
+    )
+    session = runtime.create_session(structure)
+    versions_before = len(runtime.get_session(session.session_id).versions) if hasattr(session, "versions") else None
+
+    result = suggest_evolution(runtime, {
+        "session_id": session.session_id,
+        "description": "add a Concept about B",
+        "operations": [
+            {
+                "type": "add_object",
+                "identity": {"id": "obj-2", "type": "Concept", "name": "B"},
+                "structure": {},
+            }
+        ],
+    })
+
+    assert result["would_apply"] is True
+    assert result["operations_previewed"] == 1
+    assert result["diagnostics"] == []
+    assert "preview_serialized" in result
+    # Nothing committed: the live session structure is untouched.
+    assert {o.identity.id for o in session.knowledge_structure.objects} == {"obj-1"}
+    if versions_before is not None:
+        assert len(runtime.get_session(session.session_id).versions) == versions_before
+
+
+def test_suggest_evolution_preview_invalid_operations_reports_diagnostics():
+    """An operation that would produce an invalid structure (here: a
+    relation referencing a nonexistent participant) must be reported
+    via diagnostics with would_apply=False, not raise."""
+    from cks import parse
+
+    from cks_mcp.tools.suggest_evolution import suggest_evolution
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "obj-1", "type": "Concept", "name": "A"}, "structure": {}}'
+        ']}'
+    )
+    session = runtime.create_session(structure)
+
+    result = suggest_evolution(runtime, {
+        "session_id": session.session_id,
+        "description": "link A to something that doesn't exist",
+        "operations": [
+            {
+                "type": "add_relation",
+                "identity": {"id": "rel-1", "type": "Relation", "name": "r"},
+                "participants": ["obj-1", "ghost"],
+                "relation_type": "relates_to",
+            }
+        ],
+    })
+
+    # add_relation itself rejects a dangling participant at apply time
+    # (ValueError inside _mutate), which the executor surfaces as a
+    # failed dry-run rather than a validation diagnostic.
+    assert result["would_apply"] is False
+    assert "message" in result
+
+
+def test_suggest_evolution_preview_malformed_operations():
+    from cks_mcp.tools.suggest_evolution import suggest_evolution
+
+    runtime = _real_runtime()
+    from cks import parse
+    structure = parse('{"objects": []}')
+    session = runtime.create_session(structure)
+
+    result = suggest_evolution(runtime, {
+        "session_id": session.session_id,
+        "description": "do something",
+        "operations": [{"type": "not_a_real_operation"}],
+    })
+
+    assert result["error"] == "invalid_operations"

@@ -3,13 +3,13 @@ Integration tests for create_branch, merge_branch, and close_session.
 """
 
 import cks
-import pytest
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
-from cks_mcp.tools.branch import create_branch, close_session
-from cks_mcp.tools.merge import merge_branch
+from cks_mcp.tools.branch import close_session, create_branch
 from cks_mcp.tools.evolve import evolve_knowledge
+from cks_mcp.tools.merge import merge_branch
+
 
 def make_runtime() -> Runtime:
     return Runtime(core=CksCoreAdapter())

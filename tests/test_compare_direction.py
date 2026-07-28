@@ -1,10 +1,11 @@
+import cks
+from cks.core import KnowledgeObject, ObjectIdentity
+from cks.evolution import AddObject
+from cks_runtime.operations.operation_types import EvolveOperation
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
-from cks_runtime.operations.operation_types import EvolveOperation
+
 from cks_mcp.tools.compare import compare_versions
-import cks
-from cks.evolution import AddObject
-from cks.core import KnowledgeObject, ObjectIdentity
 
 runtime = Runtime(core=CksCoreAdapter())
 

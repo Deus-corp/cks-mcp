@@ -2,12 +2,19 @@
 Tests for verify_source: SSRF protection, unique IDs, provenance signing.
 """
 
-import json
 import socket
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from cks_mcp.tools.verify_source import verify_source, UnsafeURLError, _resolve_and_validate_host, _safe_head_status
-from cks_mcp.provenance import verify, SIGNATURE_KEY
+
+from cks_mcp.provenance import SIGNATURE_KEY, verify
+from cks_mcp.tools.verify_source import (
+    UnsafeURLError,
+    _resolve_and_validate_host,
+    _safe_head_status,
+    verify_source,
+)
+
 
 def test_resolve_and_validate_allows_public():
     hostname, ips = _resolve_and_validate_host("https://example.com")
@@ -34,7 +41,7 @@ def test_resolve_and_validate_orders_ipv4_before_ipv6():
         (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("2001:4860:4860::8844", 443, 0, 0)),
     ]
     with patch("socket.getaddrinfo", return_value=fake_addrinfo):
-        hostname, ips = _resolve_and_validate_host("https://example.com")
+        _hostname, ips = _resolve_and_validate_host("https://example.com")
     assert ips == ["93.184.216.34", "2001:4860:4860::8888", "2001:4860:4860::8844"]
 
 def test_resolve_and_validate_deduplicates_ips():
@@ -43,7 +50,7 @@ def test_resolve_and_validate_deduplicates_ips():
         (socket.AF_INET, socket.SOCK_DGRAM, 0, "", ("93.184.216.34", 443)),
     ]
     with patch("socket.getaddrinfo", return_value=fake_addrinfo):
-        hostname, ips = _resolve_and_validate_host("https://example.com")
+        _hostname, ips = _resolve_and_validate_host("https://example.com")
     assert ips == ["93.184.216.34"]
 
 def test_safe_head_status_falls_back_to_next_candidate():
@@ -63,6 +70,7 @@ def test_safe_head_status_falls_back_to_next_candidate():
 
         def fake_head(self, url, timeout, allow_redirects):
             import requests
+
             # Read which IP is currently pinned via the thread-local
             # override installed by pin_dns, to prove the fallback
             # actually advanced to the second candidate.
@@ -84,7 +92,7 @@ def test_verify_source_returns_unique_ids():
         result = verify_source(MagicMock(), {"url": "https://example.com", "subject_id": "doc-1"})
     ids = [obj["identity"]["id"] for obj in result["objects"]]
     assert len(set(ids)) == len(ids)
-    assert all(id.startswith("vr-") or id.startswith("rel-") for id in ids)
+    assert all(id.startswith(("vr-", "rel-")) for id in ids)
 
 def test_verify_source_includes_signature():
     with patch("cks_mcp.tools.verify_source._safe_head_status", return_value=200):

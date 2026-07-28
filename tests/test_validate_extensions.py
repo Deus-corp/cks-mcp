@@ -13,7 +13,6 @@ parameter was built for.
 from __future__ import annotations
 
 import json
-import pytest
 
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
@@ -84,7 +83,6 @@ def test_extensions_catches_hallucinated_citation():
 
 
 def test_extensions_do_not_leak_into_global_registry():
-    from cks.constraints import registry
     runtime = make_runtime()
     structure = {
         "objects": [

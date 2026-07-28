@@ -3,8 +3,10 @@ Tests for merge_knowledge.
 """
 
 import json
+
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
+
 from cks_mcp.tools.merge import merge_knowledge
 
 
