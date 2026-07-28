@@ -8,6 +8,7 @@ via the Model Context Protocol.
 
 from __future__ import annotations
 
+import importlib.metadata
 import json
 import os
 import sys
@@ -30,8 +31,14 @@ from cks_mcp.tool_registry import TOOLS
 # Server metadata
 # ---------------------------------------------------------------------------
 
+def _server_version() -> str:
+    try:
+        return importlib.metadata.version("cks-mcp")
+    except importlib.metadata.PackageNotFoundError:
+        return "1.12.2"  # dev fallback
+
+SERVER_VERSION = _server_version()
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.12.1"
 PROTOCOL_VERSION = "2025-11-25"  # latest stable MCP protocol version
 
 # ---------------------------------------------------------------------------
@@ -271,10 +278,15 @@ def main() -> None:
                     key, _, value = line.partition("=")
                     os.environ.setdefault(key.strip(), value.strip())
 
-    # Initialize embedding client (fallback to None if OpenAI unavailable)
+    # Initialize embedding client (fallback to None if unavailable)
     try:
         embedding_client = HuggingFaceEmbeddingClient()
-    except Exception:
+    except Exception as exc:
+        print(
+            f"[CKS-MCP] WARNING: Embedding client unavailable — "
+            f"semantic search will not work. Cause: {exc}",
+            file=sys.stderr,
+        )
         embedding_client = None
 
     if storage is None and use_persistent:

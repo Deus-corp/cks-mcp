@@ -1,8 +1,9 @@
 """
 visualize_graph: export a subgraph as a Mermaid diagram.
 
-Claude Desktop renders Mermaid natively, so the user sees the graph
-visually. Use this after query_subgraph to show the structure.
+Many MCP clients render Mermaid diagrams natively; if yours doesn't,
+the raw Mermaid text is still useful as structured output.
+Use this after query_subgraph to show the structure.
 """
 
 from __future__ import annotations

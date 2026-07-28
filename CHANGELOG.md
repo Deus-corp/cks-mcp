@@ -3,6 +3,17 @@
 
 ---
 
+## [1.12.2] - 2026-07-28
+
+### Changed
+- `SERVER_VERSION` now derived dynamically from installed package metadata (`importlib.metadata.version`) instead of a hard-coded literal, matching `cks-runtime`'s pattern.
+- Embedding client initialization failure is now logged to stderr with the underlying cause, instead of failing silently.
+- `search_semantic` returns a clear message when no embedding client is configured, instead of leaking a raw `AttributeError`.
+- Tool descriptions and module docstrings for `visualize_graph` and `prompts` no longer name a specific MCP client (Claude Desktop), keeping them neutral for future multi-model use.
+- `ROADMAP.md` updated: removed hard-coded tool count, added `detect_contradictions` and `fork_sandbox` to completed milestones, removed `detect_contradictions` from planned v2.0 list.
+
+---
+
 ## [1.12.1] - 2026-07-28
 
 ### Changed

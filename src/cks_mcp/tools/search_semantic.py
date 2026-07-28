@@ -44,7 +44,14 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
             # objects (Runtime.embedding_client), or the query vector
             # lives in a different embedding space than what's stored
             # and every similarity score is meaningless.
-            query_embedding = runtime.embedding_client.embed_batch(
+            embedding_client = runtime.embedding_client
+            if embedding_client is None:
+                raise RuntimeError(
+                    "Semantic search is not available because no embedding client "
+                    "is configured. Set the HF_TOKEN environment variable to enable "
+                    "HuggingFace embeddings."
+                )
+            query_embedding = embedding_client.embed_batch(
                 [query], normalize=True
             )[0]
             results = runtime.storage.search_embeddings(

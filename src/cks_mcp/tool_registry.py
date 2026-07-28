@@ -1,5 +1,5 @@
 """
-CKS MCP Tool Registry — JSON schemas and handler bindings for all 18 tools.
+CKS MCP Tool Registry — JSON schemas and handler bindings for all tools.
 
 This module exists solely to keep the tool definitions out of server.py,
 which remains responsible only for JSON-RPC transport. Adding a new tool
@@ -554,9 +554,10 @@ TOOLS = {
     "visualize_graph": {
         "name": "visualize_graph",
         "description": (
-            "Export a subgraph as a Mermaid diagram. Claude Desktop renders Mermaid "
-            "natively, so the user sees the graph visually. Use this after "
-            "query_subgraph to show the structure."
+            "Export a subgraph as a Mermaid diagram. Many MCP clients render "
+            "Mermaid natively; if yours doesn't, the raw Mermaid text is still "
+            "useful as structured output. Use this after query_subgraph to show "
+            "the structure."
         ),
         "inputSchema": {
             "type": "object",

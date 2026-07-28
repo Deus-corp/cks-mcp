@@ -1,10 +1,10 @@
 """
-MCP Prompts for CKS – ready‑to‑use workflows for Claude Desktop.
+MCP Prompts for CKS – ready‑to‑use workflows for any MCP client.
 
 When a client asks for prompts/list, the server returns a set of
 templated scenarios.  prompts/get fills the selected template with
-user‑supplied arguments and returns a concrete user message that
-Claude can process immediately.
+user‑supplied arguments and returns a concrete user message that the
+connected model can process immediately.
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ def get_prompt(
 
     args = arguments or {}
 
-    # Map each prompt name to the text that will be sent to Claude
+    # Map each prompt name to the text that will be sent to the model
     templates = {
         "create_knowledge_graph": (
             f"Use cks-mcp to create a knowledge graph about {args.get('topic', 'the topic')} "

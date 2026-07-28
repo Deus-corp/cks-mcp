@@ -9,8 +9,8 @@ towards a stable, production-ready platform and beyond.
 # Current Status (v1.10.x)
 
 The project has matured into a robust platform. It provides LLMs with
-a verifiable, persistent knowledge backbone, semantic search, and a full
-suite of 19 tools for knowledge lifecycle management.
+a verifiable, persistent knowledge backbone, semantic search, and a full suite of tools for knowledge lifecycle management (see
+[README](README.md#available-tools) for the current list).
 
 ## ✅ Completed Milestones
 
@@ -20,7 +20,7 @@ suite of 19 tools for knowledge lifecycle management.
 - JSON-RPC over stdio with structured, LLM-friendly error responses.
 - **CI/CD:** `ruff` linting and `mypy` type checking run on every push.
 
-### Canonical Tools (19 total)
+### Canonical Tools
 - **Knowledge Lifecycle:** `validate_knowledge`, `evolve_knowledge`, `serialize_knowledge`, `explain_knowledge`.
 - **Version Control:** `list_versions`, `compare_versions`, `revert_version`.
 - **Branching & Merging:** `create_branch`, `merge_branch`, `merge_knowledge`, `close_session`.
@@ -37,6 +37,8 @@ suite of 19 tools for knowledge lifecycle management.
 - **Ontology Validation:** `type_hierarchy` and `relation_type` extensions enforce type-safe relations.
 - **Atomic Evolution Validation:** `evolve_knowledge` runs a dry-run validation before committing, preventing any corrupted state from entering the history.
 - **Field-Level Auto-Merge:** Conflicting edits to different fields of the same object are resolved automatically (ADR-007 Part 2).
+- **Contradiction Detection:** `detect_contradictions` flags mutual exclusions and functional relation violations.
+- **Hypothesis Sandboxing:** `fork_sandbox` tests changes in an isolated branch and shows a diff from the fork point.
 
 ### Observability & Persistence
 - **Persistent SQLite Storage:** Sessions, versions, and provenance secrets survive server restarts.
@@ -62,7 +64,6 @@ suite of 19 tools for knowledge lifecycle management.
 
 - [ ] **Conflict Resolution Agent:** An autonomous agent that resolves merge conflicts using structured diffs, ReAct loops, and a DLQ via the Task Bus.
 - [ ] **`construct_knowledge` Tool:** Use an LLM to parse natural language directly into a `KnowledgeStructure`.
-- [ ] **`detect_contradictions` Tool:** Logical inconsistency detection across the graph.
 - [ ] **`ingest_document` Tool:** Fetch URL → extract entities → build verified knowledge graph.
 
 ## Production & Scale
