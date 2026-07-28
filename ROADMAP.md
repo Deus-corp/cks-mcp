@@ -6,11 +6,11 @@ towards a stable, production-ready platform and beyond.
 
 ---
 
-# Current Status (v1.6.x)
+# Current Status (v1.10.x)
 
 The project has matured into a robust platform. It provides LLMs with
 a verifiable, persistent knowledge backbone, semantic search, and a full
-suite of tools for knowledge lifecycle management.
+suite of 19 tools for knowledge lifecycle management.
 
 ## ✅ Completed Milestones
 
@@ -18,18 +18,25 @@ suite of tools for knowledge lifecycle management.
 - Full MCP protocol compliance (`initialize`, `tools/list`, `tools/call`, `ping`).
 - MCP Resources and Prompts for seamless UI integration.
 - JSON-RPC over stdio with structured, LLM-friendly error responses.
+- **CI/CD:** `ruff` linting and `mypy` type checking run on every push.
 
-### Canonical Tools (15 total)
+### Canonical Tools (19 total)
 - **Knowledge Lifecycle:** `validate_knowledge`, `evolve_knowledge`, `serialize_knowledge`, `explain_knowledge`.
 - **Version Control:** `list_versions`, `compare_versions`, `revert_version`.
 - **Branching & Merging:** `create_branch`, `merge_branch`, `merge_knowledge`, `close_session`.
-- **Graph Exploration:** `query_subgraph` (with compact mode and budget), `search_semantic` (real embeddings via HuggingFace).
+- **Graph Exploration:** `query_subgraph` (with compact mode and budget), `search_semantic` (real embeddings via HuggingFace, with `min_score` threshold and similarity scores).
 - **Audit & Metrics:** `get_metrics` for runtime statistics.
+- **Visualization & Diff:** `visualize_graph` (Mermaid export), `explain_diff` (natural-language change summaries).
+- **AI Assistance:** `suggest_evolution` (state inspection + guidance for building operations).
+- **Export:** `export_knowledge` (JSON-LD, Turtle, RDF/XML).
+- **Ontology Validation:** `type_hierarchy` and `relation_type` extensions catch nonsense like "Earth orbits Pasta".
 
 ### Anti-Hallucination & Integrity
 - **Provenance Enforcement:** `verify_source` creates cryptographically signed records; `validate_knowledge` unconditionally rejects forgeries.
 - **Citation Verification:** `embedding_projection` extension mechanically detects references to non-existent sources.
+- **Ontology Validation:** `type_hierarchy` and `relation_type` extensions enforce type-safe relations.
 - **Atomic Evolution Validation:** `evolve_knowledge` runs a dry-run validation before committing, preventing any corrupted state from entering the history.
+- **Field-Level Auto-Merge:** Conflicting edits to different fields of the same object are resolved automatically (ADR-007 Part 2).
 
 ### Observability & Persistence
 - **Persistent SQLite Storage:** Sessions, versions, and provenance secrets survive server restarts.
@@ -39,11 +46,12 @@ suite of tools for knowledge lifecycle management.
 ### RAG & Semantic Search
 - **Embedding Pipeline:** A generalized Task Bus and Outbox Worker generate embeddings for new knowledge objects in the background.
 - **True Semantic Search:** `search_semantic` uses real HuggingFace embeddings to find concepts by meaning, not keywords.
+- **Indexed & Vectorized Search:** `search_embeddings` in `cks-runtime` uses NumPy matrix operations for ~10× faster similarity search.
 
 ### Security & Hardening
 - **SSRF & DNS Rebinding Protection:** `verify_source` safely performs outbound HTTP checks.
 - **Persistent Provenance Secrets:** The HMAC secret for signing verifications is stored alongside the database.
-- **50+ tests** covering core functionality, security, and integrations.
+- **95+ tests** covering core functionality, security, and integrations.
 
 ---
 
@@ -54,7 +62,8 @@ suite of tools for knowledge lifecycle management.
 
 - [ ] **Conflict Resolution Agent:** An autonomous agent that resolves merge conflicts using structured diffs, ReAct loops, and a DLQ via the Task Bus.
 - [ ] **`construct_knowledge` Tool:** Use an LLM to parse natural language directly into a `KnowledgeStructure`.
-- [ ] **Self-Healing Graphs:** Agents that automatically repair constraint violations or suggest improvements to the knowledge graph.
+- [ ] **`detect_contradictions` Tool:** Logical inconsistency detection across the graph.
+- [ ] **`ingest_document` Tool:** Fetch URL → extract entities → build verified knowledge graph.
 
 ## Production & Scale
 **Goal:** Harden the server for reliable, persistent, and scalable deployments.
