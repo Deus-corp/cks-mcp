@@ -31,7 +31,7 @@ from cks_mcp.tool_registry import TOOLS
 # ---------------------------------------------------------------------------
 
 SERVER_NAME = "cks-mcp"
-SERVER_VERSION = "1.10.2"
+SERVER_VERSION = "1.10.3"
 PROTOCOL_VERSION = "2025-11-25"  # latest stable MCP protocol version
 
 # ---------------------------------------------------------------------------

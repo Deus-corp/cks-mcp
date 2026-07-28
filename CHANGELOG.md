@@ -3,6 +3,13 @@
 
 ---
 
+## [1.10.4] - 2026-07-28
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.19.0` (indexed and vectorized embeddings, full mypy compliance, selective strict mode).
+
+---
+
 ## [1.10.2] - 2026-07-27
 
 ### Changed
