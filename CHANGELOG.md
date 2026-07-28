@@ -3,6 +3,14 @@
 
 ---
 
+## [1.11.1] - 2026-07-28
+
+### Added
+- `validate_knowledge` now supports `mutual_exclusion` and `functional_relation` extensions for contradiction detection.
+- Bumped `cks-runtime` dependency to `>=1.20.2` and `cks-core` to `>=1.13.0`.
+
+---
+
 ## [1.11.0] - 2026-07-28
 
 ### Added

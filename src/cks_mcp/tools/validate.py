@@ -25,6 +25,8 @@ EXTENSION_ALIASES: dict[str, str] = {
     "verification_record": "CKS-EXT-VERIFICATION-RECORD",
     "type_hierarchy": "CKS-EXT-TYPE-HIERARCHY-CYCLE",
     "relation_type": "CKS-EXT-RELATION-TYPE",
+    "mutual_exclusion": "CKS-EXT-MUTUAL-EXCLUSION",
+    "functional_relation": "CKS-EXT-FUNCTIONAL-RELATION",
 }
 
 # Trust-bearing types are enforced unconditionally the moment they
