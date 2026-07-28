@@ -3,6 +3,15 @@
 
 ---
 
+## [1.10.6] - 2026-07-28
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.20.1` (production stable status, `cks-core>=1.12.1` compatibility).
+- Bumped `cks-core` dependency to `>=1.12.1` (fix for truncated `schema.py`).
+- All three ecosystem packages now aligned on stable releases.
+
+---
+
 ## [1.10.5] - 2026-07-28
 
 ### Changed
@@ -942,4 +951,3 @@
 - `evolve_knowledge` tool.
 - `derive_knowledge` tool.
 - CI/CD pipeline (GitHub Actions).
-- 20 tests passing.
