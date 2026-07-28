@@ -18,8 +18,10 @@ from cks_mcp.tools import (
 )
 from cks_mcp.tools.branch import close_session, create_branch
 from cks_mcp.tools.compare import compare_versions
+from cks_mcp.tools.detect_contradictions import detect_contradictions
 from cks_mcp.tools.explain_diff import explain_diff
 from cks_mcp.tools.export_knowledge import export_knowledge
+from cks_mcp.tools.fork_sandbox import fork_sandbox
 from cks_mcp.tools.get_metrics import get_metrics
 from cks_mcp.tools.merge import merge_branch, merge_knowledge
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
@@ -650,5 +652,62 @@ TOOLS = {
             "required": ["session_id", "description"],
         },
         "handler": log_tool_call("suggest_evolution")(suggest_evolution),
+    },
+    "detect_contradictions": {
+        "name": "detect_contradictions",
+        "description": (
+            "Detect logical contradictions in a Knowledge Structure using "
+            "the contradiction extension constraints (mutual_exclusion, "
+            "functional_relation). Returns a compact list of contradictions "
+            "without running full validation."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "Optional. Session whose structure to check for contradictions.",
+                },
+                "json_data": {
+                    "type": "string",
+                    "description": "Optional. JSON Knowledge Structure to check (if no session_id).",
+                },
+            },
+        },
+        "handler": log_tool_call("detect_contradictions")(detect_contradictions),
+    },
+    "fork_sandbox": {
+        "name": "fork_sandbox",
+        "description": (
+            "Create an isolated sandbox branch from a parent session, "
+            "optionally apply a hypothesis (list of evolution operations) "
+            "immediately, and show how the sandbox differs from its fork "
+            "point. The parent session is never touched. Safe to discard "
+            "with close_session if the hypothesis doesn't pan out."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The parent session to fork from.",
+                },
+                "version_id": {
+                    "type": "string",
+                    "description": "Optional. Fork from this historical version instead of the current state.",
+                },
+                "hypothesis": {
+                    "type": "string",
+                    "description": "Optional. A short description of the hypothesis (for logging/reporting).",
+                },
+                "operations": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "Optional. Evolution operations to apply immediately in the sandbox.",
+                },
+            },
+            "required": ["session_id"],
+        },
+        "handler": log_tool_call("fork_sandbox")(fork_sandbox),
     },
 }

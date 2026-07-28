@@ -65,7 +65,7 @@ def test_tools_list(mock_runtime):
     request = {"jsonrpc": "2.0", "id": 3, "method": "tools/list"}
     response = handle_request(mock_runtime, request)
     tools = response["result"]["tools"]
-    assert len(tools) == 19
+    assert len(tools) == 21
     assert any(t["name"] == "validate_knowledge" for t in tools)
 
 

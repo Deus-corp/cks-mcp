@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-98%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-107%20passing-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is an MCP (Model Context Protocol) server that gives LLMs
@@ -37,7 +37,7 @@ Other projects build upon it:
 1. Install and connect to Claude Desktop (see [Installation](#installation)).
 2. (Optional) For semantic search, set your Hugging Face token: `export HF_TOKEN=hf_...`
 3. In the chat, start your message with **"Use cks-mcp to…"**.
-4. Claude automatically picks the right tool from the 19 available — validation, evolution, branching, merging, source verification, semantic search, subgraph queries, and more.
+4. Claude automatically picks the right tool from the 21 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
 5. Every operation is logged, versioned, and stored in a persistent SQLite database.
 
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
@@ -45,7 +45,7 @@ Other projects build upon it:
 
 ![CKS Demo](https://github.com/Deus-corp/cks-mcp/releases/download/v1.10.2/demo.gif)
 
-*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Nineteen tools are ready for you: branching, merging, versioning, source verification, subgraph queries, and more — all triggered by plain English.*
+*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Twenty-one tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, and more — all triggered by plain English.*
 
 ---
 
@@ -69,6 +69,8 @@ traceable to its origin.
   version history, providing complete accountability for AI-generated
   knowledge.
 - **Time-travel debugging** — `list_versions`, `revert_version`, and `compare_versions` give LLMs a full version-control system for knowledge, enabling safe rollbacks and change inspection.
+- **Contradiction detection** — `detect_contradictions` flags mutual exclusions (e.g., both `supports` and `contradicts` between the same pair) and functional relation violations (e.g., a planet orbiting two different stars).
+- **Hypothesis sandboxing** — `fork_sandbox` creates an isolated branch, optionally applies a hypothesis, and reports the diff from the fork point — all without touching the parent session. Safe to discard or promote.
 
 ---
 
@@ -110,8 +112,7 @@ export HF_TOKEN=hf_...
    ```
 
 3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
-   After restart, a connector icon will appear – `cks-mcp` with nineteen tools
-   is ready to use.
+   After restart, a connector icon will appear – `cks-mcp` with twenty-one tools is ready to use.
 
 ---
 
@@ -138,6 +139,8 @@ export HF_TOKEN=hf_...
 | `explain_diff` | Produce a natural-language explanation of changes between two versions, complementing `compare_versions`. |
 | `suggest_evolution` | Inspect the current state of a session and receive guidance for constructing valid evolution operations. |
 | `export_knowledge` | Export a session's Knowledge Structure to JSON-LD, Turtle, or RDF/XML for use with Protégé, Neo4j, or triple stores. |
+| `detect_contradictions` | Detect logical contradictions (mutual exclusion, functional relation violations) using the new contradiction constraints. |
+| `fork_sandbox` | Create an isolated branch, optionally apply a hypothesis, and show a diff from the fork point — safe to discard or promote. |
 
 ---
 
@@ -454,6 +457,70 @@ Response:
     <http://cks.org/orbits> <http://cks.org/sun> .
 ```
 
+## Detect contradictions
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "detect_contradictions",
+    "arguments": {
+      "session_id": "..."
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "contradiction_count": 1,
+  "contradictions": [
+    {
+      "code": "CKS-EXT-MUTUAL-EXCLUSION",
+      "severity": "error",
+      "source": "core",
+      "message": "Relation 'rel-1' (type 'supports') and relation 'rel-2' (type 'contradicts') both connect 'a' to 'b', but a MutualExclusionRule declares these relation_types mutually exclusive."
+    }
+  ]
+}
+```
+
+## Fork a sandbox and test a hypothesis
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "fork_sandbox",
+    "arguments": {
+      "session_id": "...",
+      "hypothesis": "Add Neptune as a planet orbiting the Sun",
+      "operations": [
+        {"type": "add_object", "identity": {"id": "neptune", "type": "Planet", "name": "Neptune"}},
+        {"type": "add_relation", "identity": {"id": "rel-nep", "type": "Relation", "name": "orbits"}, "participants": ["neptune", "sun"], "relation_type": "orbits"}
+      ]
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "sandbox_session_id": "...",
+  "parent_session_id": "...",
+  "operations_applied": 2,
+  "diff_from_fork_point": {
+    "summary": {"added_objects": 1, "added_relations": 1, "removed_objects": 0, "removed_relations": 0},
+    "operations": [...]
+  },
+  "message": "Sandbox session '...' is an isolated fork of '...'; nothing here affects the parent. Keep exploring it with evolve_knowledge, promote it with merge_branch once satisfied, or discard it with close_session -- there is no obligation to merge."
+}
+```
+
 ---
 
 # Security and Provenance
@@ -476,7 +543,7 @@ Response:
 python -m pytest -v
 ```
 
-98+ tests, all passing.
+107+ tests, all passing.
 
 ---
 

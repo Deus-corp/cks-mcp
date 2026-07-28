@@ -3,6 +3,14 @@
 
 ---
 
+## [1.12.0] - 2026-07-28
+
+### Added
+- **`detect_contradictions` tool** — surfaces mutual exclusion and functional relation violations using the new contradiction constraints from cks-core.
+- **`fork_sandbox` tool** — creates an isolated branch, optionally applies a hypothesis, and shows a diff from the fork point, all without affecting the parent session.
+
+---
+
 ## [1.11.1] - 2026-07-28
 
 ### Added

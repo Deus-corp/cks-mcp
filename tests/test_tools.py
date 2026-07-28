@@ -542,3 +542,181 @@ def test_suggest_evolution_preview_malformed_operations():
     })
 
     assert result["error"] == "invalid_operations"
+
+
+# ---------------------------------------------------------------------------
+# detect_contradictions
+# ---------------------------------------------------------------------------
+
+def test_detect_contradictions_no_session_no_conflicts():
+    from cks_mcp.tools.detect_contradictions import detect_contradictions
+
+    runtime = _real_runtime()
+    result = detect_contradictions(runtime, {
+        "json_data": '{"objects":[{"identity":{"id":"obj-1","type":"Concept","name":"A"},"structure":{}}]}'
+    })
+    assert result["contradiction_count"] == 0
+    assert result["contradictions"] == []
+
+
+def test_detect_contradictions_with_session_no_conflicts():
+    from cks import parse
+
+    from cks_mcp.tools.detect_contradictions import detect_contradictions
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects":[{"identity":{"id":"obj-1","type":"Concept","name":"A"},"structure":{}}]}'
+    )
+    session = runtime.create_session(structure)
+    result = detect_contradictions(runtime, {"session_id": session.session_id})
+    assert result["contradiction_count"] == 0
+    assert result["contradictions"] == []
+
+
+def test_detect_contradictions_mutual_exclusion():
+    from cks import parse
+
+    from cks_mcp.tools.detect_contradictions import detect_contradictions
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "rule-1", "type": "MutualExclusionRule", "name": "r"}, '
+        '"structure": {"relation_type_a": "supports", "relation_type_b": "contradicts"}},'
+        '{"identity": {"id": "a", "type": "Claim", "name": "A"}, "structure": {}},'
+        '{"identity": {"id": "b", "type": "Claim", "name": "B"}, "structure": {}},'
+        '{"identity": {"id": "rel-1", "type": "Relation", "name": "r1"}, '
+        '"structure": {"participants": ["a", "b"], "relation_type": "supports"}},'
+        '{"identity": {"id": "rel-2", "type": "Relation", "name": "r2"}, '
+        '"structure": {"participants": ["a", "b"], "relation_type": "contradicts"}}'
+        ']}'
+    )
+    session = runtime.create_session(structure)
+    result = detect_contradictions(runtime, {"session_id": session.session_id})
+    assert result["contradiction_count"] == 1
+    assert len(result["contradictions"]) == 1
+    assert result["contradictions"][0]["code"] == "CKS-EXT-MUTUAL-EXCLUSION"
+
+
+def test_detect_contradictions_functional_relation():
+    from cks import parse
+
+    from cks_mcp.tools.detect_contradictions import detect_contradictions
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "rule-1", "type": "FunctionalRelationRule", "name": "r"}, '
+        '"structure": {"relation_type": "orbits"}},'
+        '{"identity": {"id": "earth", "type": "Planet", "name": "Earth"}, "structure": {}},'
+        '{"identity": {"id": "sun", "type": "Star", "name": "Sun"}, "structure": {}},'
+        '{"identity": {"id": "mars", "type": "Planet", "name": "Mars"}, "structure": {}},'
+        '{"identity": {"id": "rel-1", "type": "Relation", "name": "r1"}, '
+        '"structure": {"participants": ["earth", "sun"], "relation_type": "orbits"}},'
+        '{"identity": {"id": "rel-2", "type": "Relation", "name": "r2"}, '
+        '"structure": {"participants": ["earth", "mars"], "relation_type": "orbits"}}'
+        ']}'
+    )
+    session = runtime.create_session(structure)
+    result = detect_contradictions(runtime, {"session_id": session.session_id})
+    assert result["contradiction_count"] == 1
+    assert len(result["contradictions"]) == 1
+    assert result["contradictions"][0]["code"] == "CKS-EXT-FUNCTIONAL-RELATION"
+
+
+def test_detect_contradictions_missing_json_data():
+    from cks_mcp.tools.detect_contradictions import detect_contradictions
+
+    runtime = _real_runtime()
+    result = detect_contradictions(runtime, {})
+    assert "error" in result
+    assert result["error"] == "missing_parameter"
+
+
+# ---------------------------------------------------------------------------
+# fork_sandbox
+# ---------------------------------------------------------------------------
+
+def test_fork_sandbox_no_operations():
+    from cks import parse
+
+    from cks_mcp.tools.fork_sandbox import fork_sandbox
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects":[{"identity":{"id":"obj-1","type":"Concept","name":"A"},"structure":{}}]}'
+    )
+    parent = runtime.create_session(structure)
+    result = fork_sandbox(runtime, {
+        "session_id": parent.session_id,
+        "hypothesis": "test sandbox"
+    })
+    assert "sandbox_session_id" in result
+    assert result["parent_session_id"] == parent.session_id
+    assert result["operations_applied"] == 0
+    # Diff from fork point should be empty
+    assert result["diff_from_fork_point"]["summary"]["added_objects"] == 0
+    assert result["diff_from_fork_point"]["summary"]["removed_objects"] == 0
+    # Parent session untouched
+    assert parent.knowledge_structure is not None
+    assert len(parent.knowledge_structure.objects) == 1
+
+
+def test_fork_sandbox_with_valid_operations():
+    from cks import parse
+
+    from cks_mcp.tools.fork_sandbox import fork_sandbox
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects":[{"identity":{"id":"obj-1","type":"Concept","name":"A"},"structure":{}}]}'
+    )
+    parent = runtime.create_session(structure)
+    result = fork_sandbox(runtime, {
+        "session_id": parent.session_id,
+        "hypothesis": "add object B",
+        "operations": [
+            {"type": "add_object", "identity": {"id": "obj-2", "type": "Concept", "name": "B"}, "structure": {}}
+        ]
+    })
+    assert result["operations_applied"] == 1
+    assert result["diff_from_fork_point"]["summary"]["added_objects"] == 1
+    # Parent still has only 1 object
+    assert len(parent.knowledge_structure.objects) == 1
+    # Sandbox session can be retrieved and has 2 objects
+    sandbox = runtime.get_session(result["sandbox_session_id"])
+    assert sandbox is not None
+    assert len(sandbox.knowledge_structure.objects) == 2
+
+
+def test_fork_sandbox_invalid_operations():
+    from cks import parse
+
+    from cks_mcp.tools.fork_sandbox import fork_sandbox
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects":[{"identity":{"id":"obj-1","type":"Concept","name":"A"},"structure":{}}]}'
+    )
+    parent = runtime.create_session(structure)
+    result = fork_sandbox(runtime, {
+        "session_id": parent.session_id,
+        "operations": [{"type": "add_object", "identity": {"id": "obj-1", "type": "Concept", "name": "duplicate"}}]
+    })
+    assert "error" in result
+    assert result["error"] == "evolution_failed"
+    # Sandbox session should have been closed and removed
+    sandbox_id = result.get("sandbox_session_id")
+    if sandbox_id:
+        assert runtime.get_session(sandbox_id) is None
+    # Parent unchanged
+    assert len(parent.knowledge_structure.objects) == 1
+
+
+def test_fork_sandbox_missing_session_id():
+    from cks_mcp.tools.fork_sandbox import fork_sandbox
+
+    runtime = _real_runtime()
+    result = fork_sandbox(runtime, {})
+    assert result["error"] == "missing_parameter"
