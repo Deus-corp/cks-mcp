@@ -3,6 +3,13 @@
 
 ---
 
+## [1.13.2] - 2026-07-29
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.21.0` (Postgres storage backend, shared patch codec, async storage ABC).
+
+---
+
 ## [1.13.1] - 2026-07-29
 
 ### Security
