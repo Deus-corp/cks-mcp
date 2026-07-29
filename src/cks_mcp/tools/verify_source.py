@@ -33,11 +33,32 @@ _TIMEOUT_SECONDS = 5
 class UnsafeURLError(ValueError):
     """Raised when a URL is not a safe target for an outbound request."""
 
+# Python's ipaddress module does not classify these ranges as
+# is_private/is_reserved/etc, but they are not globally-routable
+# public internet addresses either, and are used in real deployments
+# for internal/inter-node addressing -- most notably 100.64.0.0/10
+# (RFC 6598 "Shared Address Space"), which is exactly the range
+# Tailscale and several cloud providers' internal CGNAT-style
+# networking assign to nodes/containers. Without this explicit check,
+# `_is_public_ip` treats such internal hosts as public and
+# `verify_source` will happily issue a real HTTP request to them --
+# an SSRF hole into precisely the kind of internal network this
+# function exists to keep unreachable.
+_EXTRA_BLOCKED_NETWORKS = tuple(
+    ipaddress.ip_network(cidr)
+    for cidr in (
+        "100.64.0.0/10",  # RFC 6598 Shared Address Space (CGNAT, Tailscale, ...)
+        "192.0.0.0/24",  # RFC 6890 IETF Protocol Assignments
+    )
+)
+
 
 def _is_public_ip(ip_str: str) -> bool:
     try:
         ip = ipaddress.ip_address(ip_str)
     except ValueError:
+        return False
+    if any(ip in network for network in _EXTRA_BLOCKED_NETWORKS):
         return False
     return not (
         ip.is_private

@@ -3,6 +3,13 @@
 
 ---
 
+## [1.13.1] - 2026-07-29
+
+### Security
+- **SSRF hardening:** `verify_source` now explicitly blocks additional non-public IP ranges (`100.64.0.0/10` — Tailscale/CGNAT shared address space, `192.0.0.0/24` — IETF protocol assignments) that Python's `ipaddress` module does not classify as private, closing a potential bypass into internal networks.
+
+---
+
 ## [1.13.0] - 2026-07-28
 
 ### Added
