@@ -3,6 +3,13 @@
 
 ---
 
+## [1.14.2] - 2026-07-29
+
+### Fixed
+- Console entry point (`cks-mcp` command) now correctly runs the async `main()` function via `asyncio.run()`, fixing a regression introduced in v1.14.0 that prevented the server from starting.
+
+---
+
 ## [1.14.1] - 2026-07-29
 
 ### Fixed

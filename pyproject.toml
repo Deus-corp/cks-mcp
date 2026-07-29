@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cks-mcp"
-version = "1.14.1"
+version = "1.14.2"
 description = "CKS MCP Server — Canonical Knowledge Structure for LLMs"
 readme = "README.md"
 authors = [{name = "Vladyslav Hruznov"}]
@@ -38,7 +38,7 @@ asyncio_mode = "auto"
 where = ["src"]
 
 [project.scripts]
-cks-mcp = "cks_mcp.server:main"
+cks-mcp = "cks_mcp.server:main_sync"
 
 [tool.ruff.lint.per-file-ignores]
 "src/cks_mcp/server.py" = ["BLE001"]

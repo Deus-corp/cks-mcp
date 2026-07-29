@@ -36,7 +36,7 @@ def _server_version() -> str:
     try:
         return importlib.metadata.version("cks-mcp")
     except importlib.metadata.PackageNotFoundError:
-        return "1.14.1"  # dev fallback для грядущего релиза
+        return "1.14.2"  # dev fallback для грядущего релиза
 
 SERVER_NAME = "cks-mcp"
 SERVER_VERSION = _server_version()
@@ -359,6 +359,11 @@ async def main() -> None:
             await process_request(runtime, line_stripped, use_content_length=False)
 
     await runtime.aclose()
+
+
+def main_sync() -> None:
+    """Синхронная точка входа для консольного скрипта."""
+    asyncio.run(main())
 
 
 async def process_request(runtime: Runtime, body: str, *, use_content_length: bool) -> None:
