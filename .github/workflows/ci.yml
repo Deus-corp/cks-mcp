@@ -42,8 +42,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install linters
-        run: |
-          pip install ruff
+        run: pip install ruff
 
       - name: Lint with ruff
         run: ruff check src/
