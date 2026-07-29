@@ -720,3 +720,56 @@ def test_fork_sandbox_missing_session_id():
     runtime = _real_runtime()
     result = fork_sandbox(runtime, {})
     assert result["error"] == "missing_parameter"
+
+
+# ---------------------------------------------------------------------------
+# ingest_document
+# ---------------------------------------------------------------------------
+
+def test_ingest_document_missing_url():
+    from cks_mcp.tools.ingest_document import ingest_document
+    runtime = _real_runtime()
+    result = ingest_document(runtime, {})
+    assert result["error"] == "missing_parameter"
+
+def test_ingest_document_unsafe_url():
+    from cks_mcp.tools.ingest_document import ingest_document
+    runtime = _real_runtime()
+    result = ingest_document(runtime, {"url": "http://127.0.0.1/"})
+    assert result["error"] == "unsafe_url"
+
+def test_ingest_document_valid_url(monkeypatch):
+    """Simulate a real HTTP response and check the output structure."""
+    import socket
+
+    import requests as req
+
+    from cks_mcp.tools.ingest_document import ingest_document
+
+    runtime = _real_runtime()
+
+    class FakeResponse:
+        text = "<html><head><title>Test Title</title><meta name='description' content='A test page'></head><body><p>knowledge graph structure canonical</p></body></html>"
+        status_code = 200
+        def raise_for_status(self): pass
+
+    def fake_get(url, timeout=10, allow_redirects=True):
+        return FakeResponse()
+
+    # Mock DNS resolution to avoid real network calls
+    def fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        return [(2, 1, 6, '', ('93.184.216.34', 0))]
+
+    monkeypatch.setattr(req, "get", fake_get)
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+
+    result = ingest_document(runtime, {"url": "https://example.com/"})
+    assert "knowledge_structure" in result
+    assert result["title"] == "Test Title"
+    keywords = result["keywords"]
+    assert len(keywords) > 0
+    assert "canonical" in keywords
+    # Each keyword generates one relation
+    assert result["relation_count"] == len(keywords)
+    # structure.objects includes both plain objects and relations
+    assert result["object_count"] == 1 + len(keywords) * 2  # doc + keywords + relations

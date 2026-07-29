@@ -35,7 +35,7 @@ def _server_version() -> str:
     try:
         return importlib.metadata.version("cks-mcp")
     except importlib.metadata.PackageNotFoundError:
-        return "1.12.2"  # dev fallback
+        return "1.13.0"  # dev fallback
 
 SERVER_VERSION = _server_version()
 SERVER_NAME = "cks-mcp"

@@ -30,6 +30,7 @@ a verifiable, persistent knowledge backbone, semantic search, and a full suite o
 - **AI Assistance:** `suggest_evolution` (state inspection + guidance for building operations).
 - **Export:** `export_knowledge` (JSON-LD, Turtle, RDF/XML).
 - **Ontology Validation:** `type_hierarchy` and `relation_type` extensions catch nonsense like "Earth orbits Pasta".
+- **Content Ingestion:** `ingest_document` — fetch a URL and build a preliminary Knowledge Structure from metadata and keywords.
 
 ### Anti-Hallucination & Integrity
 - **Provenance Enforcement:** `verify_source` creates cryptographically signed records; `validate_knowledge` unconditionally rejects forgeries.
@@ -64,7 +65,6 @@ a verifiable, persistent knowledge backbone, semantic search, and a full suite o
 
 - [ ] **Conflict Resolution Agent:** An autonomous agent that resolves merge conflicts using structured diffs, ReAct loops, and a DLQ via the Task Bus.
 - [ ] **`construct_knowledge` Tool:** Use an LLM to parse natural language directly into a `KnowledgeStructure`.
-- [ ] **`ingest_document` Tool:** Fetch URL → extract entities → build verified knowledge graph.
 
 ## Production & Scale
 **Goal:** Harden the server for reliable, persistent, and scalable deployments.

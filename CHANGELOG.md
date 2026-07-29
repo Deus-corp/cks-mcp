@@ -3,6 +3,13 @@
 
 ---
 
+## [1.13.0] - 2026-07-28
+
+### Added
+- **`ingest_document` tool** — fetches a public URL, extracts title, description and keywords, and builds a Knowledge Structure with a Document object and Topic objects linked via `mentions` relations.
+
+---
+
 ## [1.12.2] - 2026-07-28
 
 ### Changed

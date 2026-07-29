@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-107%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-110%20passing-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is an MCP (Model Context Protocol) server that gives LLMs
@@ -37,7 +37,7 @@ Other projects build upon it:
 1. Install and connect to Claude Desktop (see [Installation](#installation)).
 2. (Optional) For semantic search, set your Hugging Face token: `export HF_TOKEN=hf_...`
 3. In the chat, start your message with **"Use cks-mcp to…"**.
-4. Claude automatically picks the right tool from the 21 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
+4. Claude automatically picks the right tool from the 22 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
 5. Every operation is logged, versioned, and stored in a persistent SQLite database.
 
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
@@ -45,7 +45,7 @@ Other projects build upon it:
 
 ![CKS Demo](https://github.com/Deus-corp/cks-mcp/releases/download/v1.10.2/demo.gif)
 
-*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Twenty-one tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, and more — all triggered by plain English.*
+*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Twenty-two tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, and more — all triggered by plain English.*
 
 ---
 
@@ -112,7 +112,7 @@ export HF_TOKEN=hf_...
    ```
 
 3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
-   After restart, a connector icon will appear – `cks-mcp` with twenty-one tools is ready to use.
+   After restart, a connector icon will appear – `cks-mcp` with twenty-two tools is ready to use.
 
 ---
 
@@ -141,6 +141,7 @@ export HF_TOKEN=hf_...
 | `export_knowledge` | Export a session's Knowledge Structure to JSON-LD, Turtle, or RDF/XML for use with Protégé, Neo4j, or triple stores. |
 | `detect_contradictions` | Detect logical contradictions (mutual exclusion, functional relation violations) using the new contradiction constraints. |
 | `fork_sandbox` | Create an isolated branch, optionally apply a hypothesis, and show a diff from the fork point — safe to discard or promote. |
+| `ingest_document` | Fetch a public URL and build a Knowledge Structure from its metadata and keywords. |
 
 ---
 
@@ -540,6 +541,33 @@ Response:
 }
 ```
 
+## Ingest a document
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "ingest_document",
+    "arguments": {
+      "url": "https://example.com/article"
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "url": "https://example.com/article",
+  "title": "Example Article",
+  "keywords": ["example", "article", "knowledge", "graph"],
+  "knowledge_structure": "{...}",
+  "object_count": 5,
+  "relation_count": 4
+}
+```
+
 ---
 
 # Security and Provenance
@@ -562,7 +590,7 @@ Response:
 python -m pytest -v
 ```
 
-107+ tests, all passing.
+110+ tests, all passing.
 
 ---
 

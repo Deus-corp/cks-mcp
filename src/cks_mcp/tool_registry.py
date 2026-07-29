@@ -23,6 +23,7 @@ from cks_mcp.tools.explain_diff import explain_diff
 from cks_mcp.tools.export_knowledge import export_knowledge
 from cks_mcp.tools.fork_sandbox import fork_sandbox
 from cks_mcp.tools.get_metrics import get_metrics
+from cks_mcp.tools.ingest_document import ingest_document
 from cks_mcp.tools.merge import merge_branch, merge_knowledge
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 from cks_mcp.tools.revert import list_versions, revert_version
@@ -724,5 +725,26 @@ TOOLS = {
             "required": ["session_id"],
         },
         "handler": log_tool_call("fork_sandbox")(fork_sandbox),
+    },
+    "ingest_document": {
+        "name": "ingest_document",
+        "description": (
+            "Fetch a public URL, extract its title, description and key topics, "
+            "and return a Knowledge Structure representing the document. "
+            "The document object is linked via 'mentions' relations to Topic "
+            "objects for each extracted keyword. SSRF protection is applied, "
+            "so private/internal URLs are refused."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "The publicly accessible URL to fetch."
+                }
+            },
+            "required": ["url"]
+        },
+        "handler": log_tool_call("ingest_document")(ingest_document),
     },
 }
