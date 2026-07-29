@@ -710,8 +710,6 @@ async def test_ingest_document_valid_url(monkeypatch):
     """Simulate a real HTTP response and check the output structure."""
     import socket
 
-    import requests as req
-
     from cks_mcp.tools.ingest_document import ingest_document
 
     runtime = _real_runtime()
@@ -721,13 +719,16 @@ async def test_ingest_document_valid_url(monkeypatch):
         status_code = 200
         def raise_for_status(self): pass
 
-    def fake_get(url, timeout=10, allow_redirects=True):
+    # Мокаем _safe_request, которая теперь используется вместо requests.get
+    def fake_safe_request(*args, **kwargs):
         return FakeResponse()
 
+    monkeypatch.setattr(
+        "cks_mcp.tools.ingest_document._safe_request", fake_safe_request
+    )
+    # Также нужно замокать DNS, чтобы _resolve_and_validate_host не упал
     def fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
         return [(2, 1, 6, '', ('93.184.216.34', 0))]
-
-    monkeypatch.setattr(req, "get", fake_get)
     monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
 
     result = await ingest_document(runtime, {"url": "https://example.com/"})

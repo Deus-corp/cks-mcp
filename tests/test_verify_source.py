@@ -13,8 +13,6 @@ from cks_mcp.tools.verify_source import (
     verify_source,
 )
 
-pytestmark = pytest.mark.asyncio
-
 
 def test_resolve_and_validate_allows_public():
     hostname, ips = _resolve_and_validate_host("https://example.com")
@@ -76,6 +74,7 @@ def test_safe_head_status_falls_back_to_next_candidate():
     assert status == 200
     assert call_ips == ["203.0.113.1", "93.184.216.34"]
 
+@pytest.mark.asyncio
 async def test_verify_source_returns_unique_ids():
     with patch("cks_mcp.tools.verify_source._safe_head_status", return_value=200):
         result = await verify_source(MagicMock(), {"url": "https://example.com", "subject_id": "doc-1"})
@@ -83,12 +82,14 @@ async def test_verify_source_returns_unique_ids():
     assert len(set(ids)) == len(ids)
     assert all(id.startswith(("vr-", "rel-")) for id in ids)
 
+@pytest.mark.asyncio
 async def test_verify_source_includes_signature():
     with patch("cks_mcp.tools.verify_source._safe_head_status", return_value=200):
         result = await verify_source(MagicMock(), {"url": "https://example.com", "subject_id": "doc-1"})
     record = result["objects"][0]
     assert SIGNATURE_KEY in record["structure"]
 
+@pytest.mark.asyncio
 async def test_verify_source_signature_verifies():
     with patch("cks_mcp.tools.verify_source._safe_head_status", return_value=200):
         result = await verify_source(MagicMock(), {"url": "https://example.com", "subject_id": "doc-1"})
@@ -102,6 +103,7 @@ async def test_verify_source_signature_verifies():
         signature=record["structure"][SIGNATURE_KEY],
     )
 
+@pytest.mark.asyncio
 async def test_verify_source_rejects_unsafe_url():
     result = await verify_source(MagicMock(), {"url": "http://127.0.0.1", "subject_id": "doc-1"})
     assert result["error"] == "unsafe_url"
