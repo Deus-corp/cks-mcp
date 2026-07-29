@@ -172,22 +172,50 @@ def _resolve_and_validate_host(url: str) -> tuple[str, list[str]]:
     return hostname, resolved_ips
 
 
-def _safe_head_status(url: str) -> int | None:
-    try:
-        hostname, candidate_ips = _resolve_and_validate_host(url)
-    except UnsafeURLError as e:
-        raise UnsafeURLError(str(e)) from e
+def _safe_request(
+    url: str,
+    *,
+    method: str = "GET",
+    timeout: float = _TIMEOUT_SECONDS,
+) -> requests.Response | None:
+    """
+    Perform an HTTP request against `url`, safe against SSRF and DNS
+    rebinding: resolves and validates the hostname via
+    `_resolve_and_validate_host`, then pins the connection to one of
+    the validated candidate IPs via `pin_dns` for the *actual*
+    request -- so the address that was checked is the address that is
+    connected to, with no window between validation and use for a
+    malicious/rebinding DNS response to substitute a different
+    (internal) address. Redirects are followed manually, one hop at a
+    time, up to `_MAX_REDIRECTS`, re-resolving and re-validating each
+    new Location before following it -- `allow_redirects=True` is
+    never used here, since that would let a remote server redirect
+    straight past this check to an internal/metadata endpoint after
+    the initial URL was found safe.
 
+    This is the one place both `_safe_head_status` (verify_source) and
+    `ingest_document` fetch a URL through, so both tools get the same
+    protection instead of it living only in the one that happened to
+    need it first.
+
+    Returns the final `Response`, or `None` if every validated
+    candidate IP failed to connect, or a redirect target failed
+    validation (treated as "could not complete the request", not
+    raised, so a flaky/unreachable target degrades the same way it
+    did before this refactor). Raises `UnsafeURLError` if `url` itself
+    is unsafe.
+    """
+    hostname, candidate_ips = _resolve_and_validate_host(url)
     session = requests.Session()
+
+    request_fn = getattr(session, method.lower())
 
     for _ in range(_MAX_REDIRECTS + 1):
         resp = None
         for ip in candidate_ips:
             with pin_dns(hostname, ip):
                 try:
-                    resp = session.head(
-                        url, timeout=_TIMEOUT_SECONDS, allow_redirects=False
-                    )
+                    resp = request_fn(url, timeout=timeout, allow_redirects=False)
                     break
                 except requests.RequestException:
                     # This specific candidate address didn't work --
@@ -206,31 +234,30 @@ def _safe_head_status(url: str) -> int | None:
             except UnsafeURLError:
                 return None
             continue
-        return resp.status_code
+        return resp
 
     return None
+
+
+def _safe_head_status(url: str) -> int | None:
+    resp = _safe_request(url, method="HEAD")
+    return resp.status_code if resp is not None else None
 
 
 async def verify_source(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     url = arguments["url"]
     subject_id = arguments["subject_id"]
 
-    # _resolve_and_validate_host does a blocking DNS lookup and
-    # _safe_head_status a blocking HTTP request (with redirects/
-    # retries, up to a few seconds) -- both are dispatched to a worker
-    # thread via asyncio.to_thread so a slow/unresponsive remote host
-    # can't stall the event loop (and, with it, the background outbox
-    # worker task).
-    try:
-        await asyncio.to_thread(_resolve_and_validate_host, url)
-    except UnsafeURLError as exc:
-        return {
-            "error": "unsafe_url",
-            "message": (
-                f"Refusing to verify '{url}': {exc} No VerificationRecord was created."
-            ),
-        }
-
+    # _safe_head_status resolves and validates the host itself (and
+    # again for each redirect hop it follows) before issuing any
+    # request, so a single asyncio.to_thread dispatch covers both the
+    # safety check and the blocking HTTP request (with redirects, up
+    # to a few seconds) -- a separate up-front
+    # _resolve_and_validate_host call would just recompute the exact
+    # same DNS lookup a moment later for no benefit. Dispatched via
+    # asyncio.to_thread so a slow/unresponsive remote host can't stall
+    # the event loop (and, with it, the background outbox worker
+    # task).
     try:
         status = await asyncio.to_thread(_safe_head_status, url)
     except UnsafeURLError as exc:

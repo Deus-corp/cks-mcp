@@ -36,7 +36,7 @@ def _server_version() -> str:
     try:
         return importlib.metadata.version("cks-mcp")
     except importlib.metadata.PackageNotFoundError:
-        return "1.14.2"  # dev fallback для грядущего релиза
+        return "1.14.3"  # dev fallback для грядущего релиза
 
 SERVER_NAME = "cks-mcp"
 SERVER_VERSION = _server_version()
@@ -242,21 +242,25 @@ async def main() -> None:
     use_persistent = True
 
     try:
-        os.makedirs(db_dir, exist_ok=True)
+        await asyncio.to_thread(os.makedirs, db_dir, exist_ok=True)
         test_file = os.path.join(db_dir, ".write_test")
-        def _write_test():
-            with open(test_file, "w") as f:
-                f.write("test")
-        await asyncio.to_thread(_write_test)
-        os.remove(test_file)
+        async def _write_test():
+            def _write():
+                with open(test_file, "w") as f:
+                    f.write("test")
+            await asyncio.to_thread(_write)
+        await _write_test()
+        await asyncio.to_thread(os.remove, test_file)
     except (OSError, PermissionError):
         use_persistent = False
         try:
             db_path = os.path.join(tempfile.gettempdir(), "cks_mcp.db")
-            def _touch():
-                with open(db_path, "a"):
-                    pass
-            await asyncio.to_thread(_touch)
+            async def _touch():
+                def _touch_sync():
+                    with open(db_path, "a"):
+                        pass
+                await asyncio.to_thread(_touch_sync)
+            await _touch()
             use_persistent = True
         except Exception:
             storage = InMemoryStorage()
@@ -308,12 +312,7 @@ async def main() -> None:
                 storage=storage,
                 embedding_client=embedding_client,
             )
-    elif storage is not None:
-        runtime = await Runtime.create(
-            core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client
-        )
     else:
-        storage = InMemoryStorage()
         runtime = await Runtime.create(
             core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client
         )
@@ -321,7 +320,7 @@ async def main() -> None:
     setup_event_subscriptions(runtime)
 
     # Неблокирующее чтение stdin через asyncio
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     reader = asyncio.StreamReader()
     protocol = asyncio.StreamReaderProtocol(reader)
     await loop.connect_read_pipe(lambda: protocol, sys.stdin)

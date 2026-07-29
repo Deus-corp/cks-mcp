@@ -17,10 +17,7 @@ import cks
 from cks_runtime.runtime import Runtime
 
 from cks_mcp.errors import internal_error
-from cks_mcp.tools.verify_source import (
-    UnsafeURLError,
-    _resolve_and_validate_host,
-)
+from cks_mcp.tools.verify_source import UnsafeURLError, _safe_request
 
 # ---------------------------------------------------------------------------
 # HTML → text
@@ -92,26 +89,33 @@ async def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
     if not url:
         return {"error": "missing_parameter", "message": "Missing required parameter: 'url'."}
 
-    # ---- SSRF protection ---------------------------------------------------
-    try:
-        await asyncio.to_thread(_resolve_and_validate_host, url)
-    except UnsafeURLError as exc:
-        return {
-            "error": "unsafe_url",
-            "message": f"Refusing to fetch '{url}': {exc}",
-        }
-
-    # ---- Fetch the page ----------------------------------------------------
-    # A blocking network call (DNS + HTTP GET, up to a 10s timeout),
-    # dispatched to a worker thread so it can't stall the event loop.
+    # ---- Fetch the page, safely ---------------------------------------------
+    # _safe_request (shared with verify_source) resolves and validates
+    # the hostname, then pins the connection to one of the validated
+    # IPs for the actual request, and manually re-validates each
+    # redirect hop before following it -- unlike a bare
+    # `requests.get(url, allow_redirects=True)`, which would let a
+    # malicious server redirect straight past the SSRF check to an
+    # internal/metadata endpoint after the initial URL was found safe,
+    # and would re-resolve DNS itself with no pinning, reopening a
+    # DNS-rebinding window between the check and the request. A
+    # blocking network call (DNS + HTTP GET, up to a 10s timeout per
+    # hop), dispatched to a worker thread so it can't stall the event
+    # loop.
     def _fetch() -> str:
-        import requests
-        resp = requests.get(url, timeout=10, allow_redirects=True)
+        resp = _safe_request(url, method="GET", timeout=10)
+        if resp is None:
+            raise RuntimeError("could not connect to any resolved address")
         resp.raise_for_status()
         return resp.text
 
     try:
         html = await asyncio.to_thread(_fetch)
+    except UnsafeURLError as exc:
+        return {
+            "error": "unsafe_url",
+            "message": f"Refusing to fetch '{url}': {exc}",
+        }
     except Exception as exc:
         return internal_error(f"Failed to fetch URL: {exc}")
 

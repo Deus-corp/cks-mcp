@@ -1,16 +1,25 @@
 """
-Regression tests for validate_knowledge's provenance gating.
+Regression tests for provenance gating on every json_data entry point
+that can call runtime.create_session.
 
-Before this fix, validate_knowledge always committed a version first
-and only checked VerificationRecord signatures afterward -- purely to
-set the response's 'valid' field, never to block the commit itself.
-A forged VerificationRecord therefore still ended up as a real,
-persisted version (and from there, visible via serialize_knowledge,
-explain_knowledge, query_subgraph, or the MCP Resources surface with
-no indication it was ever flagged invalid). evolve_knowledge and
-merge_knowledge/merge_branch already gated their commits on this same
-check (see CHANGELOG 1.2.6) -- these tests lock in that
-validate_knowledge now does too.
+Before the 1.3.3 fix, validate_knowledge always committed a version
+first and only checked VerificationRecord signatures afterward --
+purely to set the response's 'valid' field, never to block the commit
+itself. A forged VerificationRecord therefore still ended up as a
+real, persisted version (and from there, visible via
+serialize_knowledge, explain_knowledge, query_subgraph, or the MCP
+Resources surface with no indication it was ever flagged invalid).
+evolve_knowledge and merge_knowledge/merge_branch already gated their
+commits on this same check (see CHANGELOG 1.2.6).
+
+serialize_knowledge and explain_knowledge were never updated to
+match: their json_data fallback path (used when no session_id is
+given) called runtime.create_session unconditionally, so a caller
+could skip validate_knowledge entirely and commit a forged
+VerificationRecord as a real, readable session just by calling
+serialize_knowledge or explain_knowledge directly. The
+TestSerializeExplainProvenanceGating tests below lock in the fix for
+that bypass; the tests above them cover validate_knowledge as before.
 
 Real Runtime + CksCoreAdapter (not MagicMock), matching
 test_validate_extensions.py, because what's under test is genuine
@@ -26,6 +35,8 @@ from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp import provenance
+from cks_mcp.tools.explain import explain_knowledge
+from cks_mcp.tools.serialize import serialize_knowledge
 from cks_mcp.tools.validate import validate_knowledge
 
 pytestmark = pytest.mark.asyncio
@@ -266,3 +277,97 @@ async def test_structure_without_any_verification_record_is_unaffected():
     assert "version_id" in result
     session = runtime.get_session(result["session_id"])
     assert session.version_count == 1
+
+
+class TestSerializeExplainProvenanceGating:
+    """
+    serialize_knowledge and explain_knowledge's json_data fallback path
+    (no session_id given) must not bypass the same provenance gate
+    validate_knowledge/evolve_knowledge/merge_knowledge enforce -- see
+    module docstring.
+    """
+
+    async def test_serialize_knowledge_rejects_forged_record(self):
+        runtime = make_runtime()
+        result = await serialize_knowledge(
+            runtime, {"json_data": _structure_with_record("totally-fake-signature")}
+        )
+
+        assert isinstance(result, dict)
+        assert result["error"] == "unverified_provenance"
+        assert any(
+            d["code"] == "CKS-MCP-UNVERIFIED-PROVENANCE" for d in result["details"]
+        )
+        assert runtime.sessions.list_sessions() == ()
+
+    async def test_serialize_knowledge_rejects_missing_signature(self):
+        runtime = make_runtime()
+        result = await serialize_knowledge(
+            runtime, {"json_data": _structure_with_record(None)}
+        )
+
+        assert isinstance(result, dict)
+        assert result["error"] == "unverified_provenance"
+        assert runtime.sessions.list_sessions() == ()
+
+    async def test_serialize_knowledge_still_commits_genuine_record(self):
+        runtime = make_runtime()
+        signature = provenance.sign(
+            "vr-1", "claim-1", "2026-01-01T00:00:00Z", "automated_http_check", 200
+        )
+
+        result = await serialize_knowledge(
+            runtime, {"json_data": _structure_with_record(signature)}
+        )
+
+        assert not (isinstance(result, dict) and result.get("error"))
+        assert len(runtime.sessions.list_sessions()) == 1
+        assert runtime.sessions.list_sessions()[0].version_count == 1
+
+    async def test_explain_knowledge_rejects_forged_record(self):
+        runtime = make_runtime()
+        result = await explain_knowledge(
+            runtime, {"json_data": _structure_with_record("totally-fake-signature")}
+        )
+
+        assert result["error"] == "unverified_provenance"
+        assert any(
+            d["code"] == "CKS-MCP-UNVERIFIED-PROVENANCE" for d in result["details"]
+        )
+        assert runtime.sessions.list_sessions() == ()
+
+    async def test_explain_knowledge_rejects_missing_signature(self):
+        runtime = make_runtime()
+        result = await explain_knowledge(
+            runtime, {"json_data": _structure_with_record(None)}
+        )
+
+        assert result["error"] == "unverified_provenance"
+        assert runtime.sessions.list_sessions() == ()
+
+    async def test_explain_knowledge_still_commits_genuine_record(self):
+        runtime = make_runtime()
+        signature = provenance.sign(
+            "vr-1", "claim-1", "2026-01-01T00:00:00Z", "automated_http_check", 200
+        )
+
+        result = await explain_knowledge(
+            runtime, {"json_data": _structure_with_record(signature)}
+        )
+
+        assert "error" not in result
+        assert len(runtime.sessions.list_sessions()) == 1
+        assert runtime.sessions.list_sessions()[0].version_count == 1
+
+    async def test_explain_knowledge_unaffected_without_verification_record(self):
+        runtime = make_runtime()
+        json_data = json.dumps({
+            "objects": [
+                {"identity": {"id": "obj-1", "type": "Definition", "name": "Test"}, "structure": {}},
+            ]
+        })
+
+        result = await explain_knowledge(runtime, {"json_data": json_data})
+
+        assert "error" not in result
+        assert len(runtime.sessions.list_sessions()) == 1

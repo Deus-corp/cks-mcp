@@ -4,7 +4,8 @@ import cks
 from cks_runtime.operations.operation_types import ExplainOperation
 from cks_runtime.runtime import Runtime
 
-from cks_mcp.errors import invalid_json_error
+from cks_mcp import provenance
+from cks_mcp.errors import invalid_json_error, unverified_provenance
 
 
 async def explain_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -40,6 +41,12 @@ async def explain_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict
         structure = cks.parse(arguments["json_data"])
     except cks.SerializationError as exc:
         return invalid_json_error(str(exc))
+
+    # Same provenance gate as serialize_knowledge -- see its
+    # implementation for the full rationale (CHANGELOG 1.3.3).
+    provenance_diagnostics = provenance.verify_structure_provenance(structure)
+    if any(d["severity"] == "error" for d in provenance_diagnostics):
+        return unverified_provenance("explain", provenance_diagnostics)
 
     session = await runtime.create_session(structure)
     tx = runtime.begin_transaction(session)

@@ -55,3 +55,23 @@ def internal_error(details: str) -> dict:
         "error": "internal_error",
         "message": f"Internal error: {details}",
     }
+
+
+def unverified_provenance(action: str, diagnostics: list[dict]) -> dict:
+    """
+    A structure carrying a VerificationRecord with an invalid or missing
+    provenance signature was about to be committed as a persisted
+    session/version by `action` (e.g. "serialize", "explain"). Used by
+    every json_data entry point that calls runtime.create_session --
+    see cks_mcp.provenance.verify_structure_provenance and CHANGELOG
+    1.3.3 for why this must block *before* create_session, not after.
+    """
+    return {
+        "error": "unverified_provenance",
+        "message": (
+            f"Cannot {action}: structure contains a VerificationRecord "
+            "with an invalid or missing provenance signature. It must be "
+            "produced by calling verify_source, not authored directly."
+        ),
+        "details": diagnostics,
+    }

@@ -3,6 +3,18 @@
 
 ---
 
+## [1.14.3] - 2026-07-29
+
+### Security
+- **Closed provenance bypass in `serialize_knowledge` and `explain_knowledge`:** these tools now verify `VerificationRecord` signatures before persisting a session, preventing forged records from being committed. Regression tests added.
+- **SSRF hardening in `ingest_document`:** replaced unsafe `requests.get` with shared `_safe_request` function (DNS pinning, manual redirect validation), matching the existing protection in `verify_source`.
+
+### Fixed
+- Removed unreachable dead code in `server.py` storage initialization.
+- Ensured consistent use of `asyncio.to_thread` for OS-level file operations in `server.py` startup.
+
+---
+
 ## [1.14.2] - 2026-07-29
 
 ### Fixed
