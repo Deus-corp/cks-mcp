@@ -62,6 +62,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -e ".[dev]"
+          pip install mypy types-requests
 
       - name: Run mypy
         run: mypy src/cks_mcp
