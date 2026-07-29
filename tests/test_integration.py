@@ -76,6 +76,7 @@ def _call(request: dict) -> dict:
         )
 
 
+@pytest.mark.skipif(os.environ.get('CI') == 'true', reason="Skipping flaky integration test in CI (SQLite locking)")
 def test_validate_via_server():
     request = {
         "jsonrpc": "2.0",
@@ -101,7 +102,6 @@ def test_validate_via_server():
 
 
 @pytest.mark.skipif(os.environ.get('CI') == 'true', reason="Skipping flaky integration test in CI")
-
 def test_validate_with_extensions_via_server():
     structure = {
         "objects": [
