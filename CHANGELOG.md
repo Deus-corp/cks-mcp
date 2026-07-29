@@ -3,6 +3,14 @@
 
 ---
 
+## [1.14.1] - 2026-07-29
+
+### Fixed
+- `search_semantic` now checks `supports_embedding_search` instead of `hasattr` for embedding capability detection, preventing spurious embedding client calls and misleading error messages.
+- `server.py` now handles `asyncio.IncompleteReadError` gracefully, preventing crashes on truncated stdin input.
+
+---
+
 ## [1.14.0] - 2026-07-29
 
 ### Added

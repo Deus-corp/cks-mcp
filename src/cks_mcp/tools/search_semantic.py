@@ -34,7 +34,7 @@ async def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
     seed_ids = arguments.get("seed_ids")
     scores: dict[str, float] | None = None
     search_error: str | None = None
-    if not seed_ids and hasattr(runtime.storage, "search_embeddings"):
+    if not seed_ids and getattr(runtime.storage, "supports_embedding_search", False):
         try:
             embedding_client = runtime.embedding_client
             if embedding_client is None:
