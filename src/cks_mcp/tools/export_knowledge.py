@@ -12,7 +12,7 @@ from cks_runtime.runtime import Runtime
 from cks_mcp.errors import missing_parameter, session_not_found
 
 
-def export_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def export_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     session_id = arguments.get("session_id")
     if not session_id:
         return missing_parameter("session_id")

@@ -47,11 +47,11 @@ def log_tool_call(tool_name: str) -> Callable:
     """
 
     def decorator(handler: Callable) -> Callable:
-        def wrapper(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+        async def wrapper(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
             start = time.monotonic()
             session_id = arguments.get("session_id", None)
             try:
-                result = handler(runtime, arguments)
+                result = await handler(runtime, arguments)
                 duration_ms = (time.monotonic() - start) * 1000
                 is_error = isinstance(result, dict) and "error" in result
                 _log(

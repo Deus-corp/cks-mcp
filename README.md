@@ -7,11 +7,12 @@
 ![Tests](https://img.shields.io/badge/tests-110%20passing-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
-`cks-mcp` is an MCP (Model Context Protocol) server that gives LLMs
-a **canonical knowledge backbone**. It exposes the tools listed under
-*Available Tools* below, backed by the deterministic,
-immutable semantics of `cks-core` and the operational management of
-`cks-runtime`.
+`cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
+that gives LLMs a **canonical knowledge backbone**. It exposes **23
+tools** (listed under *Available Tools* below) for validation, evolution,
+branching, merging, semantic search, contradiction detection, sandboxing,
+and more, backed by the deterministic, immutable semantics of `cks-core`
+and the async operational management of `cks-runtime`.
 
 Every tool call creates a **Runtime Session** and **Transaction**,
 producing an immutable **Version** and collecting **Diagnostics**.
@@ -21,7 +22,6 @@ This guarantees full auditability and reproducibility.
 
 # Ecosystem
 
-CKS Core is the semantic foundation of the CKS ecosystem.
 Other projects build upon it:
 
 | Project | Description | Repository |

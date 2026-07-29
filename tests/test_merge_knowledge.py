@@ -4,17 +4,20 @@ Tests for merge_knowledge.
 
 import json
 
+import pytest
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.tools.merge import merge_knowledge
+
+pytestmark = pytest.mark.asyncio
 
 
 def make_runtime() -> Runtime:
     return Runtime(core=CksCoreAdapter())
 
 
-def test_merge_knowledge_no_conflict():
+async def test_merge_knowledge_no_conflict():
     runtime = make_runtime()
     base = json.dumps({
         "objects": [
@@ -33,7 +36,7 @@ def test_merge_knowledge_no_conflict():
             {"identity": {"id": "b", "type": "Thing", "name": "b"}, "structure": {}}
         ]
     })
-    result = merge_knowledge(runtime, {
+    result = await merge_knowledge(runtime, {
         "json_data_base": base,
         "json_data_branch_a": branch_a,
         "json_data_branch_b": branch_b,
@@ -43,7 +46,7 @@ def test_merge_knowledge_no_conflict():
     assert "b" in result["serialized"]
 
 
-def test_merge_knowledge_reports_conflict():
+async def test_merge_knowledge_reports_conflict():
     runtime = make_runtime()
     base = json.dumps({
         "objects": [
@@ -60,7 +63,7 @@ def test_merge_knowledge_reports_conflict():
             {"identity": {"id": "shared", "type": "Thing", "name": "shared"}, "structure": {"note": "edited by B"}}
         ]
     })
-    result = merge_knowledge(runtime, {
+    result = await merge_knowledge(runtime, {
         "json_data_base": base,
         "json_data_branch_a": branch_a,
         "json_data_branch_b": branch_b,
@@ -70,7 +73,7 @@ def test_merge_knowledge_reports_conflict():
     assert result["conflicts"][0]["object_id"] == "shared"
 
 
-def test_merge_knowledge_resolutions_branch_a_and_branch_b():
+async def test_merge_knowledge_resolutions_branch_a_and_branch_b():
     runtime = make_runtime()
     base = json.dumps({
         "objects": [
@@ -87,8 +90,7 @@ def test_merge_knowledge_resolutions_branch_a_and_branch_b():
             {"identity": {"id": "shared", "type": "Thing", "name": "shared"}, "structure": {"note": "edited by B"}}
         ]
     })
-    # branch_a
-    result = merge_knowledge(runtime, {
+    result = await merge_knowledge(runtime, {
         "json_data_base": base,
         "json_data_branch_a": branch_a,
         "json_data_branch_b": branch_b,
@@ -97,8 +99,7 @@ def test_merge_knowledge_resolutions_branch_a_and_branch_b():
     assert result["merged"] is True
     assert "edited by A" in result["serialized"]
 
-    # branch_b
-    result = merge_knowledge(runtime, {
+    result = await merge_knowledge(runtime, {
         "json_data_base": base,
         "json_data_branch_a": branch_a,
         "json_data_branch_b": branch_b,
@@ -108,7 +109,7 @@ def test_merge_knowledge_resolutions_branch_a_and_branch_b():
     assert "edited by B" in result["serialized"]
 
 
-def test_merge_knowledge_resolutions_custom_object():
+async def test_merge_knowledge_resolutions_custom_object():
     runtime = make_runtime()
     base = json.dumps({
         "objects": [
@@ -125,7 +126,7 @@ def test_merge_knowledge_resolutions_custom_object():
             {"identity": {"id": "shared", "type": "Thing", "name": "shared"}, "structure": {"note": "edited by B"}}
         ]
     })
-    result = merge_knowledge(runtime, {
+    result = await merge_knowledge(runtime, {
         "json_data_base": base,
         "json_data_branch_a": branch_a,
         "json_data_branch_b": branch_b,
@@ -140,7 +141,7 @@ def test_merge_knowledge_resolutions_custom_object():
     assert "synthesized" in result["serialized"]
 
 
-def test_merge_knowledge_resolutions_malformed_custom_object_reports_error():
+async def test_merge_knowledge_resolutions_malformed_custom_object_reports_error():
     runtime = make_runtime()
     base = json.dumps({
         "objects": [
@@ -157,7 +158,7 @@ def test_merge_knowledge_resolutions_malformed_custom_object_reports_error():
             {"identity": {"id": "shared", "type": "Thing", "name": "shared"}, "structure": {"note": "edited by B"}}
         ]
     })
-    result = merge_knowledge(runtime, {
+    result = await merge_knowledge(runtime, {
         "json_data_base": base,
         "json_data_branch_a": branch_a,
         "json_data_branch_b": branch_b,
@@ -166,7 +167,7 @@ def test_merge_knowledge_resolutions_malformed_custom_object_reports_error():
     assert "error" in result
 
 
-def test_merge_knowledge_resolutions_partial_still_reports_remaining():
+async def test_merge_knowledge_resolutions_partial_still_reports_remaining():
     runtime = make_runtime()
     base = json.dumps({
         "objects": [
@@ -186,7 +187,7 @@ def test_merge_knowledge_resolutions_partial_still_reports_remaining():
             {"identity": {"id": "b", "type": "Thing", "name": "b"}, "structure": {"note": "edited-b-B"}},
         ]
     })
-    result = merge_knowledge(runtime, {
+    result = await merge_knowledge(runtime, {
         "json_data_base": base,
         "json_data_branch_a": branch_a,
         "json_data_branch_b": branch_b,
@@ -196,9 +197,9 @@ def test_merge_knowledge_resolutions_partial_still_reports_remaining():
     assert [c["object_id"] for c in result["conflicts"]] == ["b"]
 
 
-def test_merge_knowledge_invalid_json_reports_error():
+async def test_merge_knowledge_invalid_json_reports_error():
     runtime = make_runtime()
-    result = merge_knowledge(runtime, {
+    result = await merge_knowledge(runtime, {
         "json_data_base": "not json",
         "json_data_branch_a": "{}",
         "json_data_branch_b": "{}",

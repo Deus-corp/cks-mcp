@@ -1,32 +1,23 @@
-"""
-Integration tests for validate_knowledge's `extensions` parameter.
-
-Unlike test_tools.py, these use a *real* Runtime + CksCoreAdapter
-(not MagicMock) because the thing under test is genuine cks-core
-validation behaviour -- specifically, that a caller can opt the
-EmbeddingProjectionIntegrityConstraint extension in for a single
-MCP tool call, end-to-end through Runtime's session/transaction
-pipeline, exactly the anti-hallucination-citation scenario this
-parameter was built for.
-"""
+"""Integration tests for validate_knowledge's `extensions` parameter."""
 
 from __future__ import annotations
 
 import json
 
+import pytest
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.tools.validate import validate_knowledge
 
+pytestmark = pytest.mark.asyncio
 
-def make_runtime() -> Runtime:
+
+def make_runtime():
     return Runtime(core=CksCoreAdapter())
 
 
 def _structure(represents_target: str) -> str:
-    """A Document plus an EmbeddingProjection 'represents' relation
-    pointing at `represents_target` (a real id, or a fabricated one)."""
     return json.dumps({
         "objects": [
             {
@@ -48,7 +39,7 @@ def _structure(represents_target: str) -> str:
     })
 
 
-def test_extensions_absent_by_default():
+async def test_extensions_absent_by_default():
     runtime = make_runtime()
     structure = {
         "objects": [
@@ -57,7 +48,7 @@ def test_extensions_absent_by_default():
             {"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["ghost-id", "claim-1"], "relation_type": "represents"}},
         ]
     }
-    result = validate_knowledge(runtime, {
+    result = await validate_knowledge(runtime, {
         "json_data": json.dumps(structure),
         "extensions": ["embedding_projection"],
     })
@@ -65,7 +56,7 @@ def test_extensions_absent_by_default():
     assert any(d["severity"] == "error" for d in result["diagnostics"])
 
 
-def test_extensions_catches_hallucinated_citation():
+async def test_extensions_catches_hallucinated_citation():
     runtime = make_runtime()
     structure = {
         "objects": [
@@ -74,7 +65,7 @@ def test_extensions_catches_hallucinated_citation():
             {"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["ghost-id", "claim-1"], "relation_type": "represents"}},
         ]
     }
-    result = validate_knowledge(runtime, {
+    result = await validate_knowledge(runtime, {
         "json_data": json.dumps(structure),
         "extensions": ["embedding_projection"],
     })
@@ -82,7 +73,7 @@ def test_extensions_catches_hallucinated_citation():
     assert any(d["severity"] == "error" for d in result["diagnostics"])
 
 
-def test_extensions_do_not_leak_into_global_registry():
+async def test_extensions_do_not_leak_into_global_registry():
     runtime = make_runtime()
     structure = {
         "objects": [
@@ -91,7 +82,7 @@ def test_extensions_do_not_leak_into_global_registry():
             {"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["ghost-id", "claim-1"], "relation_type": "represents"}},
         ]
     }
-    result = validate_knowledge(runtime, {
+    result = await validate_knowledge(runtime, {
         "json_data": json.dumps(structure),
         "extensions": ["embedding_projection"],
     })
@@ -99,11 +90,9 @@ def test_extensions_do_not_leak_into_global_registry():
     assert any(d["severity"] == "error" for d in result["diagnostics"])
 
 
-def test_extensions_passes_on_real_citation():
-    """A genuine, existing source id must pass cleanly with the
-    extension enabled."""
+async def test_extensions_passes_on_real_citation():
     runtime = make_runtime()
-    result = validate_knowledge(
+    result = await validate_knowledge(
         runtime,
         {"json_data": _structure("src-1"), "extensions": ["embedding_projection"]},
     )
@@ -112,9 +101,9 @@ def test_extensions_passes_on_real_citation():
     assert result["diagnostics"] == []
 
 
-def test_unknown_extension_returns_structured_error_not_crash():
+async def test_unknown_extension_returns_structured_error_not_crash():
     runtime = make_runtime()
-    result = validate_knowledge(
+    result = await validate_knowledge(
         runtime,
         {"json_data": _structure("src-1"), "extensions": ["not_a_real_extension"]},
     )

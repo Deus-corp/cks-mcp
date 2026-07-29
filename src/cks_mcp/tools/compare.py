@@ -73,7 +73,7 @@ def _build_summary(operations: list[dict[str, Any]]) -> dict[str, int]:
     return summary
 
 
-def compare_versions(
+async def compare_versions(
     runtime: Runtime,
     arguments: dict[str, Any],
 ) -> dict[str, Any]:

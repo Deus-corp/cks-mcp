@@ -10,7 +10,7 @@ from cks_runtime.runtime import Runtime
 from cks_mcp.errors import internal_error, missing_parameter, session_not_found
 
 
-def list_versions(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def list_versions(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """Return a lightweight list of all versions in the given session."""
     session_id = arguments.get("session_id")
     if not session_id:
@@ -38,7 +38,7 @@ def list_versions(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
         return internal_error(f"list_versions: {e}")
 
 
-def revert_version(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def revert_version(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """Revert the session to a specific previous version."""
     session_id = arguments.get("session_id")
     target_version_id = arguments.get("target_version_id")
@@ -57,7 +57,7 @@ def revert_version(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any
         tx.add_operation(
             RevertVersionOperation("revert", target_version_id=target_version_id)
         )
-        version = runtime.commit_transaction(tx)
+        version = await runtime.commit_transaction(tx)
 
         serialized = runtime.core_bridge.serialize(session.knowledge_structure)
         return {

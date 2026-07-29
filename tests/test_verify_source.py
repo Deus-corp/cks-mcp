@@ -1,6 +1,4 @@
-"""
-Tests for verify_source: SSRF protection, unique IDs, provenance signing.
-"""
+"""Tests for verify_source: SSRF protection, unique IDs, provenance signing."""
 
 import socket
 from unittest.mock import MagicMock, patch
@@ -14,6 +12,8 @@ from cks_mcp.tools.verify_source import (
     _safe_head_status,
     verify_source,
 )
+
+pytestmark = pytest.mark.asyncio
 
 
 def test_resolve_and_validate_allows_public():
@@ -31,10 +31,6 @@ def test_resolve_and_validate_rejects_metadata():
         _resolve_and_validate_host("http://169.254.169.254")
 
 def test_resolve_and_validate_orders_ipv4_before_ipv6():
-    """Dual-stack hosts must yield IPv4 candidates first -- some
-    deployment environments have no functional IPv6 route even when a
-    hostname resolves to IPv6 addresses, and this ordering is what
-    makes _safe_head_status try a working address before giving up."""
     fake_addrinfo = [
         (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("2001:4860:4860::8888", 443, 0, 0)),
         (socket.AF_INET, socket.SOCK_STREAM, 0, "", ("93.184.216.34", 443)),
@@ -54,10 +50,6 @@ def test_resolve_and_validate_deduplicates_ips():
     assert ips == ["93.184.216.34"]
 
 def test_safe_head_status_falls_back_to_next_candidate():
-    """If the first (preferred) candidate address is unreachable, the
-    next validated candidate must still be tried before giving up --
-    this is what turns a non-deterministic address-family pick into a
-    robust one."""
     with patch(
         "cks_mcp.tools.verify_source._resolve_and_validate_host",
         return_value=("example.com", ["203.0.113.1", "93.184.216.34"]),
@@ -71,9 +63,6 @@ def test_safe_head_status_falls_back_to_next_candidate():
         def fake_head(self, url, timeout, allow_redirects):
             import requests
 
-            # Read which IP is currently pinned via the thread-local
-            # override installed by pin_dns, to prove the fallback
-            # actually advanced to the second candidate.
             from cks_mcp.tools.verify_source import _thread_local
             pinned = _thread_local.dns_overrides.get("example.com")
             call_ips.append(pinned)
@@ -87,22 +76,22 @@ def test_safe_head_status_falls_back_to_next_candidate():
     assert status == 200
     assert call_ips == ["203.0.113.1", "93.184.216.34"]
 
-def test_verify_source_returns_unique_ids():
+async def test_verify_source_returns_unique_ids():
     with patch("cks_mcp.tools.verify_source._safe_head_status", return_value=200):
-        result = verify_source(MagicMock(), {"url": "https://example.com", "subject_id": "doc-1"})
+        result = await verify_source(MagicMock(), {"url": "https://example.com", "subject_id": "doc-1"})
     ids = [obj["identity"]["id"] for obj in result["objects"]]
     assert len(set(ids)) == len(ids)
     assert all(id.startswith(("vr-", "rel-")) for id in ids)
 
-def test_verify_source_includes_signature():
+async def test_verify_source_includes_signature():
     with patch("cks_mcp.tools.verify_source._safe_head_status", return_value=200):
-        result = verify_source(MagicMock(), {"url": "https://example.com", "subject_id": "doc-1"})
+        result = await verify_source(MagicMock(), {"url": "https://example.com", "subject_id": "doc-1"})
     record = result["objects"][0]
     assert SIGNATURE_KEY in record["structure"]
 
-def test_verify_source_signature_verifies():
+async def test_verify_source_signature_verifies():
     with patch("cks_mcp.tools.verify_source._safe_head_status", return_value=200):
-        result = verify_source(MagicMock(), {"url": "https://example.com", "subject_id": "doc-1"})
+        result = await verify_source(MagicMock(), {"url": "https://example.com", "subject_id": "doc-1"})
     record = result["objects"][0]
     assert verify(
         record_id=record["identity"]["id"],
@@ -113,6 +102,6 @@ def test_verify_source_signature_verifies():
         signature=record["structure"][SIGNATURE_KEY],
     )
 
-def test_verify_source_rejects_unsafe_url():
-    result = verify_source(MagicMock(), {"url": "http://127.0.0.1", "subject_id": "doc-1"})
+async def test_verify_source_rejects_unsafe_url():
+    result = await verify_source(MagicMock(), {"url": "http://127.0.0.1", "subject_id": "doc-1"})
     assert result["error"] == "unsafe_url"

@@ -11,7 +11,7 @@ from cks_mcp.diffing import field_level_diff
 from cks_mcp.errors import missing_parameter, session_not_found
 
 
-def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """Explain the differences between the current state and a target version."""
     session_id = arguments.get("session_id")
     if not session_id:

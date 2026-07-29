@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -18,6 +18,8 @@ VALID_KNOWLEDGE_JSON = (
     '{"objects":[{"identity":{"id":"obj-1","type":"Definition","name":"Test"},"structure":{}}]}'
 )
 
+pytestmark = pytest.mark.asyncio
+
 
 @pytest.fixture
 def mock_runtime():
@@ -31,32 +33,41 @@ def mock_runtime():
         "relation_count": 0,
         "summary": {"test": True},
     }
-    runtime.core_bridge.evolve.return_value = MagicMock()
+    # Для evolve_knowledge нужно, чтобы core_bridge.evolve возвращал
+    # объект, у которого есть .relations() (вызывается provenance)
+    fake_evolved = MagicMock()
+    fake_evolved.relations.return_value = []
+    fake_evolved.objects = []
+    runtime.core_bridge.evolve.return_value = fake_evolved
 
     session = MagicMock(session_id="s1", diagnostics=[])
-    runtime.create_session.return_value = session
+    runtime.create_session = AsyncMock(return_value=session)
 
-    # Мок транзакции с готовым результатом операции
     tx = MagicMock(session=session)
     tx.results = [MagicMock(payload='{"serialized":true}')]
     runtime.begin_transaction.return_value = tx
 
-    runtime.commit_transaction.return_value = MagicMock(version_id="v1")
+    runtime.commit_transaction = AsyncMock(return_value=MagicMock(version_id="v1"))
+    runtime.executor.execute = AsyncMock(return_value=MagicMock(
+        succeeded=True,
+        payload=fake_evolved,
+        status=MagicMock(value="completed")
+    ))
 
     return runtime
 
 
-def test_validate_knowledge_valid(mock_runtime):
+async def test_validate_knowledge_valid(mock_runtime):
     args = {"json_data": VALID_KNOWLEDGE_JSON}
-    result = validate_knowledge(mock_runtime, args)
+    result = await validate_knowledge(mock_runtime, args)
     assert result["valid"] == True
     assert result["version_id"] == "v1"
     assert result["session_id"] == "s1"
-    mock_runtime.create_session.assert_called_once()
-    mock_runtime.commit_transaction.assert_called_once()
+    mock_runtime.create_session.assert_awaited_once()
+    mock_runtime.commit_transaction.assert_awaited_once()
 
 
-def test_validate_knowledge_invalid(mock_runtime):
+async def test_validate_knowledge_invalid(mock_runtime):
     from cks_runtime.diagnostics.diagnostic import (
         Diagnostic as RuntimeDiagnostic,
     )
@@ -65,13 +76,12 @@ def test_validate_knowledge_invalid(mock_runtime):
         DiagnosticSource,
     )
 
-    # Настоящий список для диагностик
     session = MagicMock(diagnostics=[], session_id="s1")
-    mock_runtime.create_session.return_value = session
+    mock_runtime.create_session = AsyncMock(return_value=session)
     tx = MagicMock(session=session)
     mock_runtime.begin_transaction.return_value = tx
 
-    def fake_commit(tx):
+    async def fake_commit(tx):
         tx.session.diagnostics.append(
             RuntimeDiagnostic(
                 code="ERR-001",
@@ -83,9 +93,14 @@ def test_validate_knowledge_invalid(mock_runtime):
         )
         return MagicMock(version_id="v2")
 
-    mock_runtime.commit_transaction.side_effect = fake_commit
+    mock_runtime.commit_transaction = AsyncMock(side_effect=fake_commit)
+    mock_runtime.executor.execute = AsyncMock(return_value=MagicMock(
+        succeeded=True,
+        payload={"evolved": True},
+        status=MagicMock(value="completed")
+    ))
     args = {"json_data": VALID_KNOWLEDGE_JSON}
-    result = validate_knowledge(mock_runtime, args)
+    result = await validate_knowledge(mock_runtime, args)
     assert result["valid"] is False
     assert result["version_id"] == "v2"
     assert len(result["diagnostics"]) == 1
@@ -93,23 +108,22 @@ def test_validate_knowledge_invalid(mock_runtime):
     assert result["diagnostics"][0]["severity"] == "error"
 
 
-def test_serialize_knowledge(mock_runtime):
+async def test_serialize_knowledge(mock_runtime):
     args = {"json_data": VALID_KNOWLEDGE_JSON}
-    result = serialize_knowledge(mock_runtime, args)
+    result = await serialize_knowledge(mock_runtime, args)
     assert result == '{"serialized":true}'
 
-def test_explain_knowledge(mock_runtime):
-    # Для explain нужно, чтобы первый результат в tx.results содержал нужный payload
+async def test_explain_knowledge(mock_runtime):
     mock_runtime.begin_transaction.return_value.results = [
         MagicMock(payload={"object_count": 1, "relation_count": 0})
     ]
     args = {"json_data": VALID_KNOWLEDGE_JSON}
-    result = explain_knowledge(mock_runtime, args)
+    result = await explain_knowledge(mock_runtime, args)
     assert result["object_count"] == 1
     assert result["relation_count"] == 0
 
 
-def test_evolve_knowledge(mock_runtime):
+async def test_evolve_knowledge(mock_runtime):
     args = {
         "json_data": VALID_KNOWLEDGE_JSON,
         "operations": [
@@ -120,15 +134,15 @@ def test_evolve_knowledge(mock_runtime):
             }
         ],
     }
-    result = evolve_knowledge(mock_runtime, args)
+    result = await evolve_knowledge(mock_runtime, args)
     assert result["evolved"] == True
     assert result["version_id"] == "v1"
     assert result["session_id"] == "s1"
-    mock_runtime.create_session.assert_called_once()
-    mock_runtime.commit_transaction.assert_called_once()
+    mock_runtime.create_session.assert_awaited_once()
+    mock_runtime.commit_transaction.assert_awaited_once()
 
 
-def test_compare_versions(mock_runtime):
+async def test_compare_versions(mock_runtime):
     from cks_runtime.versioning.version import RuntimeVersion
 
     from cks_mcp.tools.compare import compare_versions
@@ -141,7 +155,7 @@ def test_compare_versions(mock_runtime):
     mock_runtime.get_session.return_value = session
     mock_runtime.core_bridge.diff.return_value = []
     args = {"session_id": "s1", "target_version_id": "v1"}
-    result = compare_versions(mock_runtime, args)
+    result = await compare_versions(mock_runtime, args)
     assert result["session_id"] == "s1"
     assert result["base_version_id"] == "v1"
     assert result["direction"] == "base_to_current"
@@ -149,8 +163,8 @@ def test_compare_versions(mock_runtime):
     assert "operations" in result
 
 
-def test_query_subgraph_basic():
-    """End-to-end test: создаём сессию и извлекаем подграф."""
+async def test_query_subgraph_basic():
+    """End-to-end test: create a session and extract a subgraph."""
     from cks_runtime.runtime import Runtime
     from cks_runtime_plugins.cks_core import CksCoreAdapter
 
@@ -158,7 +172,6 @@ def test_query_subgraph_basic():
 
     runtime = Runtime(core=CksCoreAdapter())
 
-    # Создаём сессию с простым графом: A --r1-- B --r2-- C
     from cks import parse
     structure = parse(
         '{"objects": ['
@@ -169,44 +182,41 @@ def test_query_subgraph_basic():
         '{"identity": {"id": "r2", "type": "Relation", "name": "r2"}, "structure": {"participants": ["B", "C"], "relation_type": "links"}}'
         ']}'
     )
-    session = runtime.create_session(structure)
+    session = await runtime.create_session(structure)
 
-    # Вызываем query_subgraph
-    result = query_subgraph_tool(runtime, {
+    result = await query_subgraph_tool(runtime, {
         "session_id": session.session_id,
         "seed_ids": ["A"],
         "depth": 1
     })
 
-    # Проверяем структуру ответа
     assert "subgraph" in result
     assert "total_found_nodes" in result
     assert result["total_found_nodes"] == 2  # A, B
     assert result["is_truncated"] == False
 
-def test_visualize_graph_missing_session_id(mock_runtime):
+async def test_visualize_graph_missing_session_id(mock_runtime):
     from cks_mcp.tools.visualize_graph import visualize_graph
-    result = visualize_graph(mock_runtime, {})
+    result = await visualize_graph(mock_runtime, {})
     assert result["error"] == "missing_parameter"
     assert "session_id" in result["message"]
 
 
-def test_explain_diff_missing_parameters(mock_runtime):
+async def test_explain_diff_missing_parameters(mock_runtime):
     from cks_mcp.tools.explain_diff import explain_diff
-    result = explain_diff(mock_runtime, {})
+    result = await explain_diff(mock_runtime, {})
     assert result["error"] == "missing_parameter"
 
 
-def test_suggest_evolution_missing_parameters(mock_runtime):
+async def test_suggest_evolution_missing_parameters(mock_runtime):
     from cks_mcp.tools.suggest_evolution import suggest_evolution
-    result = suggest_evolution(mock_runtime, {})
+    result = await suggest_evolution(mock_runtime, {})
     assert result["error"] == "missing_parameter"
 
 
 # ---------------------------------------------------------------------------
 # End-to-end tests for visualize_graph, explain_diff, suggest_evolution
-# (real Runtime + CksCoreAdapter, no mocks -- these exercise the actual
-# cks-core diff/query_subgraph machinery the mock-based tests above don't).
+# (real Runtime + CksCoreAdapter, no mocks)
 # ---------------------------------------------------------------------------
 
 def _real_runtime():
@@ -215,10 +225,7 @@ def _real_runtime():
     return Runtime(core=CksCoreAdapter())
 
 
-def test_visualize_graph_basic():
-    """Typical ids (with hyphens, as used throughout this project's own
-    examples) must still produce syntactically valid Mermaid: a bare,
-    unquoted hyphenated id is not a legal Mermaid node id."""
+async def test_visualize_graph_basic():
     from cks import parse
 
     from cks_mcp.tools.visualize_graph import visualize_graph
@@ -231,24 +238,19 @@ def test_visualize_graph_basic():
         '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["obj-1", "obj-2"], "relation_type": "derives_from"}}'
         ']}'
     )
-    session = runtime.create_session(structure)
-    result = visualize_graph(runtime, {"session_id": session.session_id})
+    session = await runtime.create_session(structure)
+    result = await visualize_graph(runtime, {"session_id": session.session_id})
 
-    # New format: just a "mermaid" key with the diagram text.
     assert "mermaid" in result
     mermaid = result["mermaid"]
-    # Nodes must be aliased safely (n0, n1, ...), not bare "obj-1".
     assert "n0[" in mermaid
     assert "n1[" in mermaid
-    assert "n2[" not in mermaid  # only 2 non-relation objects
-    # The hyphenated ids must NOT appear as bare node identifiers.
+    assert "n2[" not in mermaid
     assert "obj-1[" not in mermaid
     assert "obj-2[" not in mermaid
 
 
-def test_visualize_graph_sanitizes_special_characters():
-    """Ids containing spaces/colons/parentheses and names containing
-    double quotes must not break the generated Mermaid syntax."""
+async def test_visualize_graph_sanitizes_special_characters():
     from cks import parse
 
     from cks_mcp.tools.visualize_graph import visualize_graph
@@ -263,20 +265,14 @@ def test_visualize_graph_sanitizes_special_characters():
              "structure": {"participants": [weird_id, "obj-2"], "relation_type": "relates_to"}},
         ]
     }))
-    session = runtime.create_session(structure)
-    result = visualize_graph(runtime, {"session_id": session.session_id})
+    session = await runtime.create_session(structure)
+    result = await visualize_graph(runtime, {"session_id": session.session_id})
 
     mermaid = result["mermaid"]
-    # The raw id must never appear unescaped as a bare node identifier --
-    # spaces/colons/parens there would break Mermaid's parser.
     assert f"{weird_id}[" not in mermaid
     assert weird_id not in mermaid.split("\n")[1].split("[")[0]
-    # A literal double quote inside a label must use Mermaid's HTML-entity
-    # escape, not a backslash (which is not valid Mermaid syntax).
     assert '#quot;Quoted#quot;' in mermaid
     assert '\\"' not in mermaid
-    # Every line must be parseable at a basic structural level: node lines
-    # end with a closed ["..."] and edge lines have a matching arrow.
     for line in mermaid.split("\n")[1:]:
         stripped = line.strip()
         if not stripped:
@@ -284,9 +280,7 @@ def test_visualize_graph_sanitizes_special_characters():
         assert stripped.endswith(']') or '-->' in stripped
 
 
-def test_explain_diff_pure_add():
-    """Adding a new object+relation with nothing else touched should be
-    reported purely as additions."""
+async def test_explain_diff_pure_add():
     from cks import parse
 
     from cks_mcp.tools.evolve import evolve_knowledge
@@ -298,12 +292,12 @@ def test_explain_diff_pure_add():
         '{"identity": {"id": "obj-1", "type": "Concept", "name": "A"}, "structure": {}}'
         ']}'
     )
-    session = runtime.create_session(structure)
+    session = await runtime.create_session(structure)
     tx = runtime.begin_transaction(session)
-    runtime.commit_transaction(tx)
+    await runtime.commit_transaction(tx)
     base_version = session.version_history[-1].version_id
 
-    evolve_knowledge(runtime, {
+    await evolve_knowledge(runtime, {
         "session_id": session.session_id,
         "operations": [
             {"type": "add_object", "identity": {"id": "obj-2", "type": "Concept", "name": "B"}, "structure": {}},
@@ -312,7 +306,7 @@ def test_explain_diff_pure_add():
         ],
     })
 
-    result = explain_diff(runtime, {"session_id": session.session_id, "target_version_id": base_version})
+    result = await explain_diff(runtime, {"session_id": session.session_id, "target_version_id": base_version})
 
     assert [o["id"] for o in result["details"]["added_objects"]] == ["obj-2"]
     assert result["details"]["removed_objects"] == []
@@ -321,11 +315,7 @@ def test_explain_diff_pure_add():
     assert result["details"]["relinked_relations"] == []
 
 
-def test_explain_diff_modified_object_reported_as_modified_not_delete_add():
-    """A structure-only update to an existing object must be reported as
-    'modified' with a field-level diff -- not as a delete+add of the same
-    id -- and the untouched relation referencing it must be recognized as
-    an unaffected relink, not a spurious add+remove."""
+async def test_explain_diff_modified_object_reported_as_modified_not_delete_add():
     from cks import parse
 
     from cks_mcp.tools.evolve import evolve_knowledge
@@ -339,19 +329,19 @@ def test_explain_diff_modified_object_reported_as_modified_not_delete_add():
         '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["obj-1", "obj-2"], "relation_type": "relates_to"}}'
         ']}'
     )
-    session = runtime.create_session(structure)
+    session = await runtime.create_session(structure)
     tx = runtime.begin_transaction(session)
-    runtime.commit_transaction(tx)
+    await runtime.commit_transaction(tx)
     base_version = session.version_history[-1].version_id
 
-    evolve_knowledge(runtime, {
+    await evolve_knowledge(runtime, {
         "session_id": session.session_id,
         "operations": [
             {"type": "update_object", "object_id": "obj-1", "structure_patch": {"summary": "new"}},
         ],
     })
 
-    result = explain_diff(runtime, {"session_id": session.session_id, "target_version_id": base_version})
+    result = await explain_diff(runtime, {"session_id": session.session_id, "target_version_id": base_version})
     details = result["details"]
 
     assert details["added_objects"] == []
@@ -360,8 +350,6 @@ def test_explain_diff_modified_object_reported_as_modified_not_delete_add():
     assert details["modified_objects"][0]["id"] == "obj-1"
     assert details["modified_objects"][0]["changes"] == {"summary": {"from": "old", "to": "new"}}
 
-    # rel-1's own content never changed -- it must not be counted as an
-    # add or a remove, only as an (unchanged) relink.
     assert details["added_relations"] == []
     assert details["removed_relations"] == []
     assert details["modified_relations"] == []
@@ -371,9 +359,7 @@ def test_explain_diff_modified_object_reported_as_modified_not_delete_add():
     assert "Re-linked 1 relation" in result["summary"]
 
 
-def test_explain_diff_genuine_relation_content_change():
-    """When a relation's own content changes (e.g. its relation_type), it
-    must be reported as a modified relation with a field-level diff."""
+async def test_explain_diff_genuine_relation_content_change():
     from cks import parse
 
     from cks_mcp.tools.evolve import evolve_knowledge
@@ -387,12 +373,12 @@ def test_explain_diff_genuine_relation_content_change():
         '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["obj-1", "obj-2"], "relation_type": "derives_from"}}'
         ']}'
     )
-    session = runtime.create_session(structure)
+    session = await runtime.create_session(structure)
     tx = runtime.begin_transaction(session)
-    runtime.commit_transaction(tx)
+    await runtime.commit_transaction(tx)
     base_version = session.version_history[-1].version_id
 
-    evolve_knowledge(runtime, {
+    await evolve_knowledge(runtime, {
         "session_id": session.session_id,
         "operations": [
             {"type": "remove_relation", "relation_id": "rel-1"},
@@ -401,7 +387,7 @@ def test_explain_diff_genuine_relation_content_change():
         ],
     })
 
-    result = explain_diff(runtime, {"session_id": session.session_id, "target_version_id": base_version})
+    result = await explain_diff(runtime, {"session_id": session.session_id, "target_version_id": base_version})
     details = result["details"]
 
     assert details["relinked_relations"] == []
@@ -413,9 +399,7 @@ def test_explain_diff_genuine_relation_content_change():
     }
 
 
-def test_suggest_evolution_basic():
-    """current_objects must list only plain objects (not relations), and
-    current_relations must list relations with their real participants."""
+async def test_suggest_evolution_basic():
     from cks import parse
 
     from cks_mcp.tools.suggest_evolution import suggest_evolution
@@ -428,9 +412,9 @@ def test_suggest_evolution_basic():
         '{"identity": {"id": "rel-1", "type": "Relation", "name": "r"}, "structure": {"participants": ["obj-1", "obj-2"], "relation_type": "relates_to"}}'
         ']}'
     )
-    session = runtime.create_session(structure)
+    session = await runtime.create_session(structure)
 
-    result = suggest_evolution(runtime, {
+    result = await suggest_evolution(runtime, {
         "session_id": session.session_id,
         "description": "add a Concept about C and link it to A",
     })
@@ -445,17 +429,14 @@ def test_suggest_evolution_basic():
     assert "add_object" in " ".join(result["available_operation_types"])
 
 
-def test_export_knowledge_missing_session_id(mock_runtime):
+async def test_export_knowledge_missing_session_id(mock_runtime):
     from cks_mcp.tools.export_knowledge import export_knowledge
-    result = export_knowledge(mock_runtime, {})
+    result = await export_knowledge(mock_runtime, {})
     assert result["error"] == "missing_parameter"
     assert "session_id" in result["message"]
 
 
-def test_suggest_evolution_preview_valid_operations():
-    """Passing 'operations' previews them via the same dry-run
-    evolve_knowledge uses internally, but must not create a version or
-    otherwise mutate the session."""
+async def test_suggest_evolution_preview_valid_operations():
     from cks import parse
 
     from cks_mcp.tools.suggest_evolution import suggest_evolution
@@ -466,10 +447,10 @@ def test_suggest_evolution_preview_valid_operations():
         '{"identity": {"id": "obj-1", "type": "Concept", "name": "A"}, "structure": {}}'
         ']}'
     )
-    session = runtime.create_session(structure)
+    session = await runtime.create_session(structure)
     versions_before = len(runtime.get_session(session.session_id).versions) if hasattr(session, "versions") else None
 
-    result = suggest_evolution(runtime, {
+    result = await suggest_evolution(runtime, {
         "session_id": session.session_id,
         "description": "add a Concept about B",
         "operations": [
@@ -485,16 +466,12 @@ def test_suggest_evolution_preview_valid_operations():
     assert result["operations_previewed"] == 1
     assert result["diagnostics"] == []
     assert "preview_serialized" in result
-    # Nothing committed: the live session structure is untouched.
     assert {o.identity.id for o in session.knowledge_structure.objects} == {"obj-1"}
     if versions_before is not None:
         assert len(runtime.get_session(session.session_id).versions) == versions_before
 
 
-def test_suggest_evolution_preview_invalid_operations_reports_diagnostics():
-    """An operation that would produce an invalid structure (here: a
-    relation referencing a nonexistent participant) must be reported
-    via diagnostics with would_apply=False, not raise."""
+async def test_suggest_evolution_preview_invalid_operations_reports_diagnostics():
     from cks import parse
 
     from cks_mcp.tools.suggest_evolution import suggest_evolution
@@ -505,9 +482,9 @@ def test_suggest_evolution_preview_invalid_operations_reports_diagnostics():
         '{"identity": {"id": "obj-1", "type": "Concept", "name": "A"}, "structure": {}}'
         ']}'
     )
-    session = runtime.create_session(structure)
+    session = await runtime.create_session(structure)
 
-    result = suggest_evolution(runtime, {
+    result = await suggest_evolution(runtime, {
         "session_id": session.session_id,
         "description": "link A to something that doesn't exist",
         "operations": [
@@ -520,22 +497,19 @@ def test_suggest_evolution_preview_invalid_operations_reports_diagnostics():
         ],
     })
 
-    # add_relation itself rejects a dangling participant at apply time
-    # (ValueError inside _mutate), which the executor surfaces as a
-    # failed dry-run rather than a validation diagnostic.
     assert result["would_apply"] is False
     assert "message" in result
 
 
-def test_suggest_evolution_preview_malformed_operations():
+async def test_suggest_evolution_preview_malformed_operations():
     from cks_mcp.tools.suggest_evolution import suggest_evolution
 
     runtime = _real_runtime()
     from cks import parse
     structure = parse('{"objects": []}')
-    session = runtime.create_session(structure)
+    session = await runtime.create_session(structure)
 
-    result = suggest_evolution(runtime, {
+    result = await suggest_evolution(runtime, {
         "session_id": session.session_id,
         "description": "do something",
         "operations": [{"type": "not_a_real_operation"}],
@@ -548,18 +522,18 @@ def test_suggest_evolution_preview_malformed_operations():
 # detect_contradictions
 # ---------------------------------------------------------------------------
 
-def test_detect_contradictions_no_session_no_conflicts():
+async def test_detect_contradictions_no_session_no_conflicts():
     from cks_mcp.tools.detect_contradictions import detect_contradictions
 
     runtime = _real_runtime()
-    result = detect_contradictions(runtime, {
+    result = await detect_contradictions(runtime, {
         "json_data": '{"objects":[{"identity":{"id":"obj-1","type":"Concept","name":"A"},"structure":{}}]}'
     })
     assert result["contradiction_count"] == 0
     assert result["contradictions"] == []
 
 
-def test_detect_contradictions_with_session_no_conflicts():
+async def test_detect_contradictions_with_session_no_conflicts():
     from cks import parse
 
     from cks_mcp.tools.detect_contradictions import detect_contradictions
@@ -568,13 +542,13 @@ def test_detect_contradictions_with_session_no_conflicts():
     structure = parse(
         '{"objects":[{"identity":{"id":"obj-1","type":"Concept","name":"A"},"structure":{}}]}'
     )
-    session = runtime.create_session(structure)
-    result = detect_contradictions(runtime, {"session_id": session.session_id})
+    session = await runtime.create_session(structure)
+    result = await detect_contradictions(runtime, {"session_id": session.session_id})
     assert result["contradiction_count"] == 0
     assert result["contradictions"] == []
 
 
-def test_detect_contradictions_mutual_exclusion():
+async def test_detect_contradictions_mutual_exclusion():
     from cks import parse
 
     from cks_mcp.tools.detect_contradictions import detect_contradictions
@@ -592,14 +566,14 @@ def test_detect_contradictions_mutual_exclusion():
         '"structure": {"participants": ["a", "b"], "relation_type": "contradicts"}}'
         ']}'
     )
-    session = runtime.create_session(structure)
-    result = detect_contradictions(runtime, {"session_id": session.session_id})
+    session = await runtime.create_session(structure)
+    result = await detect_contradictions(runtime, {"session_id": session.session_id})
     assert result["contradiction_count"] == 1
     assert len(result["contradictions"]) == 1
     assert result["contradictions"][0]["code"] == "CKS-EXT-MUTUAL-EXCLUSION"
 
 
-def test_detect_contradictions_functional_relation():
+async def test_detect_contradictions_functional_relation():
     from cks import parse
 
     from cks_mcp.tools.detect_contradictions import detect_contradictions
@@ -618,18 +592,18 @@ def test_detect_contradictions_functional_relation():
         '"structure": {"participants": ["earth", "mars"], "relation_type": "orbits"}}'
         ']}'
     )
-    session = runtime.create_session(structure)
-    result = detect_contradictions(runtime, {"session_id": session.session_id})
+    session = await runtime.create_session(structure)
+    result = await detect_contradictions(runtime, {"session_id": session.session_id})
     assert result["contradiction_count"] == 1
     assert len(result["contradictions"]) == 1
     assert result["contradictions"][0]["code"] == "CKS-EXT-FUNCTIONAL-RELATION"
 
 
-def test_detect_contradictions_missing_json_data():
+async def test_detect_contradictions_missing_json_data():
     from cks_mcp.tools.detect_contradictions import detect_contradictions
 
     runtime = _real_runtime()
-    result = detect_contradictions(runtime, {})
+    result = await detect_contradictions(runtime, {})
     assert "error" in result
     assert result["error"] == "missing_parameter"
 
@@ -638,7 +612,7 @@ def test_detect_contradictions_missing_json_data():
 # fork_sandbox
 # ---------------------------------------------------------------------------
 
-def test_fork_sandbox_no_operations():
+async def test_fork_sandbox_no_operations():
     from cks import parse
 
     from cks_mcp.tools.fork_sandbox import fork_sandbox
@@ -647,23 +621,21 @@ def test_fork_sandbox_no_operations():
     structure = parse(
         '{"objects":[{"identity":{"id":"obj-1","type":"Concept","name":"A"},"structure":{}}]}'
     )
-    parent = runtime.create_session(structure)
-    result = fork_sandbox(runtime, {
+    parent = await runtime.create_session(structure)
+    result = await fork_sandbox(runtime, {
         "session_id": parent.session_id,
         "hypothesis": "test sandbox"
     })
     assert "sandbox_session_id" in result
     assert result["parent_session_id"] == parent.session_id
     assert result["operations_applied"] == 0
-    # Diff from fork point should be empty
     assert result["diff_from_fork_point"]["summary"]["added_objects"] == 0
     assert result["diff_from_fork_point"]["summary"]["removed_objects"] == 0
-    # Parent session untouched
     assert parent.knowledge_structure is not None
     assert len(parent.knowledge_structure.objects) == 1
 
 
-def test_fork_sandbox_with_valid_operations():
+async def test_fork_sandbox_with_valid_operations():
     from cks import parse
 
     from cks_mcp.tools.fork_sandbox import fork_sandbox
@@ -672,8 +644,8 @@ def test_fork_sandbox_with_valid_operations():
     structure = parse(
         '{"objects":[{"identity":{"id":"obj-1","type":"Concept","name":"A"},"structure":{}}]}'
     )
-    parent = runtime.create_session(structure)
-    result = fork_sandbox(runtime, {
+    parent = await runtime.create_session(structure)
+    result = await fork_sandbox(runtime, {
         "session_id": parent.session_id,
         "hypothesis": "add object B",
         "operations": [
@@ -682,15 +654,13 @@ def test_fork_sandbox_with_valid_operations():
     })
     assert result["operations_applied"] == 1
     assert result["diff_from_fork_point"]["summary"]["added_objects"] == 1
-    # Parent still has only 1 object
     assert len(parent.knowledge_structure.objects) == 1
-    # Sandbox session can be retrieved and has 2 objects
     sandbox = runtime.get_session(result["sandbox_session_id"])
     assert sandbox is not None
     assert len(sandbox.knowledge_structure.objects) == 2
 
 
-def test_fork_sandbox_invalid_operations():
+async def test_fork_sandbox_invalid_operations():
     from cks import parse
 
     from cks_mcp.tools.fork_sandbox import fork_sandbox
@@ -699,26 +669,24 @@ def test_fork_sandbox_invalid_operations():
     structure = parse(
         '{"objects":[{"identity":{"id":"obj-1","type":"Concept","name":"A"},"structure":{}}]}'
     )
-    parent = runtime.create_session(structure)
-    result = fork_sandbox(runtime, {
+    parent = await runtime.create_session(structure)
+    result = await fork_sandbox(runtime, {
         "session_id": parent.session_id,
         "operations": [{"type": "add_object", "identity": {"id": "obj-1", "type": "Concept", "name": "duplicate"}}]
     })
     assert "error" in result
     assert result["error"] == "evolution_failed"
-    # Sandbox session should have been closed and removed
     sandbox_id = result.get("sandbox_session_id")
     if sandbox_id:
         assert runtime.get_session(sandbox_id) is None
-    # Parent unchanged
     assert len(parent.knowledge_structure.objects) == 1
 
 
-def test_fork_sandbox_missing_session_id():
+async def test_fork_sandbox_missing_session_id():
     from cks_mcp.tools.fork_sandbox import fork_sandbox
 
     runtime = _real_runtime()
-    result = fork_sandbox(runtime, {})
+    result = await fork_sandbox(runtime, {})
     assert result["error"] == "missing_parameter"
 
 
@@ -726,19 +694,19 @@ def test_fork_sandbox_missing_session_id():
 # ingest_document
 # ---------------------------------------------------------------------------
 
-def test_ingest_document_missing_url():
+async def test_ingest_document_missing_url():
     from cks_mcp.tools.ingest_document import ingest_document
     runtime = _real_runtime()
-    result = ingest_document(runtime, {})
+    result = await ingest_document(runtime, {})
     assert result["error"] == "missing_parameter"
 
-def test_ingest_document_unsafe_url():
+async def test_ingest_document_unsafe_url():
     from cks_mcp.tools.ingest_document import ingest_document
     runtime = _real_runtime()
-    result = ingest_document(runtime, {"url": "http://127.0.0.1/"})
+    result = await ingest_document(runtime, {"url": "http://127.0.0.1/"})
     assert result["error"] == "unsafe_url"
 
-def test_ingest_document_valid_url(monkeypatch):
+async def test_ingest_document_valid_url(monkeypatch):
     """Simulate a real HTTP response and check the output structure."""
     import socket
 
@@ -756,20 +724,17 @@ def test_ingest_document_valid_url(monkeypatch):
     def fake_get(url, timeout=10, allow_redirects=True):
         return FakeResponse()
 
-    # Mock DNS resolution to avoid real network calls
     def fake_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
         return [(2, 1, 6, '', ('93.184.216.34', 0))]
 
     monkeypatch.setattr(req, "get", fake_get)
     monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
 
-    result = ingest_document(runtime, {"url": "https://example.com/"})
+    result = await ingest_document(runtime, {"url": "https://example.com/"})
     assert "knowledge_structure" in result
     assert result["title"] == "Test Title"
     keywords = result["keywords"]
     assert len(keywords) > 0
     assert "canonical" in keywords
-    # Each keyword generates one relation
     assert result["relation_count"] == len(keywords)
-    # structure.objects includes both plain objects and relations
-    assert result["object_count"] == 1 + len(keywords) * 2  # doc + keywords + relations
+    assert result["object_count"] == 1 + len(keywords) * 2

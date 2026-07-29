@@ -27,7 +27,7 @@ _CONTRADICTION_IDENTITIES = {
 }
 
 
-def detect_contradictions(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def detect_contradictions(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Detect contradictions in either:
     - the current state of an existing session (if session_id is provided), or
@@ -66,7 +66,7 @@ def detect_contradictions(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
     )
     # record_metrics=False: this is a read-only inspection, same as
     # query_subgraph/explain_knowledge.
-    result = runtime.executor.execute(op, session, record_metrics=False)
+    result = await runtime.executor.execute(op, session, record_metrics=False)
 
     contradictions = [
         _serialize_diagnostic(d)

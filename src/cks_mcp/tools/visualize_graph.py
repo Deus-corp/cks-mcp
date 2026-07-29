@@ -16,7 +16,7 @@ from cks_mcp.errors import missing_parameter, session_not_found
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 
 
-def visualize_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def visualize_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """Export a session's Knowledge Structure or a subgraph as Mermaid."""
     session_id = arguments.get("session_id")
     if not session_id:
@@ -44,7 +44,7 @@ def visualize_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         ]
         depth = 0
 
-    subgraph_result = query_subgraph_tool(
+    subgraph_result = await query_subgraph_tool(
         runtime,
         {
             "session_id": session_id,

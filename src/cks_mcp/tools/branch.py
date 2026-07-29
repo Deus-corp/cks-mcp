@@ -9,7 +9,7 @@ from cks_runtime.runtime import Runtime
 from cks_mcp.errors import missing_parameter, session_not_found
 
 
-def create_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def create_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Fork a new session from an existing one, optionally from a specific historical version.
     """
@@ -23,7 +23,7 @@ def create_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
 
     version_id = arguments.get("version_id")
     try:
-        branch = runtime.create_branch(parent, version_id=version_id)
+        branch = await runtime.create_branch(parent, version_id=version_id)
     except ValueError as exc:
         return {"error": "branch_failed", "message": str(exc)}
 
@@ -35,7 +35,7 @@ def create_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
     }
 
 
-def close_session(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def close_session(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """Close a session, releasing it from the runtime."""
     session_id = arguments.get("session_id")
     if not session_id:
@@ -45,5 +45,5 @@ def close_session(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
     if not session:
         return session_not_found(session_id)
 
-    runtime.close_session(session_id)
+    await runtime.close_session(session_id)
     return {"session_id": session_id, "closed": True}

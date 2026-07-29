@@ -7,7 +7,7 @@ from cks_runtime.runtime import Runtime
 from cks_mcp.errors import invalid_json_error
 
 
-def explain_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def explain_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Explain either:
     - the current state of an existing session (if session_id is provided), or
@@ -25,7 +25,7 @@ def explain_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, 
         # ExecutionPipeline.commit), so route through the non-committing
         # executor instead -- the same mechanism merge_branch already uses
         # for its conflict-detection dry-run.
-        result = runtime.executor.execute(
+        result = await runtime.executor.execute(
             ExplainOperation(
                 "explain", knowledge_structure=session.knowledge_structure
             ),
@@ -41,9 +41,9 @@ def explain_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, 
     except cks.SerializationError as exc:
         return invalid_json_error(str(exc))
 
-    session = runtime.create_session(structure)
+    session = await runtime.create_session(structure)
     tx = runtime.begin_transaction(session)
     tx.add_operation(ExplainOperation("explain", knowledge_structure=structure))
-    runtime.commit_transaction(tx)
+    await runtime.commit_transaction(tx)
     result = tx.results[0] if tx.results else None
     return result.payload if result else {}

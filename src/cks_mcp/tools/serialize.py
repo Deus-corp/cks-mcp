@@ -7,7 +7,7 @@ from cks_runtime.runtime import Runtime
 from cks_mcp.errors import invalid_json_error
 
 
-def serialize_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> Any:
+async def serialize_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> Any:
     """
     Serialize either:
     - the current state of an existing session (if session_id is provided), or
@@ -37,9 +37,9 @@ def serialize_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> Any:
     except cks.SerializationError as exc:
         return invalid_json_error(str(exc))
 
-    session = runtime.create_session(structure)
+    session = await runtime.create_session(structure)
     tx = runtime.begin_transaction(session)
     tx.add_operation(SerializeOperation("serialize", knowledge_structure=structure))
-    runtime.commit_transaction(tx)
+    await runtime.commit_transaction(tx)
     result = tx.results[0] if tx.results else None
     return result.payload if result else ""

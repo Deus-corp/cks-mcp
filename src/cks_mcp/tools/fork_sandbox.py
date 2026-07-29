@@ -18,7 +18,7 @@ from cks_mcp.errors import missing_parameter, session_not_found
 from cks_mcp.tools.compare import _build_summary, _serialize_operators
 
 
-def fork_sandbox(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def fork_sandbox(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     parent_session_id = arguments.get("session_id")
     if not parent_session_id:
         return missing_parameter("session_id")
@@ -29,7 +29,7 @@ def fork_sandbox(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
 
     version_id = arguments.get("version_id")
     try:
-        branch = runtime.create_branch(parent, version_id=version_id)
+        branch = await runtime.create_branch(parent, version_id=version_id)
     except ValueError as exc:
         return {"error": "branch_failed", "message": str(exc)}
 
@@ -42,7 +42,7 @@ def fork_sandbox(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
         try:
             operations = parse_operations(raw_operations)
         except ValueError as exc:
-            runtime.close_session(branch.session_id)
+            await runtime.close_session(branch.session_id)
             return {
                 "error": "invalid_operations",
                 "message": f"Could not parse 'operations': {exc}",
@@ -51,9 +51,9 @@ def fork_sandbox(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
         op = EvolveOperation(
             "evolve", knowledge_structure=fork_structure, evolution=operations
         )
-        result = runtime.executor.execute(op, branch, record_metrics=False)
+        result = await runtime.executor.execute(op, branch, record_metrics=False)
         if result.status.value == "failed":
-            runtime.close_session(branch.session_id)
+            await runtime.close_session(branch.session_id)
             return {
                 "error": "evolution_failed",
                 "message": f"Hypothesis could not be applied: {result.error}",
@@ -63,7 +63,7 @@ def fork_sandbox(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
         diags = provenance.verify_structure_provenance(prospective_structure)
         blocking = [d for d in diags if d["severity"] == "error"]
         if blocking:
-            runtime.close_session(branch.session_id)
+            await runtime.close_session(branch.session_id)
             return {
                 "error": "validation_failed",
                 "message": (
@@ -75,7 +75,7 @@ def fork_sandbox(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
 
         validation = cks.validate(prospective_structure)
         if not validation.is_valid:
-            runtime.close_session(branch.session_id)
+            await runtime.close_session(branch.session_id)
             return {
                 "error": "validation_failed",
                 "message": "Applying this hypothesis would produce an invalid structure.",
@@ -92,7 +92,7 @@ def fork_sandbox(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
 
         tx = runtime.begin_transaction(branch)
         tx.add_operation(op)
-        runtime.commit_transaction(tx)
+        await runtime.commit_transaction(tx)
         operations_applied = len(operations)
 
     diff_ops = runtime.core_bridge.diff(

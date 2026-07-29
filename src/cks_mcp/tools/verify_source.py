@@ -11,6 +11,7 @@ unlike connection-pool mutation.
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import socket
 import threading
@@ -210,12 +211,18 @@ def _safe_head_status(url: str) -> int | None:
     return None
 
 
-def verify_source(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def verify_source(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     url = arguments["url"]
     subject_id = arguments["subject_id"]
 
+    # _resolve_and_validate_host does a blocking DNS lookup and
+    # _safe_head_status a blocking HTTP request (with redirects/
+    # retries, up to a few seconds) -- both are dispatched to a worker
+    # thread via asyncio.to_thread so a slow/unresponsive remote host
+    # can't stall the event loop (and, with it, the background outbox
+    # worker task).
     try:
-        _resolve_and_validate_host(url)
+        await asyncio.to_thread(_resolve_and_validate_host, url)
     except UnsafeURLError as exc:
         return {
             "error": "unsafe_url",
@@ -225,7 +232,7 @@ def verify_source(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
         }
 
     try:
-        status = _safe_head_status(url)
+        status = await asyncio.to_thread(_safe_head_status, url)
     except UnsafeURLError as exc:
         return {
             "error": "unsafe_url",

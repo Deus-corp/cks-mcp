@@ -3,11 +3,12 @@ CKS MCP Server – Model Context Protocol over stdio.
 
 A lightweight MCP server that exposes canonical CKS operations
 (validate, serialize, explain, evolve, verify_source) to LLMs
-via the Model Context Protocol.
+via the Model Context Protocol. Now fully async.
 """
 
 from __future__ import annotations
 
+import asyncio
 import importlib.metadata
 import json
 import os
@@ -35,21 +36,19 @@ def _server_version() -> str:
     try:
         return importlib.metadata.version("cks-mcp")
     except importlib.metadata.PackageNotFoundError:
-        return "1.13.2"  # dev fallback
+        return "1.14.0"  # dev fallback для грядущего релиза
 
-SERVER_VERSION = _server_version()
 SERVER_NAME = "cks-mcp"
-PROTOCOL_VERSION = "2025-11-25"  # latest stable MCP protocol version
+SERVER_VERSION = _server_version()
+PROTOCOL_VERSION = "2025-11-25"
 
 # ---------------------------------------------------------------------------
-# Request handler
+# Request handler (синхронный — только формирует ответ, не делает I/O)
 # ---------------------------------------------------------------------------
-
 
 def _make_response(
     request_id: Any, result: Any = None, error: dict | None = None
 ) -> dict[str, Any]:
-    """Wrap result/error into a JSON-RPC 2.0 response."""
     resp: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id}
     if result is not None:
         resp["result"] = result
@@ -58,7 +57,7 @@ def _make_response(
     return resp
 
 
-def handle_request(
+async def handle_request(
     runtime: Runtime,
     request: dict[str, Any],
 ) -> dict[str, Any]:
@@ -121,7 +120,7 @@ def handle_request(
 
         handler = tool["handler"]
         try:
-            result = handler(runtime, arguments)
+            result = await handler(runtime, arguments)
             return _make_response(
                 req_id,
                 {
@@ -235,50 +234,52 @@ def handle_request(
     )
 
 
-def main() -> None:
-    """Entry point for the MCP server."""
-    # Determine a writable location for the SQLite database
+async def main() -> None:
+    """Entry point for the MCP server. Async."""
     db_dir = str(data_dir())
     db_path = os.path.join(db_dir, "cks_mcp.db")
     storage = None
     use_persistent = True
 
-    # Try to create the default data directory and check writability
     try:
         os.makedirs(db_dir, exist_ok=True)
-        # Test write access
         test_file = os.path.join(db_dir, ".write_test")
-        with open(test_file, "w") as f:
-            f.write("test")
+        def _write_test():
+            with open(test_file, "w") as f:
+                f.write("test")
+        await asyncio.to_thread(_write_test)
         os.remove(test_file)
-    except (OSError, PermissionError) as e:
-        # Default directory not writable – fall back to system temp
+    except (OSError, PermissionError):
         use_persistent = False
         try:
             db_path = os.path.join(tempfile.gettempdir(), "cks_mcp.db")
-            # Temp directory should be writable, but double-check
-            with open(db_path, "a"):
-                pass
+            def _touch():
+                with open(db_path, "a"):
+                    pass
+            await asyncio.to_thread(_touch)
             use_persistent = True
-        except Exception as e2:
-            # Even temp directory failed; use in-memory storage
+        except Exception:
             storage = InMemoryStorage()
             print(
-                f"[CKS-MCP] WARNING: Could not open writable database file: {e} / {e2}. "
-                "Using in-memory storage.",
+                "[CKS-MCP] WARNING: No writable database file. Using in-memory storage.",
                 file=sys.stderr,
             )
-    # Load environment from ~/.cks-mcp/.env if it exists
+
+    # Загружаем переменные окружения из ~/.cks-mcp/.env
     env_file = data_dir() / ".env"
     if env_file.exists():
-        with open(env_file) as f:
-            for line in f:
+        def _read_env():
+            return env_file.read_text()
+        content = await asyncio.to_thread(_read_env)
+        lines = content.splitlines()
+        for line in lines:
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
                     key, _, value = line.partition("=")
                     os.environ.setdefault(key.strip(), value.strip())
 
-    # Initialize embedding client (fallback to None if unavailable)
+    # Инициализируем embedding-клиент
+    embedding_client = None
     try:
         embedding_client = HuggingFaceEmbeddingClient()
     except Exception as exc:
@@ -287,12 +288,12 @@ def main() -> None:
             f"semantic search will not work. Cause: {exc}",
             file=sys.stderr,
         )
-        embedding_client = None
 
+    # Создаём Runtime (асинхронно, с восстановлением сессий и запуском outbox-worker)
     if storage is None and use_persistent:
         try:
             config = RuntimeConfig(storage_path=db_path)
-            runtime = Runtime(
+            runtime = await Runtime.create(
                 core=CksCoreAdapter(), config=config, embedding_client=embedding_client
             )
         except Exception as e:
@@ -302,30 +303,35 @@ def main() -> None:
                 file=sys.stderr,
             )
             storage = InMemoryStorage()
-            runtime = Runtime(
+            runtime = await Runtime.create(
                 core=CksCoreAdapter(),
                 storage=storage,
                 embedding_client=embedding_client,
             )
     elif storage is not None:
-        runtime = Runtime(
+        runtime = await Runtime.create(
             core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client
         )
     else:
-        # use_persistent is False but storage is still None (shouldn't happen)
         storage = InMemoryStorage()
-        runtime = Runtime(
+        runtime = await Runtime.create(
             core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client
         )
 
     setup_event_subscriptions(runtime)
 
-    while True:
-        line = sys.stdin.readline()
-        if not line:
-            return  # EOF
+    # Неблокирующее чтение stdin через asyncio
+    loop = asyncio.get_event_loop()
+    reader = asyncio.StreamReader()
+    protocol = asyncio.StreamReaderProtocol(reader)
+    await loop.connect_read_pipe(lambda: protocol, sys.stdin)
 
-        line_stripped = line.strip()
+    while True:
+        line = await reader.readline()
+        if not line:
+            break  # EOF
+
+        line_stripped = line.decode().strip()
         if line_stripped.lower().startswith("content-length:"):
             try:
                 content_length = int(line_stripped.split(":")[1].strip())
@@ -340,16 +346,20 @@ def main() -> None:
                 sys.stdout.write(error_response + "\n")
                 sys.stdout.flush()
                 continue
-            sys.stdin.readline()
-            body = sys.stdin.read(content_length)
+            # Читаем пустую строку-разделитель
+            await reader.readline()
+            # Читаем тело запроса
+            body = await reader.readexactly(content_length)
             if not body:
-                return
-            process_request(runtime, body, use_content_length=True)
+                break
+            await process_request(runtime, body.decode(), use_content_length=True)
         elif line_stripped:
-            process_request(runtime, line_stripped, use_content_length=False)
+            await process_request(runtime, line_stripped, use_content_length=False)
+
+    await runtime.aclose()
 
 
-def process_request(runtime: Runtime, body: str, *, use_content_length: bool) -> None:
+async def process_request(runtime: Runtime, body: str, *, use_content_length: bool) -> None:
     """Process a single JSON-RPC request body and write the response."""
     try:
         raw = json.loads(body)
@@ -373,13 +383,13 @@ def process_request(runtime: Runtime, body: str, *, use_content_length: bool) ->
     if isinstance(raw, list):
         responses = []
         for req in raw:
-            resp = handle_request(runtime, req)
+            resp = await handle_request(runtime, req)
             if resp:
                 responses.append(resp)
         if responses:
             _send_response(responses, use_content_length=use_content_length)
     else:
-        resp = handle_request(runtime, raw)
+        resp = await handle_request(runtime, raw)
         if resp:
             _send_response(resp, use_content_length=use_content_length)
 
@@ -397,4 +407,4 @@ def _send_response(
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -10,7 +10,7 @@ from cks_mcp import provenance
 from cks_mcp.errors import invalid_json_error
 
 
-def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     session_id = arguments.get("session_id")
     session_existed = bool(session_id)
     if session_id:
@@ -49,7 +49,7 @@ def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, A
     # commit_transaction. Without record_metrics=False here, every
     # successful evolve_knowledge call would be counted twice.
     op = EvolveOperation("evolve", knowledge_structure=structure, evolution=operations)
-    result = runtime.executor.execute(op, session, record_metrics=False)
+    result = await runtime.executor.execute(op, session, record_metrics=False)
     if result.status.value == "failed":
         return {"error": f"Evolution failed: {result.error}"}
     prospective_structure = result.payload
@@ -94,11 +94,11 @@ def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, A
         }
 
     if not session_existed:
-        session = runtime.create_session(structure)
+        session = await runtime.create_session(structure)
 
     tx = runtime.begin_transaction(session)
     tx.add_operation(op)
-    version = runtime.commit_transaction(tx)
+    version = await runtime.commit_transaction(tx)
 
     # Detect cascade-deleted relations caused by RemoveObject operations
     cascade_removed: list[str] = []

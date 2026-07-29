@@ -1,15 +1,17 @@
 import cks
+import pytest
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
-runtime = Runtime(core=CksCoreAdapter())
+pytestmark = pytest.mark.asyncio
 
-# Создаём корректную Knowledge Structure
-structure = cks.parse('{"objects": [{"identity": {"id": "obj-1", "type": "Definition", "name": "Test"}, "structure": {}}]}')
-session = runtime.create_session(structure)
-tx = runtime.begin_transaction(session)
-print("Transactions before commit:", len(runtime.transactions.list_transactions()))
-runtime.commit_transaction(tx)
-print("Transactions after commit:", len(runtime.transactions.list_transactions()))
-assert len(runtime.transactions.list_transactions()) == 0, "Transaction should be removed after commit!"
-print("OK: completed transaction removed from registry")
+
+async def test_transaction_cleanup():
+    runtime = Runtime(core=CksCoreAdapter())
+    structure = cks.parse('{"objects": [{"identity": {"id": "obj-1", "type": "Definition", "name": "Test"}, "structure": {}}]}')
+    session = await runtime.create_session(structure)
+    tx = runtime.begin_transaction(session)
+    assert len(runtime.transactions.list_transactions()) == 1
+    await runtime.commit_transaction(tx)
+    assert len(runtime.transactions.list_transactions()) == 0
+    await runtime.aclose()

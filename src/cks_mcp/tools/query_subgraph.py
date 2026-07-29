@@ -15,7 +15,7 @@ from cks_runtime.runtime import Runtime
 from cks_mcp.errors import missing_parameter, session_not_found
 
 
-def query_subgraph_tool(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def query_subgraph_tool(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """MCP tool handler for query_subgraph."""
     session_id = arguments.get("session_id")
     if not session_id:
@@ -53,7 +53,7 @@ def query_subgraph_tool(runtime: Runtime, arguments: dict[str, Any]) -> dict[str
         compact_mode=compact_mode,
     )
 
-    result = runtime.executor.execute(op, session)
+    result = await runtime.executor.execute(op, session)
 
     if result.status.value == "failed":
         return {"error": f"query_subgraph failed: {result.error}"}

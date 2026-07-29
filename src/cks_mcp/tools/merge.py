@@ -46,7 +46,7 @@ def _parse_resolutions(resolutions: dict[str, Any] | None) -> dict[str, Any] | N
     return parsed
 
 
-def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def merge_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Perform a three-way merge.
 
@@ -147,7 +147,7 @@ def _conflict_payload(
     return payload
 
 
-def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Session-aware three-way merge: merge a branch session's changes
     into a target session.
@@ -211,7 +211,7 @@ def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     # target session's committed state. See MergeOperation's docstring
     # in cks_runtime for why going straight through commit_transaction
     # would lose the structured conflict list.
-    probe = runtime.executor.execute(_operation(), target)
+    probe = await runtime.executor.execute(_operation(), target)
 
     if probe.status == OperationStatus.FAILED:
         if isinstance(probe.error, RuntimeMergeConflictError):
@@ -237,7 +237,7 @@ def merge_branch(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     try:
         tx = runtime.begin_transaction(target)
         tx.add_operation(_operation())
-        version = runtime.commit_transaction(tx)
+        version = await runtime.commit_transaction(tx)
     except Exception as e:
         return {"error": f"merge_branch failed: {e!s}"}
 

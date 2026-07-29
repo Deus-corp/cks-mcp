@@ -7,6 +7,7 @@ Uses the same SSRF/DNS-rebinding protection as verify_source.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections import Counter
@@ -82,7 +83,7 @@ def _extract_keywords(text: str, max_keywords: int = _MAX_KEYWORDS) -> list[str]
 # Main tool
 # ---------------------------------------------------------------------------
 
-def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Fetch a URL, extract entities (title, description, keywords, links) and
     return a Knowledge Structure representing the document.
@@ -93,7 +94,7 @@ def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
 
     # ---- SSRF protection ---------------------------------------------------
     try:
-        _resolve_and_validate_host(url)
+        await asyncio.to_thread(_resolve_and_validate_host, url)
     except UnsafeURLError as exc:
         return {
             "error": "unsafe_url",
@@ -101,11 +102,16 @@ def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
         }
 
     # ---- Fetch the page ----------------------------------------------------
-    try:
+    # A blocking network call (DNS + HTTP GET, up to a 10s timeout),
+    # dispatched to a worker thread so it can't stall the event loop.
+    def _fetch() -> str:
         import requests
         resp = requests.get(url, timeout=10, allow_redirects=True)
         resp.raise_for_status()
-        html = resp.text
+        return resp.text
+
+    try:
+        html = await asyncio.to_thread(_fetch)
     except Exception as exc:
         return internal_error(f"Failed to fetch URL: {exc}")
 

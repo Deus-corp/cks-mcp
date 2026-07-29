@@ -21,11 +21,14 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp import provenance
 from cks_mcp.tools.validate import validate_knowledge
+
+pytestmark = pytest.mark.asyncio
 
 
 def make_runtime() -> Runtime:
@@ -65,7 +68,7 @@ def _structure_with_record(signature: str | None) -> str:
     })
 
 
-def test_forged_verification_record_is_not_committed():
+async def test_forged_verification_record_is_not_committed():
     """
     Note: an earlier version of this fix (1.3.3) still called
     create_session() before the provenance check, reasoning that
@@ -81,7 +84,7 @@ def test_forged_verification_record_is_not_committed():
     retrievable for content that gets rejected.
     """
     runtime = make_runtime()
-    result = validate_knowledge(runtime, {"json_data": _structure_with_record("totally-fake-signature")})
+    result = await validate_knowledge(runtime, {"json_data": _structure_with_record("totally-fake-signature")})
 
     assert result["valid"] is False
     assert "version_id" not in result
@@ -121,7 +124,7 @@ def _structure_with_record_and_relation_type(signature: str | None, relation_ide
     })
 
 
-def test_forged_verification_record_is_not_committed_regardless_of_relation_identity_type():
+async def test_forged_verification_record_is_not_committed_regardless_of_relation_identity_type():
     """
     Regression test for a critical provenance bypass: relation
     detection in verify_structure_provenance used to key off the
@@ -136,7 +139,7 @@ def test_forged_verification_record_is_not_committed_regardless_of_relation_iden
     that calls verify() -- letting it commit as a real, valid version.
     """
     runtime = make_runtime()
-    result = validate_knowledge(runtime, {
+    result = await validate_knowledge(runtime, {
         "json_data": _structure_with_record_and_relation_type("totally-fake-signature", "VerifiedByLink")
     })
 
@@ -147,7 +150,7 @@ def test_forged_verification_record_is_not_committed_regardless_of_relation_iden
     assert runtime.sessions.list_sessions() == ()
 
 
-def test_genuinely_signed_record_is_recognized_regardless_of_relation_identity_type():
+async def test_genuinely_signed_record_is_recognized_regardless_of_relation_identity_type():
     """The fix must not overcorrect into rejecting everything whose
     linking relation isn't labeled "Relation" -- a genuinely signed
     record must still validate and commit no matter what identity.type
@@ -155,7 +158,7 @@ def test_genuinely_signed_record_is_recognized_regardless_of_relation_identity_t
     runtime = make_runtime()
     signature = provenance.sign("vr-1", "claim-1", "2026-01-01T00:00:00Z", "automated_http_check", 200)
 
-    result = validate_knowledge(runtime, {
+    result = await validate_knowledge(runtime, {
         "json_data": _structure_with_record_and_relation_type(signature, "VerifiedByLink")
     })
 
@@ -164,9 +167,9 @@ def test_genuinely_signed_record_is_recognized_regardless_of_relation_identity_t
     assert "version_id" in result
 
 
-def test_missing_signature_is_not_committed():
+async def test_missing_signature_is_not_committed():
     runtime = make_runtime()
-    result = validate_knowledge(runtime, {"json_data": _structure_with_record(None)})
+    result = await validate_knowledge(runtime, {"json_data": _structure_with_record(None)})
 
     assert result["valid"] is False
     assert "version_id" not in result
@@ -174,11 +177,11 @@ def test_missing_signature_is_not_committed():
     assert runtime.sessions.list_sessions() == ()
 
 
-def test_genuinely_signed_verification_record_is_committed():
+async def test_genuinely_signed_verification_record_is_committed():
     runtime = make_runtime()
     signature = provenance.sign("vr-1", "claim-1", "2026-01-01T00:00:00Z", "automated_http_check", 200)
 
-    result = validate_knowledge(runtime, {"json_data": _structure_with_record(signature)})
+    result = await validate_knowledge(runtime, {"json_data": _structure_with_record(signature)})
 
     assert result["valid"] is True
     assert "version_id" in result
@@ -188,24 +191,24 @@ def test_genuinely_signed_verification_record_is_committed():
     assert session.version_count == 1
 
 
-def test_revalidating_an_existing_session_does_not_commit_on_forged_record():
+async def test_revalidating_an_existing_session_does_not_commit_on_forged_record():
     """Same gate applies on the session_id path, not just fresh
     json_data -- re-validating a session that already carries a
     forged record must not add a new committed version either."""
     runtime = make_runtime()
     import cks
     structure = cks.parse(_structure_with_record("totally-fake-signature"))
-    session = runtime.create_session(structure)
+    session = await runtime.create_session(structure)
     assert session.version_count == 0
 
-    result = validate_knowledge(runtime, {"session_id": session.session_id})
+    result = await validate_knowledge(runtime, {"session_id": session.session_id})
 
     assert result["valid"] is False
     assert "version_id" not in result
     assert session.version_count == 0
 
 
-def test_evolve_does_not_block_on_unlinked_warning_only():
+async def test_evolve_does_not_block_on_unlinked_warning_only():
     """
     A genuinely-signed VerificationRecord with no verified_by relation
     yet (e.g. added in one evolve_knowledge call, to be linked in a
@@ -218,10 +221,9 @@ def test_evolve_does_not_block_on_unlinked_warning_only():
     missing provenance signature" message.
     """
     from cks_mcp.tools.evolve import evolve_knowledge
-    from cks_mcp.tools.validate import validate_knowledge
 
     runtime = make_runtime()
-    base = validate_knowledge(runtime, {
+    base = await validate_knowledge(runtime, {
         "json_data": json.dumps({
             "objects": [{"identity": {"id": "claim-1", "type": "Definition", "name": "Claim"}, "structure": {}}],
         })
@@ -230,7 +232,7 @@ def test_evolve_does_not_block_on_unlinked_warning_only():
     session_id = base["session_id"]
 
     signature = provenance.sign("vr-1", "claim-1", "2026-01-01T00:00:00Z", "automated_http_check", 200)
-    result = evolve_knowledge(runtime, {
+    result = await evolve_knowledge(runtime, {
         "session_id": session_id,
         "operations": [{
             "type": "add_object",
@@ -248,7 +250,7 @@ def test_evolve_does_not_block_on_unlinked_warning_only():
     assert "version_id" in result
 
 
-def test_structure_without_any_verification_record_is_unaffected():
+async def test_structure_without_any_verification_record_is_unaffected():
     """No VerificationRecord at all -> provenance check is trivially
     satisfied and behavior is exactly as before this fix."""
     runtime = make_runtime()
@@ -258,7 +260,7 @@ def test_structure_without_any_verification_record_is_unaffected():
         ]
     })
 
-    result = validate_knowledge(runtime, {"json_data": json_data})
+    result = await validate_knowledge(runtime, {"json_data": json_data})
 
     assert result["valid"] is True
     assert "version_id" in result

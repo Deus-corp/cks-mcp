@@ -14,7 +14,7 @@ from cks_runtime.runtime import Runtime
 from cks_mcp.errors import missing_parameter, session_not_found
 
 
-def _preview_operations(
+async def _preview_operations(
     runtime: Runtime, session: Any, session_id: str, operations_data: list[dict[str, Any]]
 ) -> dict[str, Any]:
     """Dry-run ``operations_data`` against ``session`` without committing.
@@ -39,7 +39,7 @@ def _preview_operations(
 
     structure = session.knowledge_structure
     op = EvolveOperation("evolve", knowledge_structure=structure, evolution=operations)
-    result = runtime.executor.execute(op, session, record_metrics=False)
+    result = await runtime.executor.execute(op, session, record_metrics=False)
     if result.status.value == "failed":
         return {
             "session_id": session_id,
@@ -75,7 +75,7 @@ def _preview_operations(
     return response
 
 
-def suggest_evolution(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def suggest_evolution(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Given a session and a description of what to change, suggest a list of
     evolution operations that the caller can review and then pass to
@@ -102,7 +102,7 @@ def suggest_evolution(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, 
 
     operations_data = arguments.get("operations")
     if operations_data:
-        return _preview_operations(runtime, session, session_id, operations_data)
+        return await _preview_operations(runtime, session, session_id, operations_data)
 
     # No candidate operations yet — this tool does NOT generate operations
     # itself, it provides a template and guidance for the LLM to generate

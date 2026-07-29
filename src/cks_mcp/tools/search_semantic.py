@@ -5,6 +5,7 @@ Uses vector embeddings stored by cks-runtime's OutboxEmbeddingWorker
 to find relevant object IDs, then expands them with query_subgraph.
 """
 
+import asyncio
 from typing import Any
 
 from cks_runtime.runtime import Runtime
@@ -13,7 +14,7 @@ from cks_mcp.errors import empty_query, missing_parameter, session_not_found
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 
 
-def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     session_id = arguments.get("session_id")
     if not session_id:
         return missing_parameter("session_id")
@@ -30,20 +31,11 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
     depth = int(arguments.get("depth", 1))
     min_score = float(arguments.get("min_score", 0.0))
 
-    # Try to use vector search if storage supports it
     seed_ids = arguments.get("seed_ids")
-    # Populated only when seed_ids come from vector search below --
-    # caller-supplied seed_ids have no similarity score to report.
     scores: dict[str, float] | None = None
-    # Set only if vector search itself raised, so a real failure can
-    # be told apart from a genuine no-match.
     search_error: str | None = None
     if not seed_ids and hasattr(runtime.storage, "search_embeddings"):
         try:
-            # Must be the exact same client instance used to index
-            # objects (Runtime.embedding_client), or the query vector
-            # lives in a different embedding space than what's stored
-            # and every similarity score is meaningless.
             embedding_client = runtime.embedding_client
             if embedding_client is None:
                 raise RuntimeError(
@@ -51,10 +43,13 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
                     "is configured. Set the HF_TOKEN environment variable to enable "
                     "HuggingFace embeddings."
                 )
-            query_embedding = embedding_client.embed_batch(
-                [query], normalize=True
+            # embed_batch – синхронный, выполняем в отдельном потоке
+            query_embedding = (
+                await asyncio.to_thread(
+                    embedding_client.embed_batch, [query], normalize=True
+                )
             )[0]
-            results = runtime.storage.search_embeddings(
+            results = await runtime.storage.search_embeddings(
                 query_embedding,
                 session_id,
                 top_k=top_k * 2,
@@ -62,8 +57,6 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
             scores_by_id = {oid: sim for oid, sim in results}
             seed_ids = [oid for oid, _ in results]
             if seed_ids:
-                # Filter to those actually in the current structure
-                # and exclude relation objects
                 seed_ids = [
                     sid
                     for sid in seed_ids
@@ -71,7 +64,6 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
                     and getattr(obj.identity, "type", "") != "Relation"
                 ][:top_k]
                 scores = {sid: scores_by_id[sid] for sid in seed_ids}
-                # Filter by minimum relevance score
                 if min_score > 0.0:
                     seed_ids = [
                         sid for sid in seed_ids if scores.get(sid, 0.0) >= min_score
@@ -94,14 +86,13 @@ def search_semantic(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, An
             "message": message,
         }
 
-    # Use query_subgraph to expand around the seeds
     subgraph_args = {
         "session_id": session_id,
         "seed_ids": seed_ids,
         "depth": depth,
         "max_objects": top_k + 5,
     }
-    result = query_subgraph_tool(runtime, subgraph_args)
+    result = await query_subgraph_tool(runtime, subgraph_args)
     if "error" in result:
         return result
 

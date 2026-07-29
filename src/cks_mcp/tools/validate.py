@@ -33,9 +33,8 @@ EXTENSION_ALIASES: dict[str, str] = {
 # appear in a structure -- unlike EmbeddingProjection (harmless if
 # unrecognized), an unchecked VerificationRecord looks exactly like a
 # checked one to anyone reading the result. Both its shape (enforced
-# here) and its provenance signature (_check_verification_record_provenance,
-# already called unconditionally below) must not depend on the caller
-# remembering to opt in.
+# here) and its provenance signature (called unconditionally below)
+# must not depend on the caller remembering to opt in.
 _ALWAYS_ENFORCED_EXTENSIONS: frozenset[str] = frozenset({"verification_record"})
 
 _OPTIONAL_BY_IDENTITY = {c.identity: c for c in OPTIONAL_CONSTRAINTS_BY_NAME.values()}
@@ -61,7 +60,7 @@ def _has_type(structure: Any, object_type: str) -> bool:
     return any(obj.identity.type == object_type for obj in structure.objects)
 
 
-def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+async def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Validate either:
     - the current state of an existing session (if session_id is provided), or
@@ -135,11 +134,11 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
 
     if provenance_ok:
         if not session_existed:
-            session = runtime.create_session(structure)
+            session = await runtime.create_session(structure)
         tx = runtime.begin_transaction(session)
         tx.add_operation(op)
         try:
-            version = runtime.commit_transaction(tx)
+            version = await runtime.commit_transaction(tx)
             core_diagnostics = [_serialize_diagnostic(d) for d in session.diagnostics]
             version_id = version.version_id
         except RuntimeError as exc:
@@ -166,7 +165,7 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
             version_id = None
             # Rollback the failed transaction
             try:
-                runtime.rollback_transaction(tx)
+                await runtime.rollback_transaction(tx)
             except Exception as exc:
                 import logging
                 logging.getLogger(__name__).warning(
@@ -180,7 +179,7 @@ def validate_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
         # is only ever populated by the commit pipeline (see
         # ExecutionPipeline._handle_result), so diagnostics come from
         # the ExecutionResult directly here instead.
-        result = runtime.executor.execute(op, session)
+        result = await runtime.executor.execute(op, session)
         core_diagnostics = [
             _serialize_diagnostic(d) for d in (result.diagnostics or [])
         ]

@@ -3,6 +3,22 @@
 
 ---
 
+## [1.14.0] - 2026-07-29
+
+### Added
+- **Full async migration:** all tool handlers, `server.py` main loop, and `observability` now use `async`/`await`. The server leverages `asyncio` for non-blocking stdin reading and graceful shutdown.
+- `Runtime` is now constructed via `await Runtime.create(...)`, enabling session restoration from persistent storage at startup.
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.22.1` (async runtime, Postgres backend, `search_embeddings` fix).
+- `verify_source` and `ingest_document` HTTP calls are offloaded to threads via `asyncio.to_thread`.
+
+### Upgrade Notes
+- MCP clients (Claude Desktop) do not need any changes — the JSON-RPC protocol remains identical.
+- Custom test suites calling tool handlers directly must `await` them and use `pytest-asyncio`.
+
+---
+
 ## [1.13.2] - 2026-07-29
 
 ### Changed
