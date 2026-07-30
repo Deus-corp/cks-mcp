@@ -17,8 +17,6 @@ async def serialize_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> An
     session_id = arguments.get("session_id")
     if session_id:
         session = runtime.get_session(session_id)
-        if not session:
-            return {"error": f"Session '{session_id}' not found."}
 
         try:
             return {

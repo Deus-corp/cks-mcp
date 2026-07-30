@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from cks_mcp.middleware import (
     catch_unhandled_errors,
+    require_fields,
     require_open_session,
     require_session,
     with_middleware,
@@ -44,12 +45,15 @@ from cks_mcp.tools.visualize_graph import visualize_graph
 # Middleware stack builders
 # ---------------------------------------------------------------------------
 
-def _wrap(name: str):
-    """Telemetry + unhandled-error catch; no session validation."""
-    return with_middleware(
+def _wrap(name: str, *required_fields: str):
+    """Telemetry + unhandled-error catch + optional field validation."""
+    middlewares = [
         catch_unhandled_errors,
         log_tool_call(name),
-    )
+    ]
+    if required_fields:
+        middlewares.insert(1, require_fields(*required_fields))
+    return with_middleware(*middlewares)
 
 
 def _wrap_session(name: str, *session_args: str):
@@ -288,7 +292,7 @@ TOOLS = {
             },
             "required": ["json_data_base", "json_data_branch_a", "json_data_branch_b"],
         },
-        "handler": _wrap("merge_knowledge")(merge_knowledge),
+        "handler": _wrap("merge_knowledge", "json_data_base", "json_data_branch_a", "json_data_branch_b")(merge_knowledge),
     },
     "create_branch": {
         "name": "create_branch",
@@ -544,7 +548,7 @@ TOOLS = {
             },
             "required": ["url", "subject_id"],
         },
-        "handler": _wrap("verify_source")(verify_source),
+        "handler": _wrap("verify_source", "url", "subject_id")(verify_source),
     },
     "list_versions": {
         "name": "list_versions",
@@ -826,7 +830,7 @@ TOOLS = {
             },
             "required": ["text"],
         },
-        "handler": _wrap("construct_knowledge")(construct_knowledge),
+        "handler": _wrap("construct_knowledge", "text")(construct_knowledge),
     },
     "export_session": {
         "name": "export_session",
@@ -887,6 +891,6 @@ TOOLS = {
             },
             "required": ["url"]
         },
-        "handler": _wrap("ingest_document")(ingest_document),
+        "handler": _wrap("ingest_document", "url")(ingest_document),
     },
 }

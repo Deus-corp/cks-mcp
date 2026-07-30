@@ -15,6 +15,8 @@ from cks.evolution import (
 )
 from cks_runtime.runtime import Runtime
 
+from cks_mcp.errors import missing_parameter
+
 
 def _serialize_operators(payload: list[Any]) -> list[dict[str, Any]]:
     """Convert StructuralOperator objects to plain dicts."""
@@ -100,9 +102,9 @@ async def compare_versions(
     target_version_id = arguments.get("target_version_id")
 
     if not session_id:
-        return {"error": "Missing required parameter: session_id"}
+        return missing_parameter("session_id")
     if not target_version_id:
-        return {"error": "Missing required parameter: target_version_id"}
+        return missing_parameter("target_version_id")
 
     session = runtime.get_session(session_id)
     if session is None:

@@ -17,8 +17,6 @@ async def explain_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict
     session_id = arguments.get("session_id")
     if session_id:
         session = runtime.get_session(session_id)
-        if not session:
-            return {"error": f"Session '{session_id}' not found."}
 
         # Explain is read-only and must not create a new version in the
         # session's history. begin_transaction/commit_transaction always
