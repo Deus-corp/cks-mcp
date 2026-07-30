@@ -138,7 +138,7 @@ class ToolTelemetry:
 
             top_errors = sorted(
                 [{"type": t, "count": n} for t, n in error_counts.items()],
-                key=lambda x: x["count"],
+                key=lambda x: int(x["count"]),
                 reverse=True,
             )[:5]
 
