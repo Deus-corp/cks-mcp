@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-145%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-166%20passed-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
@@ -74,6 +74,7 @@ traceable to its origin.
 - **Content ingestion** — `ingest_document` fetches a public URL, extracts title, description and keywords, and builds a preliminary Knowledge Structure.
 - **LLM-assisted knowledge construction** — `construct_knowledge` converts free-form text into a validated Knowledge Structure using an LLM (Anthropic API).
 - **Session portability** — `export_session` packages a full session bundle (structure + version history) for migration or archival.
+- **Telemetry dashboard** — `get_metrics` now returns per‑tool latency percentiles (p50/p95/p99), success rates, and top error types since server start.
 
 ---
 
@@ -144,6 +145,8 @@ export HF_TOKEN=hf_...
 | `export_knowledge` | Export a session's Knowledge Structure to JSON-LD, Turtle, or RDF/XML for use with Protégé, Neo4j, or triple stores. |
 | `detect_contradictions` | Detect logical contradictions (mutual exclusion, functional relation violations) using the new contradiction constraints. |
 | `fork_sandbox` | Create an isolated branch, optionally apply a hypothesis, and show a diff from the fork point — safe to discard or promote. |
+| `construct_knowledge` | Build a validated Knowledge Structure from free-form text using an LLM (Anthropic API). |
+| `export_session` | Export a full session bundle (structure, version history, metadata) for migration or archival. |
 | `ingest_document` | Fetch a public URL and build a Knowledge Structure from its metadata and keywords. |
 | `construct_knowledge` | Build a validated Knowledge Structure from free-form text using an LLM (Anthropic API). |
 | `export_session` | Export a full session bundle (structure, version history, metadata) for migration or archival. |
@@ -625,7 +628,7 @@ Response:
 python -m pytest -v
 ```
 
-145+ tests, all passing.
+166+ tests, all passing.
 
 ---
 

@@ -9,6 +9,12 @@ the TOOLS dict below.
 
 from __future__ import annotations
 
+from cks_mcp.middleware import (
+    catch_unhandled_errors,
+    require_open_session,
+    require_session,
+    with_middleware,
+)
 from cks_mcp.observability import log_tool_call
 from cks_mcp.tools import (
     evolve_knowledge,
@@ -33,6 +39,35 @@ from cks_mcp.tools.search_semantic import search_semantic
 from cks_mcp.tools.suggest_evolution import suggest_evolution
 from cks_mcp.tools.verify_source import verify_source
 from cks_mcp.tools.visualize_graph import visualize_graph
+
+# ---------------------------------------------------------------------------
+# Middleware stack builders
+# ---------------------------------------------------------------------------
+
+def _wrap(name: str):
+    """Telemetry + unhandled-error catch; no session validation."""
+    return with_middleware(
+        catch_unhandled_errors,
+        log_tool_call(name),
+    )
+
+
+def _wrap_session(name: str, *session_args: str):
+    """Telemetry + unhandled-error catch + session existence check."""
+    return with_middleware(
+        catch_unhandled_errors,
+        log_tool_call(name),
+        require_session(*session_args),
+    )
+
+
+def _wrap_open_session(name: str, *session_args: str):
+    """Telemetry + unhandled-error catch + session must exist and be open."""
+    return with_middleware(
+        catch_unhandled_errors,
+        log_tool_call(name),
+        require_open_session(*session_args),
+    )
 
 # ---------------------------------------------------------------------------
 # Shared parameter descriptions
@@ -109,7 +144,7 @@ TOOLS = {
             },
             "required": ["json_data"],
         },
-        "handler": log_tool_call("validate_knowledge")(validate_knowledge),
+        "handler": _wrap_session("validate_knowledge", "session_id")(validate_knowledge),
     },
     "serialize_knowledge": {
         "name": "serialize_knowledge",
@@ -134,7 +169,7 @@ TOOLS = {
             },
             "required": ["json_data"],
         },
-        "handler": log_tool_call("serialize_knowledge")(serialize_knowledge),
+        "handler": _wrap_session("serialize_knowledge", "session_id")(serialize_knowledge),
     },
     "explain_knowledge": {
         "name": "explain_knowledge",
@@ -159,7 +194,7 @@ TOOLS = {
             },
             "required": ["json_data"],
         },
-        "handler": log_tool_call("explain_knowledge")(explain_knowledge),
+        "handler": _wrap_session("explain_knowledge", "session_id")(explain_knowledge),
     },
     "evolve_knowledge": {
         "name": "evolve_knowledge",
@@ -222,7 +257,7 @@ TOOLS = {
             },
             "required": ["json_data"],
         },
-        "handler": log_tool_call("evolve_knowledge")(evolve_knowledge),
+        "handler": _wrap_open_session("evolve_knowledge", "session_id")(evolve_knowledge),
     },
     "merge_knowledge": {
         "name": "merge_knowledge",
@@ -253,7 +288,7 @@ TOOLS = {
             },
             "required": ["json_data_base", "json_data_branch_a", "json_data_branch_b"],
         },
-        "handler": log_tool_call("merge_knowledge")(merge_knowledge),
+        "handler": _wrap("merge_knowledge")(merge_knowledge),
     },
     "create_branch": {
         "name": "create_branch",
@@ -286,7 +321,7 @@ TOOLS = {
             },
             "required": ["session_id"],
         },
-        "handler": log_tool_call("create_branch")(create_branch),
+        "handler": _wrap_open_session("create_branch", "session_id")(create_branch),
     },
     "merge_branch": {
         "name": "merge_branch",
@@ -336,7 +371,7 @@ TOOLS = {
             },
             "required": ["target_session_id", "source_session_id"],
         },
-        "handler": log_tool_call("merge_branch")(merge_branch),
+        "handler": _wrap_open_session("merge_branch", "target_session_id")(merge_branch),
     },
     "close_session": {
         "name": "close_session",
@@ -356,7 +391,7 @@ TOOLS = {
             },
             "required": ["session_id"],
         },
-        "handler": log_tool_call("close_session")(close_session),
+        "handler": _wrap_session("close_session", "session_id")(close_session),
     },
     "query_subgraph": {
         "name": "query_subgraph",
@@ -425,7 +460,7 @@ TOOLS = {
             },
             "required": ["session_id"],
         },
-        "handler": log_tool_call("query_subgraph")(query_subgraph_tool),
+        "handler": _wrap_session("query_subgraph", "session_id")(query_subgraph_tool),
     },
     "search_semantic": {
         "name": "search_semantic",
@@ -473,17 +508,24 @@ TOOLS = {
             },
             "required": ["session_id", "query"],
         },
-        "handler": log_tool_call("search_semantic")(search_semantic),
+        "handler": _wrap_session("search_semantic", "session_id")(search_semantic),
     },
     "get_metrics": {
         "name": "get_metrics",
-        "description": "Return runtime metrics: invocation counts and average execution times for each operation type.",
+        "description": (
+            "Return runtime metrics and the tool telemetry dashboard. "
+            "'runtime_metrics' contains invocation counts and average execution "
+            "times per runtime operation type. "
+            "'tool_telemetry' contains per-MCP-tool call counts, success rates, "
+            "latency percentiles (p50/p95/p99), and top error types since the "
+            "server started."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {},
             "required": [],
         },
-        "handler": log_tool_call("get_metrics")(get_metrics),
+        "handler": _wrap("get_metrics")(get_metrics),
     },
     "verify_source": {
         "name": "verify_source",
@@ -502,7 +544,7 @@ TOOLS = {
             },
             "required": ["url", "subject_id"],
         },
-        "handler": log_tool_call("verify_source")(verify_source),
+        "handler": _wrap("verify_source")(verify_source),
     },
     "list_versions": {
         "name": "list_versions",
@@ -517,7 +559,7 @@ TOOLS = {
             },
             "required": ["session_id"],
         },
-        "handler": log_tool_call("list_versions")(list_versions),
+        "handler": _wrap_session("list_versions", "session_id")(list_versions),
     },
     "revert_version": {
         "name": "revert_version",
@@ -536,7 +578,7 @@ TOOLS = {
             },
             "required": ["session_id", "target_version_id"],
         },
-        "handler": log_tool_call("revert_version")(revert_version),
+        "handler": _wrap_open_session("revert_version", "session_id")(revert_version),
     },
     "compare_versions": {
         "name": "compare_versions",
@@ -567,7 +609,7 @@ TOOLS = {
             },
             "required": ["session_id", "target_version_id"],
         },
-        "handler": log_tool_call("compare_versions")(compare_versions),
+        "handler": _wrap_session("compare_versions", "session_id")(compare_versions),
     },
     "visualize_graph": {
         "name": "visualize_graph",
@@ -600,7 +642,7 @@ TOOLS = {
             },
             "required": ["session_id"],
         },
-        "handler": log_tool_call("visualize_graph")(visualize_graph),
+        "handler": _wrap_session("visualize_graph", "session_id")(visualize_graph),
     },
     "explain_diff": {
         "name": "explain_diff",
@@ -623,7 +665,7 @@ TOOLS = {
             },
             "required": ["session_id", "target_version_id"],
         },
-        "handler": log_tool_call("explain_diff")(explain_diff),
+        "handler": _wrap_session("explain_diff", "session_id")(explain_diff),
     },
     "export_knowledge": {
         "name": "export_knowledge",
@@ -645,7 +687,7 @@ TOOLS = {
             },
             "required": ["session_id"],
         },
-        "handler": log_tool_call("export_knowledge")(export_knowledge),
+        "handler": _wrap_session("export_knowledge", "session_id")(export_knowledge),
     },
     "suggest_evolution": {
         "name": "suggest_evolution",
@@ -681,7 +723,7 @@ TOOLS = {
             },
             "required": ["session_id", "description"],
         },
-        "handler": log_tool_call("suggest_evolution")(suggest_evolution),
+        "handler": _wrap_open_session("suggest_evolution", "session_id")(suggest_evolution),
     },
     "detect_contradictions": {
         "name": "detect_contradictions",
@@ -707,7 +749,7 @@ TOOLS = {
                 },
             },
         },
-        "handler": log_tool_call("detect_contradictions")(detect_contradictions),
+        "handler": _wrap_session("detect_contradictions", "session_id")(detect_contradictions),
     },
     "fork_sandbox": {
         "name": "fork_sandbox",
@@ -741,7 +783,7 @@ TOOLS = {
             },
             "required": ["session_id"],
         },
-        "handler": log_tool_call("fork_sandbox")(fork_sandbox),
+        "handler": _wrap_open_session("fork_sandbox", "session_id")(fork_sandbox),
     },
     "construct_knowledge": {
         "name": "construct_knowledge",
@@ -784,7 +826,7 @@ TOOLS = {
             },
             "required": ["text"],
         },
-        "handler": log_tool_call("construct_knowledge")(construct_knowledge),
+        "handler": _wrap("construct_knowledge")(construct_knowledge),
     },
     "export_session": {
         "name": "export_session",
@@ -824,7 +866,7 @@ TOOLS = {
             },
             "required": ["session_id"],
         },
-        "handler": log_tool_call("export_session")(export_session),
+        "handler": _wrap_session("export_session", "session_id")(export_session),
     },
     "ingest_document": {
         "name": "ingest_document",
@@ -845,6 +887,6 @@ TOOLS = {
             },
             "required": ["url"]
         },
-        "handler": log_tool_call("ingest_document")(ingest_document),
+        "handler": _wrap("ingest_document")(ingest_document),
     },
 }

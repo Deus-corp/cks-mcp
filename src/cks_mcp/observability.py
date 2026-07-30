@@ -27,6 +27,8 @@ from cks_runtime.events.runtime_event import (
 )
 from cks_runtime.runtime import Runtime
 
+from cks_mcp.telemetry import tool_telemetry
+
 
 def _log(entry: dict[str, Any]) -> None:
     """Write a JSON log line to stderr."""
@@ -40,10 +42,13 @@ def _log(entry: dict[str, Any]) -> None:
 
 def log_tool_call(tool_name: str) -> Callable:
     """
-    Decorator that logs every invocation of an MCP tool handler.
+    Decorator that logs every invocation of an MCP tool handler and
+    records the call in the in-memory telemetry dashboard.
 
-    Log entries contain: tool, session_id (if present), duration_ms,
-    success, and (on failure) error.
+    Log entries written to stderr contain: tool, session_id (if present),
+    duration_ms, success, and (on failure) error.  The same data is fed
+    into ``tool_telemetry`` so that ``get_metrics`` can expose per-tool
+    p50/p95/p99 latency and error-type breakdowns.
     """
 
     def decorator(handler: Callable) -> Callable:
@@ -54,14 +59,23 @@ def log_tool_call(tool_name: str) -> Callable:
                 result = await handler(runtime, arguments)
                 duration_ms = (time.monotonic() - start) * 1000
                 is_error = isinstance(result, dict) and "error" in result
+                success = not is_error
+                error_str = result.get("error") if is_error else None
                 _log(
                     {
                         "tool": tool_name,
                         "session_id": session_id,
                         "duration_ms": round(duration_ms, 2),
-                        "success": not is_error,
-                        "error": result.get("error") if is_error else None,
+                        "success": success,
+                        "error": error_str,
                     }
+                )
+                await tool_telemetry.record(
+                    tool_name,
+                    duration_ms,
+                    success,
+                    error_type=type(error_str).__name__ if error_str else None,
+                    session_id=session_id,
                 )
                 return result
             except Exception as exc:
@@ -74,6 +88,13 @@ def log_tool_call(tool_name: str) -> Callable:
                         "success": False,
                         "error": str(exc),
                     }
+                )
+                await tool_telemetry.record(
+                    tool_name,
+                    duration_ms,
+                    False,
+                    error_type=type(exc).__name__,
+                    session_id=session_id,
                 )
                 raise
 

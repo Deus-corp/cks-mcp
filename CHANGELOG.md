@@ -3,6 +3,19 @@
 
 ---
 
+## [1.16.0] - 2026-07-30
+
+### Added
+- **Tool telemetry dashboard** – in-memory aggregator (`ToolTelemetry`) recording per-tool call counts, success rates, p50/p95/p99 latency percentiles, and top error types. Accessible via `get_metrics` as `tool_telemetry`.
+- **Composable middleware layer** – `require_fields`, `require_session`, `require_open_session`, `catch_unhandled_errors`, and `with_middleware` composition helper. All 25 tools now have structured validation stacks.
+- **`get_metrics`** response extended with `tool_telemetry` dashboard alongside existing `runtime_metrics`.
+
+### Changed
+- All tool handlers in `tool_registry.py` now use `_wrap`/`_wrap_session`/`_wrap_open_session` builders instead of raw `log_tool_call()` wrapping.
+- `log_tool_call` now feeds data into `tool_telemetry` in addition to stderr logging.
+
+---
+
 ## [1.15.0] - 2026-07-30
 
 ### Added
