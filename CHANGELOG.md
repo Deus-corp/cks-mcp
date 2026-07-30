@@ -3,6 +3,20 @@
 
 ---
 
+## [1.15.0] - 2026-07-30
+
+### Added
+- **`construct_knowledge` tool** — builds a Knowledge Structure from free-form text using an LLM (Anthropic API).
+- **`export_session` tool** — exports a full session bundle (structure + version history) for migration or archival.
+- **`structure_filters` parameter for `query_subgraph`** — post-filter extracted objects by structure fields.
+- **`rename_object` operation** — now supported in `evolve_knowledge`, `suggest_evolution`, and `compare_versions`.
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.23.1` (public operator properties, Postgres pgvector).
+- Bumped `cks-core` dependency to `>=1.14.0` (`RenameObject` operator, public operator properties).
+
+---
+
 ## [1.14.4] - 2026-07-30
 
 ### Fixed

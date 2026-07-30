@@ -5,6 +5,7 @@ explain_diff: human-readable explanation of changes between two versions.
 from typing import Any
 
 from cks import AddObject, AddRelation, RemoveObject, RemoveRelation
+from cks.evolution import RenameObject
 from cks_runtime.runtime import Runtime
 
 from cks_mcp.diffing import field_level_diff
@@ -48,18 +49,19 @@ async def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
 
     touched_object_ids: set[str] = set()
     touched_relation_ids: set[str] = set()
+    renamed_objects: list[dict[str, Any]] = []
 
     for op in patch:
-        if isinstance(op, (AddObject, RemoveObject)):
-            touched_object_ids.add(
-                op._obj.identity.id if isinstance(op, AddObject) else op._object_id
-            )
-        elif isinstance(op, (AddRelation, RemoveRelation)):
-            touched_relation_ids.add(
-                op._relation.identity.id
-                if isinstance(op, AddRelation)
-                else op._relation_id
-            )
+        if isinstance(op, AddObject):
+            touched_object_ids.add(op.obj.identity.id)
+        elif isinstance(op, RemoveObject):
+            touched_object_ids.add(op.object_id)
+        elif isinstance(op, AddRelation):
+            touched_relation_ids.add(op.relation.identity.id)
+        elif isinstance(op, RemoveRelation):
+            touched_relation_ids.add(op.relation_id)
+        elif isinstance(op, RenameObject):
+            renamed_objects.append({"id": op.object_id, "new_name": op.new_name})
 
     def _classify(ids: set[str]) -> dict[str, list[dict[str, Any]]]:
         buckets: dict[str, list[dict[str, Any]]] = {
@@ -117,6 +119,11 @@ async def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
             f"Re-linked {len(relinked_relations)} relation(s) with no actual "
             "change (one of their participants was replaced elsewhere in this diff)"
         )
+    if renamed_objects:
+        summary_parts.append(
+            f"Renamed {len(renamed_objects)} object(s): "
+            + ", ".join(f"{r['id']} → {r['new_name']}" for r in renamed_objects)
+        )
 
     if not summary_parts:
         summary_parts.append("No changes detected.")
@@ -133,5 +140,6 @@ async def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
             "removed_relations": removed_relations,
             "modified_relations": modified_relations,
             "relinked_relations": relinked_relations,
+            "renamed_objects": renamed_objects,
         },
     }

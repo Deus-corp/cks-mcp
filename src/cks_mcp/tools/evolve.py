@@ -104,7 +104,7 @@ async def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[
     cascade_removed: list[str] = []
     for op in operations:
         if isinstance(op, RemoveObject):
-            removed_id = op._object_id
+            removed_id = op.object_id
             for rel in structure.relations():
                 if removed_id in rel.participants and rel.identity.id not in {
                     r.identity.id for r in session.knowledge_structure.relations()

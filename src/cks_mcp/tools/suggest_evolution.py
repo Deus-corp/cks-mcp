@@ -139,6 +139,7 @@ async def suggest_evolution(runtime: Runtime, arguments: dict[str, Any]) -> dict
             "remove_object — requires 'object_id' (cascades to relations)",
             "remove_relation — requires 'relation_id'",
             "update_object — requires 'object_id' and 'structure_patch', optional 'mode' ('merge' or 'replace')",
+            "rename_object — requires 'object_id' and 'new_name'; changes identity.name only, zero cascade",
         ],
         "guidance": (
             "Based on the description above and the current objects/relations listed, "

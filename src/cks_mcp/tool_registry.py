@@ -18,9 +18,11 @@ from cks_mcp.tools import (
 )
 from cks_mcp.tools.branch import close_session, create_branch
 from cks_mcp.tools.compare import compare_versions
+from cks_mcp.tools.construct_knowledge import construct_knowledge
 from cks_mcp.tools.detect_contradictions import detect_contradictions
 from cks_mcp.tools.explain_diff import explain_diff
 from cks_mcp.tools.export_knowledge import export_knowledge
+from cks_mcp.tools.export_session import export_session
 from cks_mcp.tools.fork_sandbox import fork_sandbox
 from cks_mcp.tools.get_metrics import get_metrics
 from cks_mcp.tools.ingest_document import ingest_document
@@ -196,13 +198,18 @@ TOOLS = {
                         "the whole structure dict). Use this instead of remove_object + "
                         "add_object to change an object's content: the object's id and every "
                         "relation referencing it are left untouched, with no cascade.\n"
+                        "  - 'rename_object': requires 'object_id' and 'new_name'. Changes "
+                        "only the human-readable identity.name of an existing object or "
+                        "relation, leaving its id, type, structure, and every referencing "
+                        "relation completely untouched — zero cascade, no relation rebuild.\n"
                         "Example: "
                         '\'[{"type": "add_object", "identity": {"id": "obj-2", "type": "Lemma", '
                         '"name": "New"}, "structure": {}}, {"type": "add_relation", "identity": '
                         '{"id": "rel-1", "type": "Relation", "name": "r"}, "participants": '
                         '["obj-1", "obj-2"], "relation_type": "derives"}, {"type": '
                         '"update_object", "object_id": "obj-1", "structure_patch": '
-                        '{"summary": "revised text"}}]\'.'
+                        '{"summary": "revised text"}}, {"type": "rename_object", '
+                        '"object_id": "obj-2", "new_name": "Renamed Lemma"}]\'.'
                     ),
                 },
                 "session_id": {
@@ -404,6 +411,16 @@ TOOLS = {
                 "compact_mode": {
                     "type": "boolean",
                     "description": "If true, return a compact representation (nodes + edges) instead of full canonical JSON.",
+                },
+                "structure_filters": {
+                    "type": "object",
+                    "description": (
+                        "Optional. AND-filter applied to non-relation objects after extraction: "
+                        "only objects whose 'structure' dict contains ALL key=value pairs survive. "
+                        "Seed objects are always kept regardless. Relations are retained when "
+                        "both their participants survive the filter. "
+                        "Example: {\"status\": \"active\", \"domain\": \"biology\"}."
+                    ),
                 },
             },
             "required": ["session_id"],
@@ -725,6 +742,89 @@ TOOLS = {
             "required": ["session_id"],
         },
         "handler": log_tool_call("fork_sandbox")(fork_sandbox),
+    },
+    "construct_knowledge": {
+        "name": "construct_knowledge",
+        "description": (
+            "Build a Canonical Knowledge Structure from free-form text using an LLM. "
+            "The LLM extracts entities and relationships, generates a valid CKS JSON "
+            "payload, which is then parsed and validated before being persisted as a "
+            "new session. Requires ANTHROPIC_API_KEY to be set in the environment. "
+            "Returns 'session_id', 'version_id', and the serialized structure. "
+            "Use 'hint' to direct the extraction toward specific aspects of the text."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "Free-form text to extract a Knowledge Structure from.",
+                },
+                "hint": {
+                    "type": "string",
+                    "description": (
+                        "Optional. A short description of which aspects to focus on "
+                        "(e.g. 'focus on causal relations between diseases and symptoms')."
+                    ),
+                },
+                "model": {
+                    "type": "string",
+                    "description": (
+                        "Optional. Anthropic model to use. Defaults to the "
+                        "CKS_LLM_MODEL environment variable, or 'claude-sonnet-4-6'."
+                    ),
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "description": (
+                        "Optional. Max tokens for the LLM response. "
+                        "Defaults to CKS_LLM_MAX_TOKENS env var, or 4096."
+                    ),
+                },
+            },
+            "required": ["text"],
+        },
+        "handler": log_tool_call("construct_knowledge")(construct_knowledge),
+    },
+    "export_session": {
+        "name": "export_session",
+        "description": (
+            "Export a full session bundle for migration or archival. "
+            "Unlike export_knowledge (which converts to RDF/JSON-LD), this tool "
+            "packages the session's current structure, version history, and metadata "
+            "into a self-contained JSON document that can be used to recreate the "
+            "session in another runtime instance. "
+            "Supports two formats: 'bundle' (default) — a complete migration envelope "
+            "with version history; 'cks' — bare canonical CKS JSON of the current "
+            "structure only. Set 'include_structures' to true to embed the full "
+            "KnowledgeStructure for each historical version (may be large)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "The session to export.",
+                },
+                "format": {
+                    "type": "string",
+                    "description": (
+                        "Output format: 'bundle' (default) — full migration envelope "
+                        "with metadata and version history; 'cks' — current structure only."
+                    ),
+                },
+                "include_structures": {
+                    "type": "boolean",
+                    "description": (
+                        "Optional. When true and format='bundle', embed the serialized "
+                        "KnowledgeStructure for each version in the history (may produce "
+                        "a large payload for long-lived sessions). Default false."
+                    ),
+                },
+            },
+            "required": ["session_id"],
+        },
+        "handler": log_tool_call("export_session")(export_session),
     },
     "ingest_document": {
         "name": "ingest_document",

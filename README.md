@@ -4,11 +4,11 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-117%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-145%20passed-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
-that gives LLMs a **canonical knowledge backbone**. It exposes **23
+that gives LLMs a **canonical knowledge backbone**. It exposes **24
 tools** (listed under *Available Tools* below) for validation, evolution,
 branching, merging, semantic search, contradiction detection, sandboxing,
 and more, backed by the deterministic, immutable semantics of `cks-core`
@@ -37,7 +37,7 @@ Other projects build upon it:
 1. Install and connect to Claude Desktop (see [Installation](#installation)).
 2. (Optional) For semantic search, set your Hugging Face token: `export HF_TOKEN=hf_...`
 3. In the chat, start your message with **"Use cks-mcp to…"**.
-4. Claude automatically picks the right tool from the 23 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
+4. Claude automatically picks the right tool from the 24 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
 5. Every operation is logged, versioned, and stored in a persistent SQLite database.
 
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
@@ -72,6 +72,8 @@ traceable to its origin.
 - **Contradiction detection** — `detect_contradictions` flags mutual exclusions (e.g., both `supports` and `contradicts` between the same pair) and functional relation violations (e.g., a planet orbiting two different stars).
 - **Hypothesis sandboxing** — `fork_sandbox` creates an isolated branch, optionally applies a hypothesis, and reports the diff from the fork point — all without touching the parent session. Safe to discard or promote.
 - **Content ingestion** — `ingest_document` fetches a public URL, extracts title, description and keywords, and builds a preliminary Knowledge Structure.
+- **LLM-assisted knowledge construction** — `construct_knowledge` converts free-form text into a validated Knowledge Structure using an LLM (Anthropic API).
+- **Session portability** — `export_session` packages a full session bundle (structure + version history) for migration or archival.
 
 ---
 
@@ -143,6 +145,8 @@ export HF_TOKEN=hf_...
 | `detect_contradictions` | Detect logical contradictions (mutual exclusion, functional relation violations) using the new contradiction constraints. |
 | `fork_sandbox` | Create an isolated branch, optionally apply a hypothesis, and show a diff from the fork point — safe to discard or promote. |
 | `ingest_document` | Fetch a public URL and build a Knowledge Structure from its metadata and keywords. |
+| `construct_knowledge` | Build a validated Knowledge Structure from free-form text using an LLM (Anthropic API). |
+| `export_session` | Export a full session bundle (structure, version history, metadata) for migration or archival. |
 
 ---
 
@@ -539,6 +543,66 @@ Response:
 }
 ```
 
+## Construct knowledge from text
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "construct_knowledge",
+    "arguments": {
+      "text": "The Earth orbits the Sun. The Moon orbits the Earth.",
+      "hint": "focus on astronomical bodies and their orbital relationships"
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "constructed": true,
+  "session_id": "...",
+  "version_id": "...",
+  "serialized": "{...}",
+  "objects_count": 3,
+  "relations_count": 2,
+  "model_used": "claude-sonnet-4-6"
+}
+```
+
+## Export a session bundle
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "export_session",
+    "arguments": {
+      "session_id": "...",
+      "format": "bundle",
+      "include_structures": true
+    }
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "format": "bundle",
+  "session_id": "...",
+  "bundle": {
+    "cks_mcp_export": true,
+    "session": { "session_id": "...", ... },
+    "current_structure": { "root_hash": "...", ... },
+    "version_history": { "count": 5, "versions": [...] }
+  }
+}
+```
+
 ---
 
 # Security and Provenance
@@ -561,7 +625,7 @@ Response:
 python -m pytest -v
 ```
 
-117+ tests, all passing.
+145+ tests, all passing.
 
 ---
 

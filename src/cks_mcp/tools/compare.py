@@ -6,6 +6,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from cks.evolution import (
+    AddObject,
+    AddRelation,
+    RemoveObject,
+    RemoveRelation,
+    RenameObject,
+)
 from cks_runtime.runtime import Runtime
 
 
@@ -13,40 +20,48 @@ def _serialize_operators(payload: list[Any]) -> list[dict[str, Any]]:
     """Convert StructuralOperator objects to plain dicts."""
     serialized = []
     for op in payload:
-        if hasattr(op, "_obj"):
+        if isinstance(op, AddObject):
             serialized.append(
                 {
                     "type": "add_object",
                     "identity": {
-                        "id": op._obj.identity.id,
-                        "type": op._obj.identity.type,
-                        "name": op._obj.identity.name,
+                        "id": op.obj.identity.id,
+                        "type": op.obj.identity.type,
+                        "name": op.obj.identity.name,
                     },
                 }
             )
-        elif hasattr(op, "_relation_id"):
+        elif isinstance(op, RemoveRelation):
             serialized.append(
                 {
                     "type": "remove_relation",
-                    "relation_id": op._relation_id,
+                    "relation_id": op.relation_id,
                 }
             )
-        elif hasattr(op, "_object_id"):
+        elif isinstance(op, RemoveObject):
             serialized.append(
                 {
                     "type": "remove_object",
-                    "object_id": op._object_id,
+                    "object_id": op.object_id,
                 }
             )
-        elif hasattr(op, "_relation"):
+        elif isinstance(op, AddRelation):
             serialized.append(
                 {
                     "type": "add_relation",
                     "identity": {
-                        "id": op._relation.identity.id,
-                        "type": op._relation.identity.type,
-                        "name": op._relation.identity.name,
+                        "id": op.relation.identity.id,
+                        "type": op.relation.identity.type,
+                        "name": op.relation.identity.name,
                     },
+                }
+            )
+        elif isinstance(op, RenameObject):
+            serialized.append(
+                {
+                    "type": "rename_object",
+                    "object_id": op.object_id,
+                    "new_name": op.new_name,
                 }
             )
     return serialized
@@ -59,6 +74,7 @@ def _build_summary(operations: list[dict[str, Any]]) -> dict[str, int]:
         "removed_objects": 0,
         "added_relations": 0,
         "removed_relations": 0,
+        "renamed_objects": 0,
     }
     for op in operations:
         op_type = op.get("type")
@@ -70,6 +86,8 @@ def _build_summary(operations: list[dict[str, Any]]) -> dict[str, int]:
             summary["added_relations"] += 1
         elif op_type == "remove_relation":
             summary["removed_relations"] += 1
+        elif op_type == "rename_object":
+            summary["renamed_objects"] += 1
     return summary
 
 
