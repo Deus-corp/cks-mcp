@@ -3,6 +3,17 @@
 
 ---
 
+## [1.16.1] - 2026-07-30
+
+### Fixed
+- **`telemetry.py` mypy failure** – `dashboard()`'s `error_list` was annotated `list[dict[str, int]]` while its entries mix `str` ("type") and `int` ("count") values, tripping `mypy`'s `dict-item` check. Annotation corrected to `list[dict[str, str | int]]`.
+- **`get_metrics` `top_errors` reported bogus `"str"` error type** – `log_tool_call` recorded `error_type=type(error_str).__name__` for structured `{"error": "<code>"}` tool results; since `error_str` is itself a `str`, this always evaluated to the literal `"str"` instead of the actual error code (e.g. `"session_not_found"`). Now records `error_str` directly. Exception-path recording (`type(exc).__name__` for raised exceptions) was already correct and is unchanged.
+
+### Added
+- `tests/test_observability.py` – regression coverage for `log_tool_call` error-type recording (structured error dict, raised exception, success case).
+
+---
+
 ## [1.16.0] - 2026-07-30
 
 ### Added

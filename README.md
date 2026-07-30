@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-166%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-169%20passed-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
@@ -628,7 +628,7 @@ Response:
 python -m pytest -v
 ```
 
-166+ tests, all passing.
+169+ tests, all passing.
 
 ---
 

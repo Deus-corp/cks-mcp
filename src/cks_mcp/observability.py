@@ -74,7 +74,7 @@ def log_tool_call(tool_name: str) -> Callable:
                     tool_name,
                     duration_ms,
                     success,
-                    error_type=type(error_str).__name__ if error_str else None,
+                    error_type=error_str if error_str else None,
                     session_id=session_id,
                 )
                 return result
