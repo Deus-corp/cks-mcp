@@ -71,6 +71,7 @@ traceable to its origin.
 - **Time-travel debugging** — `list_versions`, `revert_version`, and `compare_versions` give LLMs a full version-control system for knowledge, enabling safe rollbacks and change inspection.
 - **Contradiction detection** — `detect_contradictions` flags mutual exclusions (e.g., both `supports` and `contradicts` between the same pair) and functional relation violations (e.g., a planet orbiting two different stars).
 - **Hypothesis sandboxing** — `fork_sandbox` creates an isolated branch, optionally applies a hypothesis, and reports the diff from the fork point — all without touching the parent session. Safe to discard or promote.
+- **Content ingestion** — `ingest_document` fetches a public URL, extracts title, description and keywords, and builds a preliminary Knowledge Structure.
 
 ---
 
@@ -456,36 +457,6 @@ Response:
 <http://cks.org/earth> rdf:type <http://cks.org/Planet> ;
     rdfs:label "Earth" ;
     <http://cks.org/orbits> <http://cks.org/sun> .
-```
-
-## Detect contradictions
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "detect_contradictions",
-    "arguments": {
-      "session_id": "..."
-    }
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "contradiction_count": 1,
-  "contradictions": [
-    {
-      "code": "CKS-EXT-MUTUAL-EXCLUSION",
-      "severity": "error",
-      "source": "core",
-      "message": "Relation 'rel-1' (type 'supports') and relation 'rel-2' (type 'contradicts') both connect 'a' to 'b', but a MutualExclusionRule declares these relation_types mutually exclusive."
-    }
-  ]
-}
 ```
 
 ## Detect contradictions
