@@ -3,6 +3,20 @@
 
 ---
 
+## [1.14.4] - 2026-07-30
+
+### Fixed
+- **BUG-04:** MCP parser now correctly handles multiple HTTP headers (e.g., `Content-Type`) between `Content-Length` and the request body, instead of failing to parse JSON.
+- **BUG-02 (ingest_document):** replaced collision-prone `doc_id` truncation with a stable URL-hash-based identifier.
+- **BUG-01 (embedding data loss, via cks-runtime):** SQLite `cks_object_embeddings` now uses composite primary key `(object_id, session_id)` to prevent cross-session overwrites.
+- Removed unreachable dead code in `server.py` storage initialization.
+- Ensured consistent use of `asyncio.to_thread` for OS-level file operations in `server.py` startup.
+
+### Changed
+- Added `filterwarnings` configuration in `pyproject.toml` to suppress spurious asyncio mark warnings on sync test methods.
+
+---
+
 ## [1.14.3] - 2026-07-29
 
 ### Security

@@ -8,6 +8,8 @@ Uses the same SSRF/DNS-rebinding protection as verify_source.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import heapq
 import json
 import re
 from collections import Counter
@@ -69,11 +71,17 @@ def _extract_title_and_description(html: str) -> tuple[str | None, str | None]:
 
 
 def _extract_keywords(text: str, max_keywords: int = _MAX_KEYWORDS) -> list[str]:
-    """Return a list of potential keywords (non-stop-words, min length)."""
+    """Return a list of potential keywords (non-stop-words, min length).
+
+    Uses ``heapq.nlargest`` instead of ``Counter.most_common`` (OPT-07):
+    both are O(N log N) in the worst case, but ``nlargest`` avoids
+    sorting the *entire* counter when only the top-K items are needed —
+    making it measurably faster on long texts with large vocabularies.
+    """
     words = re.findall(rf"\b[a-zA-Z]{{{_MIN_KEYWORD_LENGTH},}}\b", text.lower())
     filtered = [w for w in words if w not in _STOP_WORDS]
     counter = Counter(filtered)
-    return [word for word, _ in counter.most_common(max_keywords)]
+    return [word for word, _ in heapq.nlargest(max_keywords, counter.items(), key=lambda x: x[1])]
 
 
 # ---------------------------------------------------------------------------
@@ -121,11 +129,29 @@ async def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
 
     # ---- Extract metadata ---------------------------------------------------
     title, description = _extract_title_and_description(html)
-    plain_text = _html_to_text(html)
+    # Cap HTML before conversion: title/description/keywords only need a
+    # fraction of a large page.  Processing megabytes of HTML just to take
+    # [:500] of the resulting plain text wastes CPU and memory (OPT-06).
+    plain_text = _html_to_text(html[:200_000])
     keywords = _extract_keywords(plain_text)
 
     # ---- Build Knowledge Structure -----------------------------------------
-    doc_id = "doc-" + re.sub(r"[^a-zA-Z0-9_-]", "_", url)[:50]
+    # BUG-02 fix: the old `re.sub(...)[:50]` sliced the *substituted*
+    # string, so two URLs that differ only after their first ~43 raw
+    # characters (e.g. same domain + long path, differing only in the
+    # last segment) produced identical doc_id values and caused a
+    # "Duplicate canonical identity" error when both were added to the
+    # same session.
+    #
+    # Fix: use a 12-character SHA-256 prefix of the *full* URL as the
+    # uniqueness-bearing suffix, and keep only a short human-readable
+    # prefix from the sanitised URL for debuggability.  The hash is
+    # computed over the original URL bytes (not the sanitised form) so
+    # any two distinct URLs are guaranteed to produce different doc_ids
+    # with overwhelming probability (2^-48 collision chance per pair).
+    _url_hash = hashlib.sha256(url.encode()).hexdigest()[:12]
+    _safe_prefix = re.sub(r"[^a-zA-Z0-9_-]", "_", url)[:30]
+    doc_id = f"doc-{_safe_prefix}-{_url_hash}"
     objects = []
     relations = []
 

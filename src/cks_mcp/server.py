@@ -36,7 +36,7 @@ def _server_version() -> str:
     try:
         return importlib.metadata.version("cks-mcp")
     except importlib.metadata.PackageNotFoundError:
-        return "1.14.3"  # dev fallback для грядущего релиза
+        return "1.14.4"  # dev fallback для грядущего релиза
 
 SERVER_NAME = "cks-mcp"
 SERVER_VERSION = _server_version()
@@ -345,8 +345,15 @@ async def main() -> None:
                 sys.stdout.write(error_response + "\n")
                 sys.stdout.flush()
                 continue
-            # Читаем пустую строку-разделитель
-            await reader.readline()
+
+            # Читаем заголовки до пустой строки
+            while True:
+                header_line = (await reader.readline()).decode().strip()
+                if not header_line:
+                    break
+                if header_line.lower().startswith("content-length:"):
+                    content_length = int(header_line.split(":")[1].strip())
+
             try:
                 body = await reader.readexactly(content_length)
             except asyncio.IncompleteReadError as e:
