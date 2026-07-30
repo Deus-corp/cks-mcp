@@ -47,13 +47,16 @@ from cks_mcp.tools.visualize_graph import visualize_graph
 
 def _wrap(name: str, *required_fields: str):
     """Telemetry + unhandled-error catch + optional field validation."""
-    middlewares = [
+    if required_fields:
+        return with_middleware(
+            catch_unhandled_errors,
+            require_fields(*required_fields),
+            log_tool_call(name),
+        )
+    return with_middleware(
         catch_unhandled_errors,
         log_tool_call(name),
-    ]
-    if required_fields:
-        middlewares.insert(1, require_fields(*required_fields))
-    return with_middleware(*middlewares)
+    )
 
 
 def _wrap_session(name: str, *session_args: str):
