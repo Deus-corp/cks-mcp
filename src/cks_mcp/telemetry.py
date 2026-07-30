@@ -136,6 +136,9 @@ class ToolTelemetry:
                 if c.error_type:
                     error_counts[c.error_type] += 1
 
+            # Explicitly cast values to int for mypy
+            error_counts = {k: int(v) for k, v in error_counts.items()}
+
             error_list: list[dict[str, int]] = [
                 {"type": t, "count": n} for t, n in error_counts.items()
             ]
