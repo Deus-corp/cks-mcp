@@ -1,14 +1,45 @@
 cff-version: 1.2.0
+
 title: "CKS MCP Server"
+
 message: >
-  If you use the CKS MCP Server in your research, please cite it
-  using the metadata provided in this file.
+  If you use the CKS MCP Server,
+  please cite it using the metadata provided in this file.
+
 type: software
+
 authors:
   - family-names: "Hruznov"
     given-names: "Vladyslav"
+
 repository-code: "https://github.com/Deus-corp/cks-mcp"
+
 url: "https://github.com/Deus-corp/cks-mcp"
-license: MIT
-version: "1.18.0"
-date-released: "2026-07-15"
+
+license: "MIT"
+
+version: "1.18.1"
+
+date-released: "2026-07-31"
+
+abstract: >
+  CKS MCP Server is a fully asynchronous Model Context Protocol server
+  that provides LLMs with a canonical knowledge backbone. It exposes
+  24 tools for validation, evolution, branching, merging, semantic
+  search, contradiction detection, sandboxing, and more, backed by
+  the deterministic, immutable semantics of cks-core and the async
+  operational management of cks-runtime.
+
+keywords:
+  - mcp
+  - model context protocol
+  - canonical knowledge structure
+  - knowledge validation
+  - semantic search
+  - artificial intelligence
+  - knowledge graph
+  - provenance
+  - retrieval augmented generation
+  - reference implementation
+
+language: "en"

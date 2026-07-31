@@ -3,6 +3,14 @@
 
 ---
 
+## [1.18.1] - 2026-07-31
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.25.1` (Postgres fixes, single version source, CI with real PostgreSQL).
+- Bumped `cks-core` dependency to `>=1.15.1` (RDF/XML hardening, determinism fix, public operator properties).
+
+---
+
 ## [1.18.0] - 2026-07-31
 
 ### Added
