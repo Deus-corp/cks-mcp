@@ -140,6 +140,15 @@ async def suggest_evolution(runtime: Runtime, arguments: dict[str, Any]) -> dict
             "remove_relation — requires 'relation_id'",
             "update_object — requires 'object_id' and 'structure_patch', optional 'mode' ('merge' or 'replace')",
             "rename_object — requires 'object_id' and 'new_name'; changes identity.name only, zero cascade",
+            (
+                "record_inference — requires 'identity' (with 'type': 'InferenceStep') and 'structure' "
+                "({'premises': [object_id, ...], 'conclusion': object_id, "
+                "'operator': 'deductive'|'inductive'|'abductive'|'heuristic', 'confidence': 0.0-1.0, "
+                "'justification': str, optional 'alternatives_considered': [str, ...], "
+                "optional 'superseded_by': object_id}); records *why* a conclusion was asserted, not just "
+                "that it was -- see ADR-001. Use detect_contradictions with the 'inference_confidence_conflict' "
+                "extension to check whether a new InferenceStep disagrees with an existing one over the same conclusion."
+            ),
         ],
         "guidance": (
             "Based on the description above and the current objects/relations listed, "

@@ -142,7 +142,47 @@ async def test_explain_diff_modified_object_reported_as_modified_not_delete_add(
     assert "Re-linked 1 relation" in result["summary"]
 
 
-async def test_explain_diff_genuine_relation_content_change():
+async def test_explain_diff_recorded_inference_reported_as_reasoning():
+    from cks import parse
+
+    from cks_mcp.tools.evolve.handler import evolve_knowledge
+    from cks_mcp.tools.explain_diff.handler import explain_diff
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "premise-1", "type": "Claim", "name": "P"}, "structure": {}},'
+        '{"identity": {"id": "conclusion-1", "type": "Claim", "name": "C"}, "structure": {}}'
+        ']}'
+    )
+    session = await runtime.create_session(structure)
+    tx = runtime.begin_transaction(session)
+    await runtime.commit_transaction(tx)
+    base_version = session.version_history[-1].version_id
+
+    await evolve_knowledge(runtime, {
+        "session_id": session.session_id,
+        "operations": [
+            {"type": "record_inference",
+             "identity": {"id": "step-1", "type": "InferenceStep", "name": "s1"},
+             "structure": {
+                 "premises": ["premise-1"], "conclusion": "conclusion-1",
+                 "operator": "deductive", "confidence": 0.8,
+             }},
+        ],
+    })
+
+    result = await explain_diff(runtime, {"session_id": session.session_id, "target_version_id": base_version})
+    steps = result["details"]["added_inference_steps"]
+
+    assert len(steps) == 1
+    assert steps[0]["id"] == "step-1"
+    assert steps[0]["conclusion"] == "conclusion-1"
+    assert list(steps[0]["premises"]) == ["premise-1"]
+    assert steps[0]["operator"] == "deductive"
+    assert steps[0]["confidence"] == 0.8
+    assert "Recorded 1 inference" in result["summary"]
+    assert "conclusion-1" in result["summary"]
     from cks import parse
 
     from cks_mcp.tools.evolve.handler import evolve_knowledge

@@ -91,6 +91,27 @@ async def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
     modified_relations = relation_buckets["modified"]
     relinked_relations = relation_buckets["unchanged"]
 
+    # InferenceStep objects (see cks-core ADR-001) carry the *why* behind
+    # a conclusion -- premises, operator, confidence, justification --
+    # not just the *what*. field_level_diff already puts the full
+    # structure dict on each added_objects entry, so no extra lookup is
+    # needed; this just reshapes it into a native reasoning summary
+    # instead of leaving callers to notice type == "InferenceStep" and
+    # dig through a generic "structure" blob themselves.
+    added_inference_steps = []
+    for obj in added_objects:
+        if obj.get("type") != "InferenceStep":
+            continue
+        struct = obj.get("structure") or {}
+        added_inference_steps.append({
+            "id": obj["id"],
+            "premises": struct.get("premises") or [],
+            "conclusion": struct.get("conclusion"),
+            "operator": struct.get("operator"),
+            "confidence": struct.get("confidence"),
+            "justification": struct.get("justification"),
+        })
+
     # Natural language summary
     summary_parts = []
     if added_objects:
@@ -124,6 +145,26 @@ async def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
             f"Renamed {len(renamed_objects)} object(s): "
             + ", ".join(f"{r['id']} → {r['new_name']}" for r in renamed_objects)
         )
+    if added_inference_steps:
+        def _describe_inference(step: dict) -> str:
+            bits = [f"'{step['id']}'"]
+            if step["conclusion"]:
+                bits.append(f"concludes '{step['conclusion']}'")
+            qualifier = []
+            if step["operator"]:
+                qualifier.append(step["operator"])
+            if step["confidence"] is not None:
+                qualifier.append(f"confidence {step['confidence']}")
+            if qualifier:
+                bits.append(f"({', '.join(qualifier)})")
+            if step["premises"]:
+                bits.append(f"from premises {step['premises']}")
+            return " ".join(bits)
+
+        summary_parts.append(
+            f"Recorded {len(added_inference_steps)} inference(s): "
+            + "; ".join(_describe_inference(s) for s in added_inference_steps)
+        )
 
     if not summary_parts:
         summary_parts.append("No changes detected.")
@@ -141,5 +182,6 @@ async def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
             "modified_relations": modified_relations,
             "relinked_relations": relinked_relations,
             "renamed_objects": renamed_objects,
+            "added_inference_steps": added_inference_steps,
         },
     }

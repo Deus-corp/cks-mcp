@@ -1,5 +1,5 @@
 # Virtual environment
-.venv/
+.venv*/
 venv/
 env/
 
@@ -35,3 +35,7 @@ Thumbs.db
 
 # Logs
 *.logdemo/demo.gif
+
+# Linter / type checker cache
+.ruff_cache/
+.mypy_cache/

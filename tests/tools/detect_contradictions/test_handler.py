@@ -95,6 +95,49 @@ async def test_detect_contradictions_functional_relation():
     assert result["contradictions"][0]["code"] == "CKS-EXT-FUNCTIONAL-RELATION"
 
 
+async def test_detect_contradictions_inference_confidence_conflict():
+    from cks import parse
+
+    from cks_mcp.tools.detect_contradictions.handler import detect_contradictions
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "premise-1", "type": "Claim", "name": "P"}, "structure": {}},'
+        '{"identity": {"id": "conclusion-1", "type": "Claim", "name": "C"}, "structure": {}},'
+        '{"identity": {"id": "step-1", "type": "InferenceStep", "name": "s1"}, '
+        '"structure": {"premises": ["premise-1"], "conclusion": "conclusion-1", "confidence": 0.9}},'
+        '{"identity": {"id": "step-2", "type": "InferenceStep", "name": "s2"}, '
+        '"structure": {"premises": ["premise-1"], "conclusion": "conclusion-1", "confidence": 0.2}}'
+        ']}'
+    )
+    session = await runtime.create_session(structure)
+    result = await detect_contradictions(runtime, {"session_id": session.session_id})
+    assert result["contradiction_count"] == 1
+    assert result["contradictions"][0]["code"] == "CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT"
+    assert result["contradictions"][0]["severity"] == "warning"
+
+
+async def test_detect_contradictions_ignores_superseded_inference_step():
+    from cks import parse
+
+    from cks_mcp.tools.detect_contradictions.handler import detect_contradictions
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "conclusion-1", "type": "Claim", "name": "C"}, "structure": {}},'
+        '{"identity": {"id": "step-1", "type": "InferenceStep", "name": "s1"}, '
+        '"structure": {"conclusion": "conclusion-1", "confidence": 0.2, "superseded_by": "step-2"}},'
+        '{"identity": {"id": "step-2", "type": "InferenceStep", "name": "s2"}, '
+        '"structure": {"conclusion": "conclusion-1", "confidence": 0.9}}'
+        ']}'
+    )
+    session = await runtime.create_session(structure)
+    result = await detect_contradictions(runtime, {"session_id": session.session_id})
+    assert result["contradiction_count"] == 0
+
+
 async def test_detect_contradictions_missing_json_data():
     from cks_mcp.tools.detect_contradictions.handler import detect_contradictions
 

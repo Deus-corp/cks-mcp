@@ -101,3 +101,49 @@ async def test_validate_knowledge_invalid(mock_runtime):
     assert len(result["diagnostics"]) == 1
     assert result["diagnostics"][0]["code"] == "ERR-001"
     assert result["diagnostics"][0]["severity"] == "error"
+
+
+# ---------------------------------------------------------------------------
+# Reasoning-domain extensions (see cks-core ADR-001). These were registered
+# in cks-core's OPTIONAL_CONSTRAINTS_BY_NAME but never wired into this
+# module's EXTENSION_ALIASES, so they could not be resolved by name at all
+# before this fix -- every call with e.g. 'confidence_bounds' returned
+# unknown_extension regardless of the structure's content.
+# ---------------------------------------------------------------------------
+
+
+def _real_runtime():
+    from cks_runtime.runtime import Runtime
+    from cks_runtime_plugins.cks_core import CksCoreAdapter
+    return Runtime(core=CksCoreAdapter())
+
+
+@pytest.mark.parametrize(
+    "extension_name",
+    [
+        "inference_referential_integrity",
+        "confidence_bounds",
+        "supersession_chain",
+        "inference_confidence_conflict",
+    ],
+)
+async def test_reasoning_extensions_resolve_by_name(extension_name):
+    runtime = _real_runtime()
+    result = await validate_knowledge(runtime, {
+        "json_data": '{"objects": [{"identity": {"id": "obj-1", "type": "InferenceStep", '
+        '"name": "s"}, "structure": {}}]}',
+        "extensions": [extension_name],
+    })
+    assert result.get("error") != "unknown_extension"
+    assert result["extensions_applied"] == [extension_name]
+
+
+async def test_confidence_bounds_extension_actually_fires_when_resolved():
+    runtime = _real_runtime()
+    result = await validate_knowledge(runtime, {
+        "json_data": '{"objects": [{"identity": {"id": "step-1", "type": "InferenceStep", '
+        '"name": "s"}, "structure": {"conclusion": "c1", "confidence": 1.5}}]}',
+        "extensions": ["confidence_bounds"],
+    })
+    assert result["valid"] is False
+    assert any(d["code"] == "CKS-EXT-CONFIDENCE-BOUNDS" for d in result["diagnostics"])

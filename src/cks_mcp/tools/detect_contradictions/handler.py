@@ -20,10 +20,17 @@ from cks_runtime.session.session import RuntimeSession
 from cks_mcp.errors import invalid_json_error, missing_parameter, session_not_found
 from cks_mcp.tools.validate.handler import _serialize_diagnostic, resolve_extensions
 
-# Both contradiction constraints are considered contradictions
+# All contradiction/conflict constraints considered by this tool.
+# CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT (see cks-core ADR-001) is
+# WARNING severity, not ERROR like the other two -- it's a resolvable
+# belief conflict between agreeing InferenceSteps, not a hard,
+# jointly-nonsensical contradiction -- but it belongs in this tool's
+# output for the same reason the other two do: it's a pattern that's
+# only visible when reading multiple objects together.
 _CONTRADICTION_IDENTITIES = {
     "CKS-EXT-MUTUAL-EXCLUSION",
     "CKS-EXT-FUNCTIONAL-RELATION",
+    "CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT",
 }
 
 
@@ -48,9 +55,9 @@ async def detect_contradictions(runtime: Runtime, arguments: dict[str, Any]) -> 
             return invalid_json_error(str(exc))
         session = RuntimeSession(knowledge_structure=structure)
 
-    # Opt into both contradiction extensions
+    # Opt into all three contradiction/conflict extensions
     constraints, unknown = resolve_extensions(
-        ["mutual_exclusion", "functional_relation"]
+        ["mutual_exclusion", "functional_relation", "inference_confidence_conflict"]
     )
     # unknown should always be empty here, but handle gracefully
     if unknown:

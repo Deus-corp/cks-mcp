@@ -3,6 +3,21 @@
 
 ---
 
+## [1.19.0] - 2026-07-31
+
+### Added
+- **`detect_contradictions` gains `inference_confidence_conflict`** – detects two or more active (non-`superseded_by`) `InferenceStep` objects that share a `conclusion` but disagree on `confidence` (see cks-core ADR-001, `cks-core>=1.16.0`). Reported at WARNING severity via the existing `contradictions` list, alongside the two existing ERROR-severity relation-pair checks.
+- **`explain_diff` reports `added_inference_steps`** – added `InferenceStep` objects are now reshaped into a native reasoning summary (premises, conclusion, operator, confidence) in both `details.added_inference_steps` and the human-readable `summary`, instead of surfacing only as a generic added object.
+- **`suggest_evolution` now advertises `record_inference`** – its operation-type template includes `record_inference`, so callers building a fresh operations list can find it without already knowing to look for it.
+
+### Fixed
+- **`validate_knowledge`/`detect_contradictions` couldn't resolve the ADR-001 reasoning extensions by name.** `EXTENSION_ALIASES` was never updated when cks-core shipped `inference_referential_integrity`, `confidence_bounds`, and `supersession_chain` (v1.15.2) -- every call using those names returned `unknown_extension` regardless of the structure's content. All three (plus the new `inference_confidence_conflict`) now resolve correctly.
+
+### Changed
+- Bumped `cks-core` dependency to `>=1.16.0` (adds `InferenceConfidenceConflictConstraint`; `>=1.15.2` is the actual floor `record_inference` needs, but `inference_confidence_conflict` requires 1.16.0).
+
+---
+
 ## [1.18.1] - 2026-07-31
 
 ### Changed

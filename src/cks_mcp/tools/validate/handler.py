@@ -27,6 +27,15 @@ EXTENSION_ALIASES: dict[str, str] = {
     "relation_type": "CKS-EXT-RELATION-TYPE",
     "mutual_exclusion": "CKS-EXT-MUTUAL-EXCLUSION",
     "functional_relation": "CKS-EXT-FUNCTIONAL-RELATION",
+    # Reasoning domain (InferenceStep provenance, see cks-core ADR-001).
+    # These three were registered in cks-core's OPTIONAL_CONSTRAINTS_BY_NAME
+    # back when cks-core shipped RecordInference, but never added here --
+    # so validate_knowledge/detect_contradictions could not resolve them
+    # by name at all until now.
+    "inference_referential_integrity": "CKS-EXT-INFERENCE-REFERENTIAL-INTEGRITY",
+    "confidence_bounds": "CKS-EXT-CONFIDENCE-BOUNDS",
+    "supersession_chain": "CKS-EXT-SUPERSESSION-CHAIN",
+    "inference_confidence_conflict": "CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT",
 }
 
 # Trust-bearing types are enforced unconditionally the moment they
