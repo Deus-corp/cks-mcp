@@ -127,8 +127,8 @@ asymmetric signing.
 ### `resources.py` / `prompts.py` — MCP-Native Extras
 
 Expose sessions/versions as browsable Resources and common multi-tool
-workflows as templated Prompts. See [Resources](protocol/resources.md)
-and [Prompts](protocol/prompts.md) — these are documented nowhere else,
+workflows as templated Prompts. See [Resources](../protocol/resources.md)
+and [Prompts](../protocol/prompts.md) — these are documented nowhere else,
 so read those directly rather than expecting more detail here.
 
 ### `observability.py` / `telemetry.py` — Observability

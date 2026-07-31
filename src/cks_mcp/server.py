@@ -25,8 +25,8 @@ from cks_runtime_plugins.cks_core import CksCoreAdapter
 from cks_mcp.observability import setup_event_subscriptions
 from cks_mcp.paths import data_dir
 from cks_mcp.prompts import PROMPTS, get_prompt, list_prompts
+from cks_mcp.registry import TOOLS
 from cks_mcp.resources import list_resources, read_resource
-from cks_mcp.tool_registry import TOOLS
 
 # ---------------------------------------------------------------------------
 # Server metadata
@@ -36,7 +36,7 @@ def _server_version() -> str:
     try:
         return importlib.metadata.version("cks-mcp")
     except importlib.metadata.PackageNotFoundError:
-        return "1.16.2"  # dev fallback для грядущего релиза
+        return "1.17.0"  # dev fallback для грядущего релиза
 
 SERVER_NAME = "cks-mcp"
 SERVER_VERSION = _server_version()

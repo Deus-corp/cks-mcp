@@ -1,5 +1,9 @@
-from .evolve import evolve_knowledge as evolve_knowledge
-from .explain import explain_knowledge as explain_knowledge
-from .query_subgraph import query_subgraph_tool as query_subgraph_tool
-from .serialize import serialize_knowledge as serialize_knowledge
-from .validate import validate_knowledge as validate_knowledge
+"""MCP tool implementations, one subpackage per tool (or tightly related pair).
+
+Each subpackage exposes:
+- handler.py  — the async implementation function(s)
+- schema.py   — the MCP `name` / `description` / `inputSchema` for those tools
+- __init__.py — re-exports the handler function(s) as the package's public API
+
+cks_mcp.registry assembles these into the TOOLS dict the server dispatches on.
+"""

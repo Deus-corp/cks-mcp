@@ -35,9 +35,9 @@ from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp import provenance
-from cks_mcp.tools.explain import explain_knowledge
-from cks_mcp.tools.serialize import serialize_knowledge
-from cks_mcp.tools.validate import validate_knowledge
+from cks_mcp.tools.explain.handler import explain_knowledge
+from cks_mcp.tools.serialize.handler import serialize_knowledge
+from cks_mcp.tools.validate.handler import validate_knowledge
 
 pytestmark = pytest.mark.asyncio
 
@@ -231,7 +231,7 @@ async def test_evolve_does_not_block_on_unlinked_warning_only():
     verify_source-produced record with a misleading "invalid or
     missing provenance signature" message.
     """
-    from cks_mcp.tools.evolve import evolve_knowledge
+    from cks_mcp.tools.evolve.handler import evolve_knowledge
 
     runtime = make_runtime()
     base = await validate_knowledge(runtime, {

@@ -3,6 +3,15 @@
 
 ---
 
+## [1.17.0] - 2026-07-31
+
+### Changed
+- **Project restructuring** – every tool now lives in its own package under `src/cks_mcp/tools/<tool>/` with `handler.py` and `schema.json`, matching the test layout. Tool registry (`tool_registry.py`) imports from these packages.
+- **Tests restructuring** – tests split into per-tool modules under `tests/tools/<tool>/` (one package per tool, `test_handler.py` inside), mirroring the source tree. Legacy integration tests remain at `tests/` level.
+- **Comprehensive documentation** – added `docs/` with ADRs (Thin Translator, Provenance Signing, Middleware Stack, Extension Model), architecture docs (request lifecycle), protocol docs (prompts, resources), and per-category tool guides (lifecycle, branching, search-and-graph, verification, export-and-audit, ai-assisted).
+
+---
+
 ## [1.16.1] - 2026-07-30
 
 ### Fixed

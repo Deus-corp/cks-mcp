@@ -1,0 +1,205 @@
+"""
+CKS MCP Tool Registry — assembles the TOOLS dict from each tool's
+schema.py (JSON Schema) and handler.py (implementation), and applies
+the middleware stack.
+
+This module exists solely to keep the tool definitions out of server.py,
+which remains responsible only for JSON-RPC transport. Adding a new tool
+now touches exactly two places: its own package (in tools/<name>/) and
+the TOOLS dict below.
+"""
+
+from __future__ import annotations
+
+from cks_mcp.middleware import (
+    catch_unhandled_errors,
+    require_fields,
+    require_open_session,
+    require_session,
+    with_middleware,
+)
+from cks_mcp.observability import log_tool_call
+from cks_mcp.tools.branch import close_session, create_branch
+from cks_mcp.tools.branch.schema import CLOSE_SESSION_SCHEMA, CREATE_BRANCH_SCHEMA
+from cks_mcp.tools.compare import compare_versions
+from cks_mcp.tools.compare.schema import COMPARE_VERSIONS_SCHEMA
+from cks_mcp.tools.construct_knowledge import construct_knowledge
+from cks_mcp.tools.construct_knowledge.schema import CONSTRUCT_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.detect_contradictions import detect_contradictions
+from cks_mcp.tools.detect_contradictions.schema import DETECT_CONTRADICTIONS_SCHEMA
+from cks_mcp.tools.evolve import evolve_knowledge
+from cks_mcp.tools.evolve.schema import EVOLVE_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.explain import explain_knowledge
+from cks_mcp.tools.explain.schema import EXPLAIN_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.explain_diff import explain_diff
+from cks_mcp.tools.explain_diff.schema import EXPLAIN_DIFF_SCHEMA
+from cks_mcp.tools.export_knowledge import export_knowledge
+from cks_mcp.tools.export_knowledge.schema import EXPORT_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.export_session import export_session
+from cks_mcp.tools.export_session.schema import EXPORT_SESSION_SCHEMA
+from cks_mcp.tools.fork_sandbox import fork_sandbox
+from cks_mcp.tools.fork_sandbox.schema import FORK_SANDBOX_SCHEMA
+from cks_mcp.tools.get_metrics import get_metrics
+from cks_mcp.tools.get_metrics.schema import GET_METRICS_SCHEMA
+from cks_mcp.tools.ingest_document import ingest_document
+from cks_mcp.tools.ingest_document.schema import INGEST_DOCUMENT_SCHEMA
+from cks_mcp.tools.merge import merge_branch, merge_knowledge
+from cks_mcp.tools.merge.schema import MERGE_BRANCH_SCHEMA, MERGE_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.query_subgraph import query_subgraph_tool
+from cks_mcp.tools.query_subgraph.schema import QUERY_SUBGRAPH_SCHEMA
+from cks_mcp.tools.revert import list_versions, revert_version
+from cks_mcp.tools.revert.schema import LIST_VERSIONS_SCHEMA, REVERT_VERSION_SCHEMA
+from cks_mcp.tools.search_semantic import search_semantic
+from cks_mcp.tools.search_semantic.schema import SEARCH_SEMANTIC_SCHEMA
+from cks_mcp.tools.serialize import serialize_knowledge
+from cks_mcp.tools.serialize.schema import SERIALIZE_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.suggest_evolution import suggest_evolution
+from cks_mcp.tools.suggest_evolution.schema import SUGGEST_EVOLUTION_SCHEMA
+from cks_mcp.tools.validate import validate_knowledge
+from cks_mcp.tools.validate.schema import VALIDATE_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.verify_source import verify_source
+from cks_mcp.tools.verify_source.schema import VERIFY_SOURCE_SCHEMA
+from cks_mcp.tools.visualize_graph import visualize_graph
+from cks_mcp.tools.visualize_graph.schema import VISUALIZE_GRAPH_SCHEMA
+
+# ---------------------------------------------------------------------------
+# Middleware stack builders
+# ---------------------------------------------------------------------------
+
+
+def _wrap(name: str, *required_fields: str):
+    """Telemetry + unhandled-error catch + optional field validation."""
+    if required_fields:
+        return with_middleware(
+            catch_unhandled_errors,
+            require_fields(*required_fields),
+            log_tool_call(name),
+        )
+    return with_middleware(
+        catch_unhandled_errors,
+        log_tool_call(name),
+    )
+
+
+def _wrap_session(name: str, *session_args: str):
+    """Telemetry + unhandled-error catch + session existence check."""
+    return with_middleware(
+        catch_unhandled_errors,
+        log_tool_call(name),
+        require_session(*session_args),
+    )
+
+
+def _wrap_open_session(name: str, *session_args: str):
+    """Telemetry + unhandled-error catch + session must exist and be open."""
+    return with_middleware(
+        catch_unhandled_errors,
+        log_tool_call(name),
+        require_open_session(*session_args),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tool registry
+# ---------------------------------------------------------------------------
+
+TOOLS = {
+    "validate_knowledge": {
+        **VALIDATE_KNOWLEDGE_SCHEMA,
+        "handler": _wrap_session("validate_knowledge", "session_id")(validate_knowledge),
+    },
+    "serialize_knowledge": {
+        **SERIALIZE_KNOWLEDGE_SCHEMA,
+        "handler": _wrap_session("serialize_knowledge", "session_id")(serialize_knowledge),
+    },
+    "explain_knowledge": {
+        **EXPLAIN_KNOWLEDGE_SCHEMA,
+        "handler": _wrap_session("explain_knowledge", "session_id")(explain_knowledge),
+    },
+    "evolve_knowledge": {
+        **EVOLVE_KNOWLEDGE_SCHEMA,
+        "handler": _wrap_open_session("evolve_knowledge", "session_id")(evolve_knowledge),
+    },
+    "merge_knowledge": {
+        **MERGE_KNOWLEDGE_SCHEMA,
+        "handler": _wrap(
+            "merge_knowledge", "json_data_base", "json_data_branch_a", "json_data_branch_b"
+        )(merge_knowledge),
+    },
+    "create_branch": {
+        **CREATE_BRANCH_SCHEMA,
+        "handler": _wrap_open_session("create_branch", "session_id")(create_branch),
+    },
+    "merge_branch": {
+        **MERGE_BRANCH_SCHEMA,
+        "handler": _wrap_open_session("merge_branch", "target_session_id")(merge_branch),
+    },
+    "close_session": {
+        **CLOSE_SESSION_SCHEMA,
+        "handler": _wrap_session("close_session", "session_id")(close_session),
+    },
+    "query_subgraph": {
+        **QUERY_SUBGRAPH_SCHEMA,
+        "handler": _wrap_session("query_subgraph", "session_id")(query_subgraph_tool),
+    },
+    "search_semantic": {
+        **SEARCH_SEMANTIC_SCHEMA,
+        "handler": _wrap_session("search_semantic", "session_id")(search_semantic),
+    },
+    "get_metrics": {
+        **GET_METRICS_SCHEMA,
+        "handler": _wrap("get_metrics")(get_metrics),
+    },
+    "verify_source": {
+        **VERIFY_SOURCE_SCHEMA,
+        "handler": _wrap("verify_source", "url", "subject_id")(verify_source),
+    },
+    "list_versions": {
+        **LIST_VERSIONS_SCHEMA,
+        "handler": _wrap_session("list_versions", "session_id")(list_versions),
+    },
+    "revert_version": {
+        **REVERT_VERSION_SCHEMA,
+        "handler": _wrap_open_session("revert_version", "session_id")(revert_version),
+    },
+    "compare_versions": {
+        **COMPARE_VERSIONS_SCHEMA,
+        "handler": _wrap_session("compare_versions", "session_id")(compare_versions),
+    },
+    "visualize_graph": {
+        **VISUALIZE_GRAPH_SCHEMA,
+        "handler": _wrap_session("visualize_graph", "session_id")(visualize_graph),
+    },
+    "explain_diff": {
+        **EXPLAIN_DIFF_SCHEMA,
+        "handler": _wrap_session("explain_diff", "session_id")(explain_diff),
+    },
+    "export_knowledge": {
+        **EXPORT_KNOWLEDGE_SCHEMA,
+        "handler": _wrap_session("export_knowledge", "session_id")(export_knowledge),
+    },
+    "suggest_evolution": {
+        **SUGGEST_EVOLUTION_SCHEMA,
+        "handler": _wrap_open_session("suggest_evolution", "session_id")(suggest_evolution),
+    },
+    "detect_contradictions": {
+        **DETECT_CONTRADICTIONS_SCHEMA,
+        "handler": _wrap_session("detect_contradictions", "session_id")(detect_contradictions),
+    },
+    "fork_sandbox": {
+        **FORK_SANDBOX_SCHEMA,
+        "handler": _wrap_open_session("fork_sandbox", "session_id")(fork_sandbox),
+    },
+    "construct_knowledge": {
+        **CONSTRUCT_KNOWLEDGE_SCHEMA,
+        "handler": _wrap("construct_knowledge", "text")(construct_knowledge),
+    },
+    "export_session": {
+        **EXPORT_SESSION_SCHEMA,
+        "handler": _wrap_session("export_session", "session_id")(export_session),
+    },
+    "ingest_document": {
+        **INGEST_DOCUMENT_SCHEMA,
+        "handler": _wrap("ingest_document", "url")(ingest_document),
+    },
+}
