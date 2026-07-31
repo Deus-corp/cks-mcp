@@ -2,14 +2,37 @@
 construct_knowledge: build a Canonical Knowledge Structure from free-form text
 using an LLM to extract entities, relations, and their structure.
 
-The tool sends the user-supplied text to the configured LLM (Anthropic
-claude-sonnet-4-6 by default), asks it to produce a valid CKS JSON payload,
-then parses and validates that payload with cks-core before persisting it as
-a new session.  Nothing is committed if the LLM output fails validation.
+The tool sends the user-supplied text to a pluggable LLM provider, asks it to
+produce a valid CKS JSON payload, then parses and validates that payload with
+cks-core before persisting it as a new session. Nothing is committed if the
+LLM output fails validation.
+
+Provider selection (CKS_LLM_PROVIDER):
+    "auto" (default) — use a local Ollama server if one is reachable at
+                        CKS_OLLAMA_HOST (no API key needed); otherwise fall
+                        back to Anthropic if ANTHROPIC_API_KEY is set.
+    "ollama"          — force local Ollama. No API key required.
+    "anthropic"       — force the Anthropic API. Requires ANTHROPIC_API_KEY.
+
+If no provider is available, the tool returns an error explaining all three
+options, including the option to skip this tool entirely: since the MCP
+client calling this server is typically itself an LLM, it can build the CKS
+JSON directly (the exact required shape is in _SYSTEM_PROMPT below) and pass
+it straight to evolve_knowledge/validate_knowledge — no LLM call from the
+server needed at all.
+
+(MCP's "sampling" feature — letting the server ask the connected client's
+model to do this — was deprecated in the 2026-07-28 protocol revision, so it
+is intentionally not used here.)
 
 Environment variables:
-    ANTHROPIC_API_KEY   — required; Anthropic API key.
-    CKS_LLM_MODEL       — optional override (default: claude-sonnet-4-6).
+    CKS_LLM_PROVIDER    — "auto" (default) | "ollama" | "anthropic".
+    ANTHROPIC_API_KEY   — required only for the "anthropic" provider.
+    CKS_LLM_MODEL       — model override for the "anthropic" provider
+                          (default: claude-sonnet-4-6).
+    CKS_OLLAMA_MODEL    — model override for the "ollama" provider
+                          (default: llama3.2).
+    CKS_OLLAMA_HOST     — Ollama server URL (default: http://localhost:11434).
     CKS_LLM_MAX_TOKENS  — optional override (default: 4096).
 """
 
@@ -66,6 +89,125 @@ Example output:
 # ---------------------------------------------------------------------------
 # LLM call (httpx-free: uses stdlib urllib so no extra dependency)
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Local LLM call via Ollama (no dependency, no API key — plain stdlib urllib
+# against Ollama's own local HTTP API)
+# ---------------------------------------------------------------------------
+
+
+def _ollama_host() -> str:
+    return os.environ.get("CKS_OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+
+
+def _ollama_available(host: str | None = None) -> bool:
+    """Cheap reachability check used by the 'auto' provider. Never raises."""
+    import urllib.error
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(f"{host or _ollama_host()}/api/tags", timeout=1.5) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+def _call_ollama(prompt: str, model: str, max_tokens: int) -> str:
+    """
+    Call a local Ollama server's generate endpoint. Raises RuntimeError with
+    a descriptive message (including how to fix it) on any failure.
+    """
+    import urllib.error
+    import urllib.request
+
+    host = _ollama_host()
+    payload = json.dumps(
+        {
+            "model": model,
+            "system": _SYSTEM_PROMPT,
+            "prompt": prompt,
+            "stream": False,
+            "options": {"num_predict": max_tokens},
+        }
+    ).encode()
+
+    req = urllib.request.Request(
+        f"{host}/api/generate",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            body = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode(errors="replace")
+        raise RuntimeError(
+            f"Ollama returned HTTP {exc.code}: {raw[:400]}. "
+            f"Is model '{model}' pulled? Try: ollama pull {model}"
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(
+            f"Could not reach Ollama at {host}: {exc.reason}. "
+            "Is `ollama serve` running? Install: https://ollama.com"
+        ) from exc
+
+    text = body.get("response", "")
+    if not text:
+        raise RuntimeError(f"Ollama returned no text. Full response: {body}")
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Provider dispatch
+# ---------------------------------------------------------------------------
+
+
+def _call_llm(prompt: str, *, model: str | None, max_tokens: int) -> tuple[str, str]:
+    """
+    Route the extraction prompt to whichever LLM provider is configured or
+    available. Returns (raw_text, model_used). Raises RuntimeError with a
+    message listing every option when no provider can be used.
+    """
+    provider = os.environ.get("CKS_LLM_PROVIDER", "auto").lower()
+
+    if provider == "ollama":
+        m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
+        return _call_ollama(prompt, model=m, max_tokens=max_tokens), m
+
+    if provider == "anthropic":
+        m = model or os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
+        return _call_anthropic(prompt, model=m, max_tokens=max_tokens), m
+
+    if provider != "auto":
+        raise RuntimeError(
+            f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', or 'anthropic'."
+        )
+
+    # auto: prefer a local, keyless model if one is already running; otherwise
+    # fall through to Anthropic, which raises its own clear error if
+    # ANTHROPIC_API_KEY isn't set either (caught below and rewrapped with the
+    # full list of options).
+    if _ollama_available():
+        m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
+        return _call_ollama(prompt, model=m, max_tokens=max_tokens), m
+
+    m = model or os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
+    try:
+        return _call_anthropic(prompt, model=m, max_tokens=max_tokens), m
+    except RuntimeError as exc:
+        if "ANTHROPIC_API_KEY" not in str(exc):
+            raise
+        raise RuntimeError(
+            "No LLM provider available for construct_knowledge. Options: "
+            "(1) run a local model — `ollama serve` + `ollama pull llama3.2` — "
+            "no API key needed, this tool auto-detects it on localhost:11434; "
+            "(2) set ANTHROPIC_API_KEY and CKS_LLM_PROVIDER=anthropic; "
+            "(3) skip this tool: ask your LLM client to build the CKS JSON directly "
+            "(same format as this tool's own system prompt) and pass it straight "
+            "to evolve_knowledge or validate_knowledge — no server-side LLM call needed."
+        ) from exc
 
 
 def _call_anthropic(prompt: str, model: str, max_tokens: int) -> str:
@@ -198,9 +340,7 @@ async def construct_knowledge(
         return missing_parameter("text")
 
     hint = arguments.get("hint", "").strip()
-    model = arguments.get("model") or os.environ.get(
-        "CKS_LLM_MODEL", "claude-sonnet-4-6"
-    )
+    model = arguments.get("model") or None
     max_tokens = int(
         arguments.get("max_tokens")
         or os.environ.get("CKS_LLM_MAX_TOKENS", "4096")
@@ -212,9 +352,9 @@ async def construct_knowledge(
         user_prompt_parts.append(f"\nFocus especially on: {hint}")
     user_prompt = "\n".join(user_prompt_parts)
 
-    # 1. Call LLM
+    # 1. Call LLM (provider auto-selected or forced via CKS_LLM_PROVIDER)
     try:
-        raw_output = _call_anthropic(user_prompt, model=model, max_tokens=max_tokens)
+        raw_output, model = _call_llm(user_prompt, model=model, max_tokens=max_tokens)
     except RuntimeError as exc:
         return internal_error(f"LLM call failed: {exc}")
 

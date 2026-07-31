@@ -17,7 +17,10 @@ import tempfile
 from typing import Any
 
 from cks_runtime.config import RuntimeConfig
-from cks_runtime.embedding.client import HuggingFaceEmbeddingClient
+from cks_runtime.embedding.client import (
+    FastEmbedEmbeddingClient,
+    HuggingFaceEmbeddingClient,
+)
 from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime_plugins.cks_core import CksCoreAdapter
@@ -283,13 +286,40 @@ async def main() -> None:
                     os.environ.setdefault(key.strip(), value.strip())
 
     # Инициализируем embedding-клиент
+    embedding_provider = os.environ.get("CKS_EMBEDDING_PROVIDER", "fastembed").lower()
     embedding_client = None
-    try:
-        embedding_client = HuggingFaceEmbeddingClient()
-    except Exception as exc:
+
+    def _try_huggingface() -> HuggingFaceEmbeddingClient | None:
+        try:
+            return HuggingFaceEmbeddingClient()
+        except Exception as exc:
+            print(f"[CKS-MCP] WARNING: HuggingFace embedding client unavailable: {exc}", file=sys.stderr)
+            return None
+
+    if embedding_provider == "huggingface":
+        embedding_client = _try_huggingface()
+    elif embedding_provider == "stub":
+        embedding_client = None
+    else:
+        if embedding_provider != "fastembed":
+            print(
+                f"[CKS-MCP] WARNING: Unknown CKS_EMBEDDING_PROVIDER={embedding_provider!r}, "
+                f"defaulting to fastembed.",
+                file=sys.stderr,
+            )
+        try:
+            embedding_client = FastEmbedEmbeddingClient()
+        except Exception as exc:
+            print(f"[CKS-MCP] WARNING: fastembed unavailable ({exc}); trying HuggingFace.", file=sys.stderr)
+            embedding_client = _try_huggingface()
+
+    if embedding_client is None:
         print(
-            f"[CKS-MCP] WARNING: Embedding client unavailable — "
-            f"semantic search will not work. Cause: {exc}",
+            "[CKS-MCP] WARNING: No embedding client configured — search_semantic will "
+            "fall back to Runtime's non-semantic StubEmbeddingClient (SHA-256 based). "
+            "Results will look like scores near 0 for everything, not real similarity. "
+            "Install fastembed (`pip install cks-runtime[fastembed]`) or set HF_TOKEN "
+            "and CKS_EMBEDDING_PROVIDER=huggingface to fix this.",
             file=sys.stderr,
         )
 

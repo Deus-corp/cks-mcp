@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-169%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-172%20passed-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
@@ -39,7 +39,10 @@ Other projects build upon it:
 # Quick Start
 
 1. Install and connect to Claude Desktop (see [Installation](#installation)).
-2. (Optional) For semantic search, set your Hugging Face token: `export HF_TOKEN=hf_...`
+2. (Optional) Semantic search works out of the box with the built-in
+   `fastembed` engine (no API keys required). To use HuggingFace
+   models instead, set `CKS_EMBEDDING_PROVIDER=huggingface` and
+   `export HF_TOKEN=hf_...`. See [Getting Started](docs/getting-started.md).
 3. In the chat, start your message with **"Use cks-mcp to…"**.
 4. Claude automatically picks the right tool from the 24 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
 5. Every operation is logged, versioned, and stored in a persistent SQLite database.
@@ -76,7 +79,7 @@ traceable to its origin.
 - **Contradiction detection** — `detect_contradictions` flags mutual exclusions (e.g., both `supports` and `contradicts` between the same pair) and functional relation violations (e.g., a planet orbiting two different stars).
 - **Hypothesis sandboxing** — `fork_sandbox` creates an isolated branch, optionally applies a hypothesis, and reports the diff from the fork point — all without touching the parent session. Safe to discard or promote.
 - **Content ingestion** — `ingest_document` fetches a public URL, extracts title, description and keywords, and builds a preliminary Knowledge Structure.
-- **LLM-assisted knowledge construction** — `construct_knowledge` converts free-form text into a validated Knowledge Structure using an LLM (Anthropic API).
+- **LLM-assisted knowledge construction** — `construct_knowledge` converts free-form text into a validated Knowledge Structure using a local Ollama model (no API key needed) or the Anthropic API, auto-selected via `CKS_LLM_PROVIDER`.
 - **Session portability** — `export_session` packages a full session bundle (structure + version history) for migration or archival.
 - **Telemetry dashboard** — `get_metrics` now returns per‑tool latency percentiles (p50/p95/p99), success rates, and top error types since server start.
 
@@ -90,15 +93,9 @@ pip install cks-mcp
 
 The server requires `cks-runtime` (which includes `cks-core`) as a dependency.
 
-For semantic search, you also need a Hugging Face token:
-```bash
-export HF_TOKEN=hf_...
-```
-
 See [Getting Started](docs/getting-started.md#optional-environment-variables)
-for the full list of environment variables (including `ANTHROPIC_API_KEY`
-for `construct_knowledge`) and how to set them via a `~/.cks-mcp/.env` file
-instead of your shell.
+for the full list of environment variables and how to set them via a
+`~/.cks-mcp/.env` file.
 
 ---
 
@@ -245,7 +242,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-169+ tests, all passing.
+172+ tests, all passing.
 
 ---
 

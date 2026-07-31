@@ -3,6 +3,17 @@
 
 ---
 
+## [1.18.0] - 2026-07-31
+
+### Added
+- **Pluggable LLM providers for `construct_knowledge`** – supports local Ollama (no API key), Anthropic API, and auto-detection (`CKS_LLM_PROVIDER` env var).
+- **`fastembed` as default embedding provider** – server now prefers local, token-free embeddings via `FastEmbedEmbeddingClient`. Falls back to HuggingFace if fastembed is unavailable.
+
+### Changed
+- Bumped `cks-runtime` dependency to `>=1.25.0`.
+
+---
+
 ## [1.17.0] - 2026-07-31
 
 ### Changed

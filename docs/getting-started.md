@@ -24,12 +24,16 @@ Requires **Python 3.12+**.
 
 | Variable | Used by | Purpose |
 |----------|---------|---------|
-| `HF_TOKEN` | `search_semantic` | HuggingFace token for generating real embeddings. Without it, semantic search falls back to explicit `seed_ids`. |
-| `ANTHROPIC_API_KEY` | `construct_knowledge` | Required for LLM-assisted knowledge construction. |
-| `CKS_LLM_MODEL` | `construct_knowledge` | Overrides the default model (`claude-sonnet-4-6`). |
-| `CKS_LLM_MAX_TOKENS` | `construct_knowledge` | Overrides the default max-tokens (`4096`). |
-| `CKS_MCP_DATA_DIR` | server startup | Overrides the default data directory (`~/.cks-mcp`), where the SQLite database and provenance secret are stored. |
-| `CKS_MCP_SECRET` | provenance signing | Overrides the auto-generated, auto-persisted HMAC secret used to sign `VerificationRecord`s. Accepts a raw string, hex, or a `base64:`-prefixed value. |
+| `CKS_EMBEDDING_PROVIDER` | `search_semantic` | `"fastembed"` (default) for local, token‑free embeddings; `"huggingface"` for the HuggingFace Inference API. |
+| `HF_TOKEN` | `search_semantic` | Required only when `CKS_EMBEDDING_PROVIDER=huggingface`. |
+| `CKS_LLM_PROVIDER` | `construct_knowledge` | `"auto"` (default — prefers a local Ollama server, falls back to Anthropic), `"ollama"`, or `"anthropic"`. |
+| `ANTHROPIC_API_KEY` | `construct_knowledge` | Required only for the `"anthropic"` provider. |
+| `CKS_LLM_MODEL` | `construct_knowledge` | Overrides the Anthropic model (default `claude-sonnet-4-6`). |
+| `CKS_OLLAMA_MODEL` | `construct_knowledge` | Overrides the Ollama model (default `llama3.2`). |
+| `CKS_OLLAMA_HOST` | `construct_knowledge` | Ollama server URL (default `http://localhost:11434`). |
+| `CKS_LLM_MAX_TOKENS` | `construct_knowledge` | Overrides max-tokens (default `4096`). |
+| `CKS_MCP_DATA_DIR` | server startup | Overrides `~/.cks-mcp` (DB + provenance secret). |
+| `CKS_MCP_SECRET` | provenance signing | Overrides the auto‑generated HMAC secret. |
 
 Instead of exporting these in your shell, you can drop them into
 `~/.cks-mcp/.env` (one `KEY=value` per line) — the server reads that file
@@ -121,6 +125,16 @@ tools, grouped by what they're for, is in the
 **In practice**, you don't write raw `tools/call` JSON yourself — in Claude
 Desktop, just start a message with **"Use cks-mcp to…"** and the model
 picks the right tool and arguments for you.
+
+**To use semantic search without any API keys** — which is now the
+default — leave `CKS_EMBEDDING_PROVIDER` unset (`fastembed`) and the
+server will download a small (~90 MB) sentence‑transformers model
+once on first use, then run fully offline from that point on.
+
+**To use `construct_knowledge` without any API keys**, run
+[Ollama](https://ollama.com) on `localhost` — `construct_knowledge`
+auto‑detects it and uses a local `llama3.2` model by default, no
+`ANTHROPIC_API_KEY` needed.
 
 ## Running the Test Suite
 

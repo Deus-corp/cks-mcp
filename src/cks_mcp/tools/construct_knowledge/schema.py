@@ -11,7 +11,9 @@ CONSTRUCT_KNOWLEDGE_SCHEMA = {
     "description": "Build a Canonical Knowledge Structure from free-form text using an LLM. "
     "The LLM extracts entities and relationships, generates a valid CKS JSON "
     "payload, which is then parsed and validated before being persisted as a "
-    "new session. Requires ANTHROPIC_API_KEY to be set in the environment. "
+    "new session. Provider is auto-selected (CKS_LLM_PROVIDER): a local Ollama "
+    "server if reachable (no API key needed), else Anthropic if "
+    "ANTHROPIC_API_KEY is set. "
     "Returns 'session_id', 'version_id', and the serialized structure. "
     "Use 'hint' to direct the extraction toward specific aspects of the text.",
     "inputSchema": {
@@ -31,8 +33,9 @@ CONSTRUCT_KNOWLEDGE_SCHEMA = {
             "model": {
                 "type": "string",
                 "description": (
-                    "Optional. Anthropic model to use. Defaults to the "
-                    "CKS_LLM_MODEL environment variable, or 'claude-sonnet-4-6'."
+                    "Optional. Model name for whichever provider is selected "
+                    "(e.g. an Ollama model tag, or an Anthropic model). Defaults "
+                    "to CKS_OLLAMA_MODEL/CKS_LLM_MODEL depending on provider."
                 ),
             },
             "max_tokens": {
