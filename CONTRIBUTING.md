@@ -22,16 +22,25 @@ mypy src/cks_mcp
 
 A new tool touches exactly two places:
 
-1. Its handler module in `src/cks_mcp/tools/` (or an existing module, if
-   it belongs with related tools — e.g. `revert.py` holds both
-   `list_versions` and `revert_version`).
-2. Its entry in the `TOOLS` dict in `src/cks_mcp/tool_registry.py`
-   (name, description, `inputSchema`, and the handler wired in).
+1. A new package under `src/cks_mcp/tools/<name>/` (or an existing one, if
+   it belongs with a closely related tool — e.g. `tools/revert/` holds both
+   `list_versions` and `revert_version`), containing:
+   - `handler.py` — the async implementation function.
+   - `schema.py` — a plain Python dict with `name`, `description`, and
+     `inputSchema`. Use a dict rather than a literal `.json` file so shared
+     description text (see `tools/_shared.py`) can be imported instead of
+     duplicated.
+   - `__init__.py` — re-exports the handler function(s), e.g.
+     `from .handler import my_tool as my_tool`.
+2. Its entry in the `TOOLS` dict in `src/cks_mcp/registry.py`, built from
+   `**YOUR_TOOL_SCHEMA` plus the wired-up `handler`.
 
 Wrap the handler with `_wrap`, `_wrap_session`, or `_wrap_open_session`
-(see `tool_registry.py`) rather than calling `log_tool_call()` directly —
+(see `registry.py`) rather than calling `log_tool_call()` directly —
 this is what gives every tool its structured validation stack and
 telemetry for free.
+
+Mirror the layout in tests: add `tests/tools/<name>/test_handler.py`.
 
 Once the tool works and is tested, add it to
 [`docs/tools/`](docs/tools/index.md): pick the group file it fits best

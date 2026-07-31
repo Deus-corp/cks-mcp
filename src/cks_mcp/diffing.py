@@ -1,10 +1,11 @@
 """
 Shared field-level diff helper for Knowledge Objects and Relations.
 
-Used by both merge conflict reporting (tools/merge.py) and explain_diff
-(tools/explain_diff.py), so "what changed about this identity between two
-points in time" is computed and presented the same way everywhere in
-cks-mcp, instead of two subtly-different reimplementations drifting apart.
+Used by both merge conflict reporting (tools/merge/handler.py) and
+explain_diff (tools/explain_diff/handler.py), so "what changed about this
+identity between two points in time" is computed and presented the same
+way everywhere in cks-mcp, instead of two subtly-different
+reimplementations drifting apart.
 """
 
 from __future__ import annotations

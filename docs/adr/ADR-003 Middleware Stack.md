@@ -8,6 +8,10 @@
 
 **Category:** Architecture Decision Record
 
+> **Note (v1.17.0):** `tool_registry.py`, referenced throughout this ADR,
+> was renamed to `registry.py` during the project restructuring. The
+> decision and reasoning below are unchanged — only the filename moved.
+
 ---
 
 # Context

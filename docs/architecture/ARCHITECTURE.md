@@ -1,6 +1,6 @@
 # Architecture
 
-**Status:** Living document — reflects the codebase as of `v1.16.x`.
+**Status:** Living document — reflects the codebase as of `v1.17.x`.
 
 ## 1. Purpose
 
@@ -68,8 +68,8 @@ protection specifically.
 
 ```
 server.py            MCP transport (JSON-RPC over stdio)
-  └─ tool_registry.py   Tool schemas + dispatch, wrapped in middleware
-       └─ tools/           24 operation handlers, one concern each
+  └─ registry.py        Tool schemas + dispatch, wrapped in middleware
+       └─ tools/           24 operation handlers, grouped into 21 per-tool packages
 middleware.py         Composable validation stacks (require_fields, ...)
 errors.py             Structured, LLM-friendly error responses
 provenance.py         HMAC signing/verification for VerificationRecord
@@ -89,18 +89,28 @@ Owns the JSON-RPC-over-stdio transport, the MCP lifecycle methods
 Reads a `.env` file at `~/.cks-mcp/.env` on startup if present (see
 [Getting Started](../getting-started.md#optional-environment-variables)).
 
-### `tool_registry.py` — Tool Registry & Schemas
+### `registry.py` — Tool Registry & Schemas
 
-The `TOOLS` dict: one entry per tool with its `name`, `description`,
-`inputSchema`, and handler, wired through `middleware.py`'s composition
-helpers (`_wrap` / `_wrap_session` / `_wrap_open_session`) rather than
-each handler managing its own validation stack.
+The `TOOLS` dict: one entry per tool, assembled from that tool's
+`tools/<name>/schema.py` (its `name`, `description`, `inputSchema`) plus its
+handler, wired through `middleware.py`'s composition helpers
+(`_wrap` / `_wrap_session` / `_wrap_open_session`) rather than each handler
+managing its own validation stack.
 
 ### `tools/` — Operation Handlers
 
-Each of the 24 tools is a standalone module implementing a single
-canonical operation — see [Tools Reference](../tools/index.md) for the
-full, grouped list with parameters and examples.
+Each of the 24 tools lives in its own package under `tools/<name>/`
+(a small number of packages hold two closely related tools, e.g.
+`tools/revert/` has both `list_versions` and `revert_version`) — see
+[Tools Reference](../tools/index.md) for the full, grouped list with
+parameters and examples. Each package has:
+- `handler.py` — the async implementation, a standalone module
+  implementing a single canonical operation.
+- `schema.py` — a plain Python dict with the tool's MCP schema, kept
+  separate from the implementation so it can be reviewed/edited on its
+  own; shared description text lives in `tools/_shared.py`.
+- `__init__.py` — re-exports the handler function(s) as the package's
+  public API.
 
 ### `middleware.py` — Composable Middleware
 
