@@ -6,7 +6,7 @@ towards a stable, production-ready platform and beyond.
 
 ---
 
-# Current Status (v1.10.x)
+# Current Status (v1.16.x)
 
 The project has matured into a robust platform. It provides LLMs with
 a verifiable, persistent knowledge backbone, semantic search, and a full suite of tools for knowledge lifecycle management (see
@@ -27,7 +27,7 @@ a verifiable, persistent knowledge backbone, semantic search, and a full suite o
 - **Graph Exploration:** `query_subgraph` (with compact mode and budget), `search_semantic` (real embeddings via HuggingFace, with `min_score` threshold and similarity scores).
 - **Audit & Metrics:** `get_metrics` for runtime statistics.
 - **Visualization & Diff:** `visualize_graph` (Mermaid export), `explain_diff` (natural-language change summaries).
-- **AI Assistance:** `suggest_evolution` (state inspection + guidance for building operations).
+- **AI Assistance:** `suggest_evolution` (state inspection + guidance for building operations), `construct_knowledge` (LLM-assisted extraction of a Knowledge Structure from free-form text via the Anthropic API).
 - **Export:** `export_knowledge` (JSON-LD, Turtle, RDF/XML).
 - **Ontology Validation:** `type_hierarchy` and `relation_type` extensions catch nonsense like "Earth orbits Pasta".
 - **Content Ingestion:** `ingest_document` — fetch a URL and build a preliminary Knowledge Structure from metadata and keywords.
@@ -54,7 +54,7 @@ a verifiable, persistent knowledge backbone, semantic search, and a full suite o
 ### Security & Hardening
 - **SSRF & DNS Rebinding Protection:** `verify_source` safely performs outbound HTTP checks.
 - **Persistent Provenance Secrets:** The HMAC secret for signing verifications is stored alongside the database.
-- **95+ tests** covering core functionality, security, and integrations.
+- **170+ tests** covering core functionality, security, and integrations.
 
 ---
 
@@ -64,7 +64,6 @@ a verifiable, persistent knowledge backbone, semantic search, and a full suite o
 **Goal:** Move from a tool for LLMs to a platform run by LLMs.
 
 - [ ] **Conflict Resolution Agent:** An autonomous agent that resolves merge conflicts using structured diffs, ReAct loops, and a DLQ via the Task Bus.
-- [ ] **`construct_knowledge` Tool:** Use an LLM to parse natural language directly into a `KnowledgeStructure`.
 
 ## Production & Scale
 **Goal:** Harden the server for reliable, persistent, and scalable deployments.
@@ -77,7 +76,7 @@ a verifiable, persistent knowledge backbone, semantic search, and a full suite o
 ## Ecosystem & Distribution
 **Goal:** Make CKS the default knowledge layer for LLM applications.
 
-- [ ] **Official Documentation Site:** Comprehensive guides, API references, and tutorials.
+- [x] **Official Documentation Site:** `docs/index.md`, `docs/getting-started.md`, the full `docs/tools/` reference (all 24 tools), `docs/security.md`, `docs/extensions.md`, `docs/protocol/` (Resources & Prompts), `docs/architecture/` (with a dedicated request lifecycle page), and `docs/adr/` are all in place. Remaining: publish this as an actual hosted site (the mkdocs hub currently lives in `cks-core` and needs its nav updated to include these pages).
 - [ ] **Dedicated MCP Client:** A lightweight desktop or web client specifically designed for managing CKS graphs.
 - [ ] **Domain-Specific Constraint Packs:** Pre-built validation rules for scientific, legal, and medical knowledge.
 

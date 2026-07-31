@@ -18,6 +18,10 @@ Every tool call creates a **Runtime Session** and **Transaction**,
 producing an immutable **Version** and collecting **Diagnostics**.
 This guarantees full auditability and reproducibility.
 
+📚 **Full documentation:** [docs/index.md](docs/index.md) — start with
+[Getting Started](docs/getting-started.md) or jump straight to the
+[Tools Reference](docs/tools/index.md).
+
 ---
 
 # Ecosystem
@@ -45,7 +49,7 @@ Other projects build upon it:
 
 ![CKS Demo](https://github.com/Deus-corp/cks-mcp/releases/download/v1.10.2/demo.gif)
 
-*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. Twenty-three tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, and more — all triggered by plain English.*
+*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. All 24 tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, and more — all triggered by plain English.*
 
 ---
 
@@ -91,6 +95,11 @@ For semantic search, you also need a Hugging Face token:
 export HF_TOKEN=hf_...
 ```
 
+See [Getting Started](docs/getting-started.md#optional-environment-variables)
+for the full list of environment variables (including `ANTHROPIC_API_KEY`
+for `construct_knowledge`) and how to set them via a `~/.cks-mcp/.env` file
+instead of your shell.
+
 ---
 
 # Connect to Claude Desktop
@@ -116,120 +125,36 @@ export HF_TOKEN=hf_...
    ```
 
 3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
-   After restart, a connector icon will appear – `cks-mcp` with twenty-three tools is ready to use.
+   After restart, a connector icon will appear – `cks-mcp` with 24 tools is ready to use.
+
+See [Getting Started](docs/getting-started.md) for a walkthrough of your
+first session once the server is connected.
 
 ---
 
 # Available Tools
 
-| Tool | Description |
-|------|-------------|
-| `validate_knowledge` | Validate a Knowledge Structure and return diagnostics. Supports opt‑in extensions (`embedding_projection`, `verification_record`). Provenance of `VerificationRecord` objects is checked automatically. |
-| `serialize_knowledge` | Serialize a Knowledge Structure into canonical JSON. |
-| `explain_knowledge` | Produce a semantic explanation of a Knowledge Structure. |
-| `evolve_knowledge` | Apply Genesis/Decay operators to evolve a structure. |
-| `verify_source` | Perform a real HTTP request to check a URL's availability and create a cryptographically signed `VerificationRecord`. |
-| `list_versions` | List all available versions of a session's history. |
-| `compare_versions` | Compute the structural difference between the current state of a session and a target version. |
-| `revert_version` | Revert a session's Knowledge Structure to a specific previous version. |
-| `merge_knowledge` | Three-way merge of knowledge structures with conflict detection. |
-| `create_branch` | Fork a new session from an existing one, optionally from a specific historical version. |
-| `merge_branch` | Session-aware three-way merge: merge a branch session into a target session, resolving the merge base automatically from the branch's recorded fork point. |
-| `close_session` | Close a session, releasing it from the runtime (e.g. a branch already merged in). |
-| `query_subgraph` | Extract a local k‑hop neighbourhood from a session's Knowledge Structure, with filters, optional budget, and compact mode. |
-| `search_semantic` | **Real embedding-based semantic search.** Uses HuggingFace models to find relevant objects by meaning. Query "virtual machines" returns EC2, not S3. |
-| `get_metrics` | Return runtime metrics: invocation counts and average execution times per operation type. |
-| `visualize_graph` | Export a session's Knowledge Structure or a subgraph as a Mermaid diagram for native rendering in Claude Desktop. |
-| `explain_diff` | Produce a natural-language explanation of changes between two versions, complementing `compare_versions`. |
-| `suggest_evolution` | Inspect the current state of a session and receive guidance for constructing valid evolution operations. |
-| `export_knowledge` | Export a session's Knowledge Structure to JSON-LD, Turtle, or RDF/XML for use with Protégé, Neo4j, or triple stores. |
-| `detect_contradictions` | Detect logical contradictions (mutual exclusion, functional relation violations) using the new contradiction constraints. |
-| `fork_sandbox` | Create an isolated branch, optionally apply a hypothesis, and show a diff from the fork point — safe to discard or promote. |
-| `construct_knowledge` | Build a validated Knowledge Structure from free-form text using an LLM (Anthropic API). |
-| `export_session` | Export a full session bundle (structure, version history, metadata) for migration or archival. |
-| `ingest_document` | Fetch a public URL and build a Knowledge Structure from its metadata and keywords. |
-| `construct_knowledge` | Build a validated Knowledge Structure from free-form text using an LLM (Anthropic API). |
-| `export_session` | Export a full session bundle (structure, version history, metadata) for migration or archival. |
+24 tools, grouped by function. Full reference with parameters and
+real request/response examples: [`docs/tools/`](docs/tools/index.md).
+
+| Group | Tools |
+|-------|-------|
+| Knowledge Lifecycle | `validate_knowledge`, `serialize_knowledge`, `explain_knowledge`, `evolve_knowledge` |
+| Version Control | `list_versions`, `revert_version`, `compare_versions`, `explain_diff` |
+| Branching & Merging | `create_branch`, `merge_branch`, `merge_knowledge`, `close_session`, `fork_sandbox` |
+| Graph Exploration | `query_subgraph`, `search_semantic`, `visualize_graph` |
+| Verification & Integrity | `verify_source`, `detect_contradictions` |
+| AI-Assisted & Ingestion | `construct_knowledge`, `suggest_evolution`, `ingest_document` |
+| Export & Observability | `export_knowledge`, `export_session`, `get_metrics` |
 
 ---
 
 # Usage Examples
 
-## Semantic search (no seed IDs required!)
+A couple of representative calls — the full set, with real response
+shapes for every tool, is in [`docs/tools/`](docs/tools/index.md).
 
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "search_semantic",
-    "arguments": {
-      "session_id": "...",
-      "query": "virtual machines in the cloud"
-    }
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "status": "success",
-  "matched_seeds": ["ec2", "compute-service", "aws"],
-  "subgraph": "...",
-  "meta": { ... }
-}
-```
-
-## Compact subgraph query
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "query_subgraph",
-    "arguments": {
-      "session_id": "...",
-      "seed_ids": ["earth", "mars"],
-      "depth": 2,
-      "compact_mode": true
-    }
-  }
-}
-```
-
-Response (compact, token-efficient):
-
-```json
-{
-  "nodes": [
-    {"id": "earth", "type": "Planet", "name": "Earth", "props": {...}},
-    {"id": "mars", "type": "Planet", "name": "Mars", "props": {...}}
-  ],
-  "edges": [
-    {"source": "earth", "target": "sun", "type": "orbits"}
-  ]
-}
-```
-
-## Validate a structure with citation-hallucination detection
-
-Pass `"extensions": ["embedding_projection"]` to `validate_knowledge`.
-This activates an extra constraint that checks every `EmbeddingProjection`
-object for a valid `represents` relation to an existing source object.
-A projection that references a non‑existent source (a fabricated citation)
-is mechanically flagged.
-
-## Validate a structure with verification integrity
-
-When you use `verify_source` to check a URL, the resulting
-`VerificationRecord` is cryptographically signed. Any
-`VerificationRecord` found in a structure without a valid signature
-is automatically rejected, **even if the model does not explicitly
-request the verification extension**. This prevents LLMs from
-bypassing the check by simply omitting a parameter.
-
-## Basic validation
+## Validate a structure
 
 ```json
 {
@@ -243,368 +168,60 @@ bypassing the check by simply omitting a parameter.
 }
 ```
 
-Response (with version and session information):
+The response includes `valid`, `session_id`, `version_id`, and
+`diagnostics` — keep `session_id` for every following call on this
+structure. See [Knowledge Lifecycle](docs/tools/lifecycle.md) for the
+other three tools in this group.
 
-```json
-{
-  "result": {
-    "content": [
-      {
-        "type": "text",
-        "text": "{\"valid\": true, \"version_id\": \"...\", \"session_id\": \"...\", \"diagnostics\": [], ...}"
-      }
-    ]
-  }
-}
-```
-
-## Compare two versions
+## Semantic search (no seed IDs required)
 
 ```json
 {
   "method": "tools/call",
   "params": {
-    "name": "compare_versions",
-    "arguments": {
-      "session_id": "...",
-      "target_version_id": "..."
-    }
+    "name": "search_semantic",
+    "arguments": {"session_id": "...", "query": "virtual machines in the cloud"}
   }
 }
 ```
 
-Response:
-
-```json
-{
-  "result": {
-    "content": [
-      {
-        "type": "text",
-        "text": "{\"session_id\": \"...\", \"target_version_id\": \"...\", \"changes\": [...]}"
-      }
-    ]
-  }
-}
-```
+Returns matched objects by meaning (e.g. `EC2`, not `S3`), expanded into a
+subgraph. See [Graph Exploration](docs/tools/search-and-graph.md).
 
 ## Branch, evolve independently, and merge back
 
-Fork a session, evolve the branch and its parent independently, then
-merge the branch back in:
-
 ```json
-{"method": "tools/call", "params": {"name": "create_branch",
-  "arguments": {"session_id": "trunk-session-id"}}}
+{"method": "tools/call", "params": {"name": "create_branch", "arguments": {"session_id": "trunk-session-id"}}}
 ```
-
 ```json
-{"method": "tools/call", "params": {"name": "evolve_knowledge",
-  "arguments": {"session_id": "branch-session-id", "operations": [...]}}}
+{"method": "tools/call", "params": {"name": "evolve_knowledge", "arguments": {"session_id": "branch-session-id", "operations": [...]}}}
 ```
-
 ```json
-{"method": "tools/call", "params": {"name": "merge_branch",
-  "arguments": {"target_session_id": "trunk-session-id",
-                "source_session_id": "branch-session-id"}}}
+{"method": "tools/call", "params": {"name": "merge_branch", "arguments": {"target_session_id": "trunk-session-id", "source_session_id": "branch-session-id"}}}
 ```
 
-A successful merge commits a new version of the target session and
-returns its `serialized` structure and `version_id`. A conflicting
-merge instead returns `"merged": false` with a `conflicts` list
-(`object_id`, `base_state`, `target_state`, `source_state`) — resolve
-each one on the target session with `evolve_knowledge`, then
-`close_session` the branch once it's fully integrated.
-
----
-
-## Query a subgraph
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "query_subgraph",
-    "arguments": {
-      "session_id": "...",
-      "seed_ids": ["obj-1"],
-      "depth": 2,
-      "max_objects": 10
-    }
-  }
-}
-```
-
-Response (truncated example):
-
-```json
-{
-  "result": {
-    "content": [
-      {
-        "type": "text",
-        "text": "{\"subgraph\": \"...\", \"total_found_nodes\": 15, \"returned_nodes\": 10, \"is_truncated\": true, \"suggested_next_seed\": \"obj-7\"}"
-      }
-    ]
-  }
-}
-```
-
-## Visualize a knowledge graph
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "visualize_graph",
-    "arguments": {
-      "session_id": "..."
-    }
-  }
-}
-```
-
-Response (Mermaid diagram):
-
-````markdown
-```mermaid
-graph TD
-    earth((Earth))
-    sun((Sun))
-    earth -->|orbits| sun
-```
-````
-
-## Explain the difference between two versions
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "explain_diff",
-    "arguments": {
-      "session_id": "...",
-      "base_version_id": "...",
-      "target_version_id": "..."
-    }
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "summary": "Added 2 objects and 1 relation. Modified 1 object.",
-  "changes": [
-    "Added object 'Pluto' (type: Planet)",
-    "Added object 'Charon' (type: Moon)",
-    "Added relation 'orbits' from 'Pluto' to 'Charon'",
-    "Modified object 'Earth': changed 'status' from 'active' to 'inactive'"
-  ]
-}
-```
-
-## Get AI assistance with evolution
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "suggest_evolution",
-    "arguments": {
-      "session_id": "...",
-      "description": "Add a new planet Neptune that orbits the Sun"
-    }
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "current_objects": [
-    {"id": "sun", "type": "Star", "name": "Sun"},
-    {"id": "earth", "type": "Planet", "name": "Earth"},
-    {"id": "moon", "type": "Moon", "name": "Moon"}
-  ],
-  "current_relations": [
-    {"type": "orbits", "from": "earth", "to": "sun"},
-    {"type": "orbits", "from": "moon", "to": "earth"}
-  ],
-  "guidance": "To add a new planet Neptune: use add_object with identity {id: 'neptune', type: 'Planet', name: 'Neptune'} and add_relation with participants ['neptune', 'sun'] and relation_type 'orbits'."
-}
-```
-
-## Export to RDF/JSON-LD
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "export_knowledge",
-    "arguments": {
-      "session_id": "...",
-      "format": "turtle"
-    }
-  }
-}
-```
-
-Response:
-
-```turtle
-@prefix cks: <http://cks.org/> .
-@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-
-<http://cks.org/sun> rdf:type <http://cks.org/Star> ;
-    rdfs:label "Sun" .
-
-<http://cks.org/earth> rdf:type <http://cks.org/Planet> ;
-    rdfs:label "Earth" ;
-    <http://cks.org/orbits> <http://cks.org/sun> .
-```
+A successful merge commits a new version and returns the merged
+structure; a conflicting merge returns `"merged": false` with a
+`conflicts` list to resolve. See
+[Branching & Merging](docs/tools/branching.md) for the full
+conflict-resolution flow.
 
 ## Detect contradictions
 
-`detect_contradictions` uses `MutualExclusionRule` and `FunctionalRelationRule`
-objects to find logical conflicts. For mutual exclusion, both conflicting
-relations must connect the **same ordered pair** (same source and same target).
-
-Example of a MutualExclusionRule:
-```json
-{"identity": {"id": "rule-1", "type": "MutualExclusionRule", "name": "no-support-and-refute"},
- "structure": {"relation_type_a": "confirms", "relation_type_b": "refutes"}}
- ```
-
-Example of a FunctionalRelationRule:
-
-```json
-{"identity": {"id": "rule-2", "type": "FunctionalRelationRule", "name": "single-orbit"},
- "structure": {"relation_type": "orbits"}}
-```
-
-## Fork a sandbox and test a hypothesis
-
 ```json
 {
   "method": "tools/call",
   "params": {
-    "name": "fork_sandbox",
-    "arguments": {
-      "session_id": "...",
-      "hypothesis": "Add Neptune as a planet orbiting the Sun",
-      "operations": [
-        {"type": "add_object", "identity": {"id": "neptune", "type": "Planet", "name": "Neptune"}},
-        {"type": "add_relation", "identity": {"id": "rel-nep", "type": "Relation", "name": "orbits"}, "participants": ["neptune", "sun"], "relation_type": "orbits"}
-      ]
-    }
+    "name": "detect_contradictions",
+    "arguments": {"session_id": "..."}
   }
 }
 ```
 
-Response:
-
-```json
-{
-  "sandbox_session_id": "...",
-  "parent_session_id": "...",
-  "operations_applied": 2,
-  "diff_from_fork_point": {
-    "summary": {"added_objects": 1, "added_relations": 1, "removed_objects": 0, "removed_relations": 0},
-    "operations": [...]
-  },
-  "message": "Sandbox session '...' is an isolated fork of '...'; nothing here affects the parent. Keep exploring it with evolve_knowledge, promote it with merge_branch once satisfied, or discard it with close_session -- there is no obligation to merge."
-}
-```
-
-## Ingest a document
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "ingest_document",
-    "arguments": {
-      "url": "https://example.com/article"
-    }
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "url": "https://example.com/article",
-  "title": "Example Article",
-  "keywords": ["example", "article", "knowledge", "graph"],
-  "knowledge_structure": "{...}",
-  "object_count": 5,
-  "relation_count": 4
-}
-```
-
-## Construct knowledge from text
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "construct_knowledge",
-    "arguments": {
-      "text": "The Earth orbits the Sun. The Moon orbits the Earth.",
-      "hint": "focus on astronomical bodies and their orbital relationships"
-    }
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "constructed": true,
-  "session_id": "...",
-  "version_id": "...",
-  "serialized": "{...}",
-  "objects_count": 3,
-  "relations_count": 2,
-  "model_used": "claude-sonnet-4-6"
-}
-```
-
-## Export a session bundle
-
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "export_session",
-    "arguments": {
-      "session_id": "...",
-      "format": "bundle",
-      "include_structures": true
-    }
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "format": "bundle",
-  "session_id": "...",
-  "bundle": {
-    "cks_mcp_export": true,
-    "session": { "session_id": "...", ... },
-    "current_structure": { "root_hash": "...", ... },
-    "version_history": { "count": 5, "versions": [...] }
-  }
-}
-```
+Requires `MutualExclusionRule` and/or `FunctionalRelationRule` objects in
+the structure declaring which relation types to check. See
+[Verification & Integrity](docs/tools/verification.md) for the rule shapes
+and how this interacts with `verify_source`'s provenance signing.
 
 ---
 

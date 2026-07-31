@@ -18,7 +18,7 @@
 
 ### Added
 - **Tool telemetry dashboard** – in-memory aggregator (`ToolTelemetry`) recording per-tool call counts, success rates, p50/p95/p99 latency percentiles, and top error types. Accessible via `get_metrics` as `tool_telemetry`.
-- **Composable middleware layer** – `require_fields`, `require_session`, `require_open_session`, `catch_unhandled_errors`, and `with_middleware` composition helper. All 25 tools now have structured validation stacks.
+- **Composable middleware layer** – `require_fields`, `require_session`, `require_open_session`, `catch_unhandled_errors`, and `with_middleware` composition helper. All 24 tools now have structured validation stacks.
 - **`get_metrics`** response extended with `tool_telemetry` dashboard alongside existing `runtime_metrics`.
 
 ### Changed
