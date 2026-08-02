@@ -190,6 +190,7 @@ class DocumentStructureParser(HTMLParser):
         if "itemscope" in attrs:
             itemtype = attrs.get("itemtype", "")
             schema_type = itemtype.rstrip("/").rsplit("/", 1)[-1] if itemtype else None
+            ctx: dict[str, Any] = {"type": schema_type, "properties": {}}
             ctx = {"type": schema_type, "properties": {}}
             frame.microdata_ctx = ctx
             frame.parent_ctx_for_link = parent_ctx

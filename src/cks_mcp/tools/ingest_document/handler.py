@@ -275,7 +275,7 @@ async def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
 
     # ---- Structured extraction (NEW) ---------------------------------------
     parser = parse_document_structure(html)
-    extracted = {
+    extracted: dict[str, Any] = {
         "title": title,
         "description": description,
         "metadata": {
