@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,gossip]"
 
       - name: Run tests
         run: python -m pytest -v
@@ -61,7 +61,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,gossip]"
           pip install mypy types-requests
 
       - name: Run mypy
