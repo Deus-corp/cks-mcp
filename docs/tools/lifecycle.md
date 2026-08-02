@@ -76,9 +76,34 @@ when called with `session_id`; the bare serialized string when called with
 Produces a human-readable, structured explanation of a Knowledge Structure.
 Read-only — even with `session_id`, this never creates a new version.
 
-**Parameters:** same as `serialize_knowledge`.
+**Parameters:** same as `serialize_knowledge`, plus:
 
-**Response:** `{"session_id": "...", "explanation": {...}}`.
+| Name | Type | Required | Description |
+|------|------|----------|--------------|
+| `object_id` | string | no | Explain *why* this one object is currently believed instead of the general structure-wide explanation: recursively walks every active `InferenceStep` chain concluding it, through each step's premises, down to base facts. |
+
+**Response (no `object_id`):** `{"session_id": "...", "explanation": {...}}`.
+
+**Response (with `object_id`):** `{"session_id": "...", "explanation": {"object_id": "...", "exists": true, "has_inference": true, "active_steps": [...], "superseded_steps": [...]}}`.
+`exists` is whether `object_id` itself is present in the structure at all
+(a dangling id doesn't stop the walk). `active_steps` is ordered by
+entrenchment (confidence, descending); each entry carries `step_id`,
+`operator`, `confidence`, `justification`, `alternatives_considered`, and
+its own recursive `premises`. A premise that is itself a meta-citation of
+another `InferenceStep` (rather than an ordinary object) is shaped
+`{"object_id": "...", "cites_step": true}` instead of being recursed into.
+`superseded_steps` is the belief's revision history — steps that used to
+conclude this object before being superseded, each with `step_id`,
+`operator`, `confidence`, `justification`, `superseded_by`. A branch that
+hits a cycle or the traversal's `max_depth` is marked
+`"truncated": "cycle"` or `"truncated": "max_depth"` rather than looping
+or growing unbounded.
+
+Requires an attached Core that implements the optional `explain_inference`
+capability (cks-core ≥ 1.18.0 does); an unsupported Core or an unknown
+`object_id` is reported as `{"error": "internal_error", "message": "..."}`
+rather than an empty explanation, since there's no meaningful empty default
+for "why".
 
 ## `evolve_knowledge`
 

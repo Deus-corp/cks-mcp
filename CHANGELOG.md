@@ -3,6 +3,17 @@
 
 ---
 
+## [1.21.0] - 2026-08-02
+
+### Added
+- **`explain_knowledge` accepts an optional `object_id` parameter** — when given, answers "why is this object currently believed?" instead of the general structure-wide explanation: routes to the new `ExplainInferenceOperation` (`cks-runtime` ≥ 1.31.0), which delegates to `cks.constraints.reasoning.explain_inference` (`cks-core` ≥ 1.18.0). Recursively walks every active `InferenceStep` chain concluding the object through its premises down to base facts, plus the belief's supersession history (`superseded_steps`). Works with both call shapes `explain_knowledge` already supported — `session_id` (read-only, via the non-committing executor, same as the existing `explain` path) and the `json_data` fallback (new session + committed transaction). An attached Core that doesn't implement the optional `explain_inference` capability, or an unknown `object_id`, now surfaces as a structured `internal_error` rather than a silently empty `explanation` — unlike the general explanation, there's no meaningful empty default for "why".
+- Minimum dependency versions raised to `cks-runtime>=1.31.0` and `cks-core>=1.18.0` to match.
+
+### Tests
+- 5 new unit tests in `tests/tools/explain/test_handler.py` covering the `object_id` routing: session_id path success/failure, fallback path success/failure, and confirming the no-`object_id` case still uses the plain `ExplainOperation`.
+
+---
+
 ## [1.20.3] - 2026-08-02
 
 ### Changed
