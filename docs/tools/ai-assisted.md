@@ -91,14 +91,45 @@ want to change), `operations` (optional — a candidate list to preview).
 
 ## `ingest_document`
 
-Fetches a public URL, extracts its title, meta description, and top
-keywords, and returns a Knowledge Structure representing the document — a
-`Document` object linked via `mentions` relations to a `Topic` object per
-keyword. Uses the same SSRF/DNS-rebinding protection as `verify_source`.
+Fetches a public URL, extracts structured content, and returns a Knowledge
+Structure. Uses the same SSRF/DNS-rebinding protection as `verify_source`.
 
-**Parameters:** `url` (string, required).
+By default (`use_llm: false`), the tool performs a deterministic,
+single‑pass HTML extraction that captures:
 
-**Response**
+- Title, meta description, and keywords
+- JSON‑LD, OpenGraph, Twitter Card, and other `<meta>` metadata
+- Schema.org microdata (`itemscope`/`itemprop`)
+- Tables (`<table>` with caption, headers, rows)
+- Lists (`<ul>`, `<ol>`)
+- Heading‑delimited sections (`<h1>`–`<h6>`) with their text content
+
+These become CKS objects: `Document`, `Topic` (for keywords), `Metadata`,
+`Section`, `Table`, `List`, linked by relations `mentions`, `has_metadata`,
+`has_section`, `has_table`, `has_list`.
+
+When `use_llm` is set to `true`, the extracted structured data (sections,
+tables, metadata) is formatted into a prompt and sent to the configured LLM
+provider — the same auto‑selection logic as `construct_knowledge` (local
+Ollama if reachable, else Anthropic if `ANTHROPIC_API_KEY` is set). The LLM
+returns a full CKS JSON graph, which is parsed and returned directly,
+typically producing a richer, more semantic graph. If no provider is
+available, an error with setup instructions is returned.
+
+This tool does **not** persist a session by itself — pipe
+`knowledge_structure` into `validate_knowledge`'s `json_data` if you want
+version history.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|--------------|
+| `url` | string | yes | Publicly accessible URL to fetch. |
+| `use_llm` | boolean | no | If `true`, send extracted content to an LLM for a richer graph (default `false`). |
+| `model` | string | no | LLM model name when `use_llm: true`. Defaults to provider‑specific default. |
+| `max_tokens` | integer | no | Max tokens for the LLM response. Defaults to `CKS_LLM_MAX_TOKENS` or `4096`. |
+
+**Response (deterministic mode, `use_llm: false`)**
 
 ```json
 {
@@ -106,11 +137,34 @@ keyword. Uses the same SSRF/DNS-rebinding protection as `verify_source`.
   "title": "Article Title",
   "keywords": ["photosynthesis", "chlorophyll", "sunlight"],
   "knowledge_structure": "<canonical JSON>",
-  "object_count": 4,
-  "relation_count": 3
+  "object_count": 12,
+  "relation_count": 7
 }
 ```
 
-This builds a structure but does **not** persist it as a session by
-itself — pipe `knowledge_structure` into `validate_knowledge`'s `json_data`
-if you want it tracked with version history from here on.
+The `knowledge_structure` contains a `Document`, several `Topic`s, a
+`Metadata` block, and any `Section`/`Table`/`List` objects found in the
+page, each with corresponding relations.
+
+**Response (LLM mode, `use_llm: true`)**
+
+```json
+{
+  "url": "https://example.com/article",
+  "title": "Article Title",
+  "keywords": ["photosynthesis", "chlorophyll", "sunlight"],
+  "knowledge_structure": "<canonical JSON>",
+  "object_count": 15,
+  "relation_count": 9,
+  "model_used": "llama3.2"
+}
+```
+
+The structure is entirely LLM‑generated from the extracted content; no
+deterministic objects are added. If the LLM call fails, an error is
+returned (e.g. `"error": "llm_call_failed"`).
+
+**Provider configuration** mirrors `construct_knowledge`:
+- `CKS_LLM_PROVIDER=auto` (default) — try Ollama first, fall back to Anthropic
+- `CKS_LLM_PROVIDER=ollama` — force local Ollama (no API key)
+- `CKS_LLM_PROVIDER=anthropic` — force Anthropic API (`ANTHROPIC_API_KEY` required)

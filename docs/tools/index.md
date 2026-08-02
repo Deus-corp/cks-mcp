@@ -15,7 +15,7 @@ used together rather than their declaration order in the registry:
 | [Branching & Merging](branching.md) | `create_branch`, `merge_branch`, `merge_knowledge`, `close_session`, `fork_sandbox` | Isolate experiments and reconcile concurrent edits |
 | [Graph Exploration](search-and-graph.md) | `query_subgraph`, `search_semantic`, `visualize_graph` | Retrieve and render a neighbourhood of a graph |
 | [Verification & Integrity](verification.md) | `verify_source`, `detect_contradictions` | Anti-hallucination: provenance and logical consistency |
-| [AI-Assisted & Ingestion](ai-assisted.md) | `construct_knowledge`, `suggest_evolution`, `ingest_document` | Go from free text / a URL to a validated structure |
+| [AI-Assisted & Ingestion](ai-assisted.md) | `construct_knowledge`, `suggest_evolution`, `ingest_document` | From free text or a URL to a validated structure; `ingest_document` now extracts tables, lists, metadata and supports optional LLM enrichment |
 | [Export & Observability](export-and-audit.md) | `export_knowledge`, `export_session`, `get_metrics` | Get data out, and see how the server is performing |
 
 ## Conventions used across every tool

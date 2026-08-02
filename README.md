@@ -78,7 +78,7 @@ traceable to its origin.
 - **Time-travel debugging** — `list_versions`, `revert_version`, and `compare_versions` give LLMs a full version-control system for knowledge, enabling safe rollbacks and change inspection.
 - **Contradiction detection** — `detect_contradictions` flags mutual exclusions (e.g., both `supports` and `contradicts` between the same pair) and functional relation violations (e.g., a planet orbiting two different stars).
 - **Hypothesis sandboxing** — `fork_sandbox` creates an isolated branch, optionally applies a hypothesis, and reports the diff from the fork point — all without touching the parent session. Safe to discard or promote.
-- **Content ingestion** — `ingest_document` fetches a public URL, extracts title, description and keywords, and builds a preliminary Knowledge Structure.
+- **Content ingestion** — `ingest_document` fetches a public URL, extracts structured content (sections, tables, lists, JSON‑LD/OpenGraph metadata) and builds a Knowledge Structure with Document, Section, Table, List, Metadata, and Topic objects. An optional `use_llm` parameter sends the extracted data to an LLM (same provider auto‑selection as `construct_knowledge`) for a richer, model‑generated graph.
 - **LLM-assisted knowledge construction** — `construct_knowledge` converts free-form text into a validated Knowledge Structure using a local Ollama model (no API key needed) or the Anthropic API, auto-selected via `CKS_LLM_PROVIDER`.
 - **Session portability** — `export_session` packages a full session bundle (structure + version history) for migration or archival.
 - **Telemetry dashboard** — `get_metrics` now returns per‑tool latency percentiles (p50/p95/p99), success rates, and top error types since server start.
