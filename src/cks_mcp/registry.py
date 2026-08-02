@@ -19,6 +19,10 @@ from cks_mcp.middleware import (
     with_middleware,
 )
 from cks_mcp.observability import log_tool_call
+from cks_mcp.tools.arbitrate_inference_conflict import arbitrate_inference_conflict
+from cks_mcp.tools.arbitrate_inference_conflict.schema import (
+    ARBITRATE_INFERENCE_CONFLICT_SCHEMA,
+)
 from cks_mcp.tools.branch import close_session, create_branch
 from cks_mcp.tools.branch.schema import CLOSE_SESSION_SCHEMA, CREATE_BRANCH_SCHEMA
 from cks_mcp.tools.compare import compare_versions
@@ -98,6 +102,22 @@ def _wrap_open_session(name: str, *session_args: str):
         catch_unhandled_errors,
         log_tool_call(name),
         require_open_session(*session_args),
+    )
+
+
+def _wrap_open_session_fields(name: str, session_arg: str, *required_fields: str):
+    """
+    Telemetry + unhandled-error catch + required-field validation (for
+    fields beyond the session id itself, e.g. arbitrate_inference_conflict's
+    'conclusion_id') + session must exist and be open. require_fields runs
+    before require_open_session so a missing conclusion_id is reported on
+    its own rather than as a session lookup failing on an unrelated arg.
+    """
+    return with_middleware(
+        catch_unhandled_errors,
+        log_tool_call(name),
+        require_fields(*required_fields),
+        require_open_session(session_arg),
     )
 
 
@@ -207,5 +227,11 @@ TOOLS = {
     "list_gossip_conflicts": {
         **LIST_GOSSIP_CONFLICTS_SCHEMA,
         "handler": _wrap("list_gossip_conflicts")(list_gossip_conflicts),
+    },
+    "arbitrate_inference_conflict": {
+        **ARBITRATE_INFERENCE_CONFLICT_SCHEMA,
+        "handler": _wrap_open_session_fields(
+            "arbitrate_inference_conflict", "session_id", "session_id", "conclusion_id"
+        )(arbitrate_inference_conflict),
     },
 }

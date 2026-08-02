@@ -3,6 +3,20 @@
 
 ---
 
+## [1.25.0] - 2026-08-02
+
+### Added
+- **`arbitrate_inference_conflict` tool** – resolves an `InferenceConfidenceConflict` (ADR-001) when two or more active `InferenceStep`s conclude the same object but disagree. Three paths to a decision:
+  * *Interactive* (no extra LLM call): returns `active_steps` (ranked by entrenchment) + the arbitration `policy`, so the calling LLM client can weigh them itself and call again with `winner_id` set to its choice.
+  * *Unattended* (`auto_resolve: true`): the tool calls an LLM via the same provider dispatch as `construct_knowledge` (Ollama/Anthropic/auto) to apply the policy and returns the decision.
+  * *Bypass*: the caller can always apply `evolve_knowledge`'s `resolve_inference_conflict` operation directly.
+- **`commit` parameter** – when supplied alongside a decision (`winner_id` or `auto_resolve`), `arbitrate_inference_conflict` applies the winning step via `evolve_knowledge` (with `resolve_inference_conflict` + `inference_confidence_conflict`/`supersession_chain` extensions) and commits a new version, instead of just returning the decision.
+- New `_wrap_open_session_fields` middleware factory in `registry.py` for tools that need field validation beyond `session_id`.
+- 15 new unit tests in `tests/tools/arbitrate_inference_conflict/test_handler.py` covering the three decision paths, error cases (missing session, unknown winner, invalid LLM output), and commit integration.
+- Tool count increased from 25 to 26 (`tools/list` test updated).
+
+---
+
 ## [1.24.0] - 2026-08-02
 
 ### Added
