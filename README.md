@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-200%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-232%20passed-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
@@ -242,7 +242,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-200+ tests, all passing.
+232+ tests, all passing.
 
 ---
 

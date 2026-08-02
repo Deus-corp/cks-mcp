@@ -3,6 +3,18 @@
 
 ---
 
+## [1.20.3] - 2026-08-02
+
+### Changed
+- **`extract_json()` now always validates brace balance** — even when the raw string starts with `{`, the parser checks for balanced braces and trims trailing commentary. This catches truncated LLM output (e.g. cut by `max_tokens`) and trailing prose (e.g. "Hope this helps!") early, instead of failing later with a confusing parse error.
+- **`_build_llm_structure` in `ingest_document` no longer accepts an unused `runtime` parameter.** Callers updated accordingly.
+
+### Added
+- **Direct unit tests for `llm_providers`** (`tests/test_llm_providers.py`) — covers `ollama_host`, `ollama_available`, `call_ollama`, `call_anthropic`, and `extract_json` with 20+ test cases, including error paths, truncated output, and trailing commentary. No existing test exercised these functions directly before.
+- **Provider-dispatch tests for `ingest_document` LLM mode** (`tests/tools/ingest_document/test_llm_dispatch.py`) — covers explicit provider selection, auto-fallback, missing provider, and parameter forwarding, mirroring the dispatch coverage that already existed for `construct_knowledge`.
+
+---
+
 ## [1.20.2] - 2026-08-02
 
 ### Fixed

@@ -160,15 +160,18 @@ def call_anthropic(prompt: str, *, system_prompt: str, model: str, max_tokens: i
 def extract_json(raw: str) -> str:
     """
     Strip any accidental markdown fences the LLM may have emitted and
-    return the first JSON object found in *raw*.
+    return the first *balanced* JSON object found in *raw*, starting
+    from the first ``{``.
 
-    Order of preference:
-    1. The raw string itself -- if it starts with ``{`` after stripping.
-    2. Content between the first ``{`` and its matching ``}``.
+    Brace-matching always runs -- even when ``raw`` already starts
+    with ``{`` -- so that truncated output (e.g. cut off by
+    ``max_tokens``) is reported as "unbalanced braces" instead of
+    being passed through unchecked and failing later with a more
+    confusing parse error, and so that trailing commentary after the
+    JSON object (e.g. "Hope this helps!") is trimmed off rather than
+    returned as part of the "extracted" JSON.
     """
     stripped = raw.strip()
-    if stripped.startswith("{"):
-        return stripped
 
     start = stripped.find("{")
     if start == -1:

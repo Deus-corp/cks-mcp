@@ -129,7 +129,6 @@ Example:
 
 
 def _build_llm_structure(
-    runtime: Runtime,
     extracted: dict[str, Any],
     arguments: dict[str, Any],
 ) -> tuple[cks.KnowledgeStructure, str | None]:
@@ -164,7 +163,12 @@ def _build_llm_structure(
         arguments.get("max_tokens") or os.environ.get("CKS_LLM_MAX_TOKENS", "4096")
     )
 
-    # Reuse the provider dispatch from llm_providers (but with our own system prompt)
+    # Provider dispatch: mirrors construct_knowledge.handler._call_llm, but
+    # bound to our own system prompt. Only the low-level HTTP primitives
+    # (call_ollama/call_anthropic/ollama_available) are shared via
+    # llm_providers -- this branching is a separate copy. See
+    # test_llm_dispatch.py for coverage of these branches; keep both copies
+    # in sync if the fallback logic changes.
     provider = os.environ.get("CKS_LLM_PROVIDER", "auto").lower()
 
     def call_ollama(prompt: str, model: str, max_tokens: int) -> str:
@@ -299,7 +303,7 @@ async def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
     # If use_llm, delegate everything to the LLM
     if use_llm:
         try:
-            llm_structure, model_used = _build_llm_structure(runtime, extracted, arguments)
+            llm_structure, model_used = _build_llm_structure(extracted, arguments)
         except RuntimeError as exc:
             return internal_error(f"LLM call failed: {exc}")
 
