@@ -39,6 +39,7 @@ async def test_returns_buffered_conflict(mock_runtime):
         GossipConflictDetected(
             source_replica_id="replica-a",
             session_id="s1",
+            source_session_id="branch-abc",
             conflicts=["obj-1"],
         )
     )
@@ -49,6 +50,22 @@ async def test_returns_buffered_conflict(mock_runtime):
     assert result["conflicts"][0]["session_id"] == "s1"
     assert result["conflicts"][0]["source_replica_id"] == "replica-a"
     assert result["conflicts"][0]["conflicts"] == ["obj-1"]
+    assert result["conflicts"][0]["source_session_id"] == "branch-abc"
+
+
+async def test_source_session_id_defaults_to_empty_string(mock_runtime):
+    """A conflict where branch registration failed (see GossipAdapter's
+    defensive fallback) still surfaces, just with nothing to diff
+    against yet."""
+    await conflict_inbox.record(
+        GossipConflictDetected(
+            source_replica_id="replica-a", session_id="s1", conflicts=["obj-1"]
+        )
+    )
+
+    result = await list_gossip_conflicts(mock_runtime, {})
+
+    assert result["conflicts"][0]["source_session_id"] == ""
 
 
 async def test_session_id_argument_filters(mock_runtime):

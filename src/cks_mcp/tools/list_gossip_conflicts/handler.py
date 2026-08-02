@@ -7,6 +7,9 @@ This is a read on ``conflict_inbox`` (see ``cks_mcp.conflict_inbox``),
 not on the Runtime -- ``session_id`` is a filter, not a session this
 tool operates against, so unlike most other tools here it takes no
 ``runtime`` state into account and never requires an existing session.
+Each returned record's ``source_session_id`` (ADR-008 status update)
+is already a real session on this Runtime -- no extra lookup needed
+before passing it straight to ``merge_branch``.
 """
 
 from __future__ import annotations

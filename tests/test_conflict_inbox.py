@@ -1,7 +1,8 @@
 """
 Unit tests for cks_mcp.conflict_inbox.
 
-Covers: recording a GossipConflictDetected event, session_id filtering,
+Covers: recording a GossipConflictDetected event (including its
+source_session_id, ADR-008 status update), session_id filtering,
 drain-by-default semantics vs. peek, and the max_records eviction cap.
 """
 
@@ -15,10 +16,17 @@ from cks_mcp.conflict_inbox import ConflictInbox
 pytestmark = pytest.mark.asyncio
 
 
-def _event(session_id: str, *, source: str = "replica-a", conflicts=None) -> GossipConflictDetected:
+def _event(
+    session_id: str,
+    *,
+    source: str = "replica-a",
+    conflicts=None,
+    source_session_id: str = "",
+) -> GossipConflictDetected:
     return GossipConflictDetected(
         source_replica_id=source,
         session_id=session_id,
+        source_session_id=source_session_id,
         conflicts=conflicts if conflicts is not None else ["obj-1"],
     )
 
@@ -33,8 +41,18 @@ async def test_record_then_list_returns_it():
     assert result[0]["session_id"] == "s1"
     assert result[0]["source_replica_id"] == "replica-a"
     assert result[0]["conflicts"] == ["obj-1"]
+    assert result[0]["source_session_id"] == ""
     assert "record_id" in result[0]
     assert "detected_at" in result[0]
+
+
+async def test_source_session_id_is_carried_through():
+    inbox = ConflictInbox()
+    await inbox.record(_event("s1", source_session_id="branch-abc"))
+
+    result = await inbox.list()
+
+    assert result[0]["source_session_id"] == "branch-abc"
 
 
 async def test_list_drains_by_default():

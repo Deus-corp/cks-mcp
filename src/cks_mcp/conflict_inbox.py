@@ -14,12 +14,20 @@ session that decides how to resolve conflicts -- something to poll:
 a small in-memory queue, filled by a subscriber ``gossip.py`` wires up
 only when gossip is enabled (the event never fires otherwise), and
 drained through the ``list_gossip_conflicts`` tool. A conflict record
-carries just enough to act on it: ``session_id`` (which ``merge_branch``
-call this is), ``source_replica_id``, and the conflicting identity ids
--- the agent is expected to follow up with ``compare_versions``/
-``explain_diff`` for the structured diff and ``merge_branch`` to
-commit the resolution, the same as any human-driven conflict
-resolution would.
+carries ``session_id`` (the target to resolve), ``source_replica_id``,
+the conflicting identity ids, and (ADR-008 status update)
+``source_session_id`` -- a real local session cks-runtime's
+``GossipAdapter`` registered at the moment of conflict, holding the
+remote replica's content that failed to merge. Before that field
+existed, a record was only ever a bare list of conflicting ids with no
+way to see what the remote side actually contained; now the agent can
+call ``merge_branch`` with ``target_session_id=session_id,
+source_session_id=source_session_id`` directly to get back the
+structured per-object diff (``object_id``/``target_diff``/
+``source_diff``) and resolve it the same way any other branch conflict
+is resolved. ``source_session_id`` is empty when a record predates this
+field, or when registering the branch itself failed -- treat that as
+"no diff available, only the conflicting ids above".
 
 Kept separate from ``telemetry.py``: that module aggregates completed
 tool calls for dashboards; this one queues open work items awaiting
@@ -48,6 +56,7 @@ class _ConflictRecord:
     detected_at: float
     source_replica_id: str
     session_id: str
+    source_session_id: str = ""
     conflicts: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
@@ -56,6 +65,7 @@ class _ConflictRecord:
             "detected_at": self.detected_at,
             "source_replica_id": self.source_replica_id,
             "session_id": self.session_id,
+            "source_session_id": self.source_session_id,
             "conflicts": list(self.conflicts),
         }
 
@@ -95,6 +105,7 @@ class ConflictInbox:
             detected_at=time.time(),
             source_replica_id=event.source_replica_id,
             session_id=event.session_id,
+            source_session_id=event.source_session_id,
             conflicts=[str(c) for c in event.conflicts],
         )
         async with self._get_lock():

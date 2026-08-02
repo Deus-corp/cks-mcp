@@ -3,6 +3,16 @@
 
 ---
 
+## [1.26.0] - 2026-08-03
+
+### Added
+- **`source_session_id` in `list_gossip_conflicts` records** – each conflict record now carries the `session_id` of the local branch materialized from the remote replica's content that failed to merge (via cks-runtime's `register_foreign_branch`, ADR-008 status update). A Critic agent can pass `target_session_id=session_id, source_session_id=source_session_id` straight to `merge_branch` to get back the structured per-object diff, instead of having only a bare list of conflicting ids with no way to see what the remote side actually contained. Empty when branch registration itself failed (defensive fallback) or when a record predates this field.
+
+### Changed
+- Updated `conflict_inbox.py`, `list_gossip_conflicts` handler and schema, and tests to carry and document the new field.
+
+---
+
 ## [1.25.0] - 2026-08-02
 
 ### Added
