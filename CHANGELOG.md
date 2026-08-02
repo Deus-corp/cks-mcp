@@ -3,6 +3,16 @@
 
 ---
 
+## [1.20.0] - 2026-08-02
+
+### Added
+- **Optional gossip integration (`cks_mcp/gossip.py`)** – several running `cks-mcp` instances can now automatically sync their Sessions with each other via `cks-runtime`'s existing gossip stack (ADR-008). Off by default; opt in with `CKS_GOSSIP_ENABLED=true`. New `CKS_GOSSIP_*` environment variables control host/port/peers/interval/discovery — see [Getting Started](docs/getting-started.md#gossip-syncing-sessions-across-multiple-cks-mcp-instances-optional) and [ADR-005](docs/adr/ADR-005%20Gossip%20Integration.md). Binds to `127.0.0.1` by default (not `GossipServer`'s own `0.0.0.0` default), and tracks Sessions automatically via `SessionCreated`/`SessionClosed` subscriptions rather than requiring manual bookkeeping.
+
+### Fixed
+- Depends on a `cks-runtime` fix (see that project's CHANGELOG) where `Runtime.create_session`/`create_branch`/`close_session` never actually published `SessionCreated`/`SessionClosed` on the EventBus — silently breaking both the structured lifecycle logging `observability.py` already claimed to provide and this release's gossip auto-tracking.
+
+---
+
 ## [1.19.0] - 2026-07-31
 
 ### Added

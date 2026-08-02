@@ -25,6 +25,7 @@ from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
+from cks_mcp.gossip import GossipSettings, setup_gossip
 from cks_mcp.observability import setup_event_subscriptions
 from cks_mcp.paths import data_dir
 from cks_mcp.prompts import PROMPTS, get_prompt, list_prompts
@@ -350,52 +351,61 @@ async def main() -> None:
 
     setup_event_subscriptions(runtime)
 
+    # Gossip (опционально, выключено по умолчанию — включается через
+    # CKS_GOSSIP_ENABLED=true). См. cks_mcp/gossip.py.
+    gossip_handle = setup_gossip(runtime, GossipSettings.from_env())
+    if gossip_handle is not None:
+        await gossip_handle.start()
+
     # Неблокирующее чтение stdin через asyncio
     loop = asyncio.get_running_loop()
     reader = asyncio.StreamReader()
     protocol = asyncio.StreamReaderProtocol(reader)
     await loop.connect_read_pipe(lambda: protocol, sys.stdin)
 
-    while True:
-        line = await reader.readline()
-        if not line:
-            break  # EOF
+    try:
+        while True:
+            line = await reader.readline()
+            if not line:
+                break  # EOF
 
-        line_stripped = line.decode().strip()
-        if line_stripped.lower().startswith("content-length:"):
-            try:
-                content_length = int(line_stripped.split(":")[1].strip())
-            except (ValueError, IndexError):
-                error_response = json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "error": {"code": -32700, "message": "Parse error"},
-                        "id": None,
-                    }
-                )
-                sys.stdout.write(error_response + "\n")
-                sys.stdout.flush()
-                continue
+            line_stripped = line.decode().strip()
+            if line_stripped.lower().startswith("content-length:"):
+                try:
+                    content_length = int(line_stripped.split(":")[1].strip())
+                except (ValueError, IndexError):
+                    error_response = json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "error": {"code": -32700, "message": "Parse error"},
+                            "id": None,
+                        }
+                    )
+                    sys.stdout.write(error_response + "\n")
+                    sys.stdout.flush()
+                    continue
 
-            # Читаем заголовки до пустой строки
-            while True:
-                header_line = (await reader.readline()).decode().strip()
-                if not header_line:
+                # Читаем заголовки до пустой строки
+                while True:
+                    header_line = (await reader.readline()).decode().strip()
+                    if not header_line:
+                        break
+                    if header_line.lower().startswith("content-length:"):
+                        content_length = int(header_line.split(":")[1].strip())
+
+                try:
+                    body = await reader.readexactly(content_length)
+                except asyncio.IncompleteReadError as e:
+                    body = e.partial  # обработали частичные данные
+                if not body:
                     break
-                if header_line.lower().startswith("content-length:"):
-                    content_length = int(header_line.split(":")[1].strip())
-
-            try:
-                body = await reader.readexactly(content_length)
-            except asyncio.IncompleteReadError as e:
-                body = e.partial  # обработали частичные данные
-            if not body:
-                break
-            await process_request(runtime, body.decode(), use_content_length=True)
-        elif line_stripped:
-            await process_request(runtime, line_stripped, use_content_length=False)
-
-    await runtime.aclose()
+                await process_request(runtime, body.decode(), use_content_length=True)
+            elif line_stripped:
+                await process_request(runtime, line_stripped, use_content_length=False)
+    finally:
+        if gossip_handle is not None:
+            await gossip_handle.stop()
+        await runtime.aclose()
 
 
 def main_sync() -> None:

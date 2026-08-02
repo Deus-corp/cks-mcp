@@ -34,6 +34,14 @@ Requires **Python 3.12+**.
 | `CKS_LLM_MAX_TOKENS` | `construct_knowledge` | Overrides max-tokens (default `4096`). |
 | `CKS_MCP_DATA_DIR` | server startup | Overrides `~/.cks-mcp` (DB + provenance secret). |
 | `CKS_MCP_SECRET` | provenance signing | Overrides the auto‑generated HMAC secret. |
+| `CKS_GOSSIP_ENABLED` | gossip sync | `"false"` (default). Set `"true"` to sync Sessions with other `cks-mcp` instances — see [Gossip](#gossip-syncing-sessions-across-multiple-cks-mcp-instances-optional) below. |
+| `CKS_GOSSIP_HOST` | gossip sync | Interface to listen on (default `127.0.0.1`). |
+| `CKS_GOSSIP_PORT` | gossip sync | Port to listen on (default `8765`). |
+| `CKS_GOSSIP_PEERS` | gossip sync | Comma-separated peer addresses, e.g. `http://192.168.1.10:8765,http://192.168.1.11:8765`. |
+| `CKS_GOSSIP_INTERVAL_S` | gossip sync | Seconds between gossip rounds (default `5.0`). |
+| `CKS_GOSSIP_DISCOVERY` | gossip sync | `"false"` (default). Set `"true"` to auto-discover peers-of-peers beyond the static `CKS_GOSSIP_PEERS` list. |
+| `CKS_GOSSIP_SELF_ADDRESS` | gossip sync | This instance's own externally-reachable address, advertised to peers when discovery is on. |
+| `CKS_GOSSIP_SECRET` | gossip sync | Overrides the auto‑generated HMAC secret peers use to authenticate gossip envelopes to each other. Must be identical on every peer. |
 
 Instead of exporting these in your shell, you can drop them into
 `~/.cks-mcp/.env` (one `KEY=value` per line) — the server reads that file
@@ -136,6 +144,61 @@ once on first use, then run fully offline from that point on.
 auto‑detects it and uses a local `llama3.2` model by default, no
 `ANTHROPIC_API_KEY` needed.
 
+## Gossip: syncing Sessions across multiple cks-mcp instances (optional)
+
+By default, each `cks-mcp` instance is fully local: Sessions live only in
+its own database. If you run `cks-mcp` in more than one place — e.g. one
+Claude Desktop on your laptop and another on a desktop machine, or one
+per teammate — you can turn on gossip so Sessions sync between them
+automatically, without exporting/importing by hand. See
+[ADR-005](adr/ADR-005%20Gossip%20Integration.md) for the design
+rationale.
+
+**It's off by default**, and binds to `127.0.0.1` unless you explicitly
+tell it otherwise — turning it on changes this from a purely local
+process to one that listens on (and dials out over) the network.
+
+Two-machine example — machine A at `192.168.1.10`, machine B at
+`192.168.1.11`, both reachable on the same network:
+
+```bash
+# ~/.cks-mcp/.env on machine A
+CKS_GOSSIP_ENABLED=true
+CKS_GOSSIP_HOST=0.0.0.0
+CKS_GOSSIP_PORT=8765
+CKS_GOSSIP_PEERS=http://192.168.1.11:8765
+CKS_GOSSIP_SECRET=base64:<32 random bytes, same value on every peer>
+```
+
+```bash
+# ~/.cks-mcp/.env on machine B
+CKS_GOSSIP_ENABLED=true
+CKS_GOSSIP_HOST=0.0.0.0
+CKS_GOSSIP_PORT=8765
+CKS_GOSSIP_PEERS=http://192.168.1.10:8765
+CKS_GOSSIP_SECRET=base64:<the same 32 random bytes as machine A>
+```
+
+Generate a shared secret once with:
+
+```bash
+python -c "import os, base64; print('base64:' + base64.b64encode(os.urandom(32)).decode())"
+```
+
+Restart `cks-mcp` (or restart Claude Desktop) on both machines. Sessions
+created on either one will show up on the other within
+`CKS_GOSSIP_INTERVAL_S` seconds (default 5) of the next gossip round —
+no export, no manual sync tool call.
+
+**Same-machine, two local instances** (e.g. testing, or two separate
+Claude Desktop profiles): use `CKS_GOSSIP_HOST=127.0.0.1`, distinct
+`CKS_GOSSIP_PORT` values, and `CKS_MCP_DATA_DIR` pointed at two separate
+directories so they don't share one SQLite database.
+
+If a peer is unreachable, gossip rounds against it back off
+automatically and retry later — it never blocks tool calls, which run
+against the local database regardless of gossip's state.
+
 ## Running the Test Suite
 
 ```bash
@@ -150,3 +213,5 @@ python -m pytest -v
 - [Tools Reference](tools/index.md) — every tool, grouped by function.
 - [Architecture](architecture/ARCHITECTURE.md) — how the server is put
   together and why, if you're extending or embedding it.
+- [ADR-005: Gossip Integration](adr/ADR-005%20Gossip%20Integration.md)
+  — design rationale for the multi-instance sync feature above.

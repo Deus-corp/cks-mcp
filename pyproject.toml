@@ -11,8 +11,8 @@ authors = [{name = "Vladyslav Hruznov"}]
 license = {text = "MIT"}
 requires-python = ">=3.12"
 dependencies = [
-    "cks-runtime>=1.25.1",
-    "cks-core>=1.16.0",
+    "cks-runtime>=1.30.2",
+    "cks-core>=1.17.0",
     "requests>=2.0",
 ]
 
@@ -32,6 +32,9 @@ dev = [
 ]
 fastembed = [
     "fastembed>=0.3",
+]
+gossip = [
+    "aiohttp>=3.9",
 ]
 
 [tool.setuptools.dynamic]
