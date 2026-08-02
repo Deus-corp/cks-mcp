@@ -29,6 +29,23 @@ def unknown_extension(extensions: list[str]) -> dict:
     }
 
 
+def invalid_parameter(name: str, value: object, allowed: list[str]) -> dict:
+    """
+    A parameter was given a value outside its enum of allowed values.
+
+    Mirrors ``unknown_extension``'s shape for the same reason: MCP
+    servers don't enforce JSON Schema server-side, so a handler that
+    accepts an enum-like string (e.g. visualize_graph's ``mode``) needs
+    its own defensive check and an LLM-friendly message listing what
+    *was* accepted, not just that the call failed.
+    """
+    return {
+        "error": "invalid_parameter",
+        "message": f"Invalid value {value!r} for parameter '{name}'. "
+        f"Allowed: {', '.join(allowed)}.",
+    }
+
+
 def missing_parameter(name: str) -> dict:
     return {
         "error": "missing_parameter",

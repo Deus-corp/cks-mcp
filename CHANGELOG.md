@@ -3,6 +3,20 @@
 
 ---
 
+## [1.22.0] - 2026-08-02
+
+### Added
+- **Inference chain visualisation in `visualize_graph`** — new `mode: "inference"`. Instead of the structural relationship graph, the tool builds a directed reasoning graph: it walks active `InferenceStep` chains, recursively expanding premises down to base facts. Supports:
+  * auto-detection of target objects (the `conclusion` of any active `InferenceStep`) when `seed_ids` is omitted;
+  * `cites_step` edges (dashed) — when one inference step references another as a premise;
+  * superseded-step history (`superseded_steps`) when `include_superseded: true` is set;
+  * cycle protection and a configurable node budget (`max_objects`);
+  * a descriptive error when the attached Core does not implement the optional `explain_inference` capability.
+- **`invalid_parameter` error helper** in `cks_mcp/errors.py` — unified handling of invalid parameter values.
+- 5 new unit tests in `tests/tools/visualize_graph/test_handler.py`: invalid mode, basic inference chain, `cites_step` + superseded history, node budget, unsupported core.
+
+---
+
 ## [1.21.0] - 2026-08-02
 
 ### Added
