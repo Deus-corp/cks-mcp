@@ -1,8 +1,8 @@
 """
-Draft/scratch version of the structural HTML extractor -- single-pass
-HTMLParser that pulls out JSON-LD, OpenGraph/meta/Twitter-card tags,
-schema.org microdata, tables, lists, and heading-delimited text
-sections all from one parse of the document.
+Single-pass structural HTML extractor -- an HTMLParser that pulls out
+JSON-LD, OpenGraph/meta/Twitter-card tags, schema.org microdata,
+tables, lists, and heading-delimited text sections all from one parse
+of the document.
 """
 from __future__ import annotations
 
@@ -191,7 +191,6 @@ class DocumentStructureParser(HTMLParser):
             itemtype = attrs.get("itemtype", "")
             schema_type = itemtype.rstrip("/").rsplit("/", 1)[-1] if itemtype else None
             ctx: dict[str, Any] = {"type": schema_type, "properties": {}}
-            ctx = {"type": schema_type, "properties": {}}
             frame.microdata_ctx = ctx
             frame.parent_ctx_for_link = parent_ctx
             frame.link_prop_name = frame.itemprop_name

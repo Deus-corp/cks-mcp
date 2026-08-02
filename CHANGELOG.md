@@ -3,6 +3,18 @@
 
 ---
 
+## [1.20.2] - 2026-08-02
+
+### Fixed
+- **Duplicate assignment in `html_extract.py`** – an `itemscope` handler contained a redundant `ctx = ...` line, causing a mypy `var-annotated` error. Removed the duplicate.
+- **`test_html_extract.py` had no actual tests** – the file existed but contained only `print` statements, so pytest collected zero tests. Replaced with proper test functions covering JSON-LD, microdata, OpenGraph/Twitter meta, tables, lists, sections, edge cases (empty/malformed HTML). All assertions pass.
+- **Documentation typo in `ai-assisted.md`** – the LLM error response example now shows the correct `"error": "internal_error"` shape instead of `"error": "llm_call_failed"`.
+
+### Changed
+- Updated docstring of `html_extract.py` to remove "Draft/scratch" label.
+
+---
+
 ## [1.20.1] - 2026-08-02
 
 ### Added

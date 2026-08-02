@@ -161,8 +161,15 @@ page, each with corresponding relations.
 ```
 
 The structure is entirely LLM‑generated from the extracted content; no
-deterministic objects are added. If the LLM call fails, an error is
-returned (e.g. `"error": "llm_call_failed"`).
+deterministic objects are added. If the LLM call fails, an
+`internal_error` is returned, e.g.:
+
+```json
+{
+  "error": "internal_error",
+  "message": "Internal error: LLM call failed: <details>"
+}
+```
 
 **Provider configuration** mirrors `construct_knowledge`:
 - `CKS_LLM_PROVIDER=auto` (default) — try Ollama first, fall back to Anthropic
