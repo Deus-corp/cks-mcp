@@ -3,6 +3,18 @@
 
 ---
 
+## [1.23.0] - 2026-08-02
+
+### Added
+- **`evolve_knowledge` now accepts `resolve_inference_conflict`** as an evolution operation (`{"type": "resolve_inference_conflict", "conclusion_id": ..., "winner_id": ...}`), wired straight through from `cks.evolution.ResolveInferenceConflict` (cks-core 1.19.0). Lets an arbiter (human or agent) that has already decided which of several competing `InferenceStep`s should stand record that decision as a single atomic evolution instead of hand-rolling `update_object` patches per losing step.
+- **`evolve_knowledge` now accepts `extensions`**, mirroring `validate_knowledge`'s parameter of the same name (same `resolve_extensions`/`EXTENSION_ALIASES` resolution). Previously `evolve_knowledge`'s commit-time `cks.validate()` call only ever checked `BUILTIN_CONSTRAINTS` — an evolution that wrote `InferenceStep` fields directly (via `update_object`, or the new `resolve_inference_conflict`) had no way to also ask for `supersession_chain`/`inference_confidence_conflict`/`confidence_bounds`/etc. to be checked before commit; the only way to catch a broken supersession chain was a separate `validate_knowledge` call against the already-committed version. The response now includes `extensions_applied` when extensions were requested, matching `validate_knowledge`.
+- 5 new end-to-end unit tests in `tests/tools/evolve/test_handler.py` against a real `Runtime`: `resolve_inference_conflict` supersedes the loser and leaves the winner untouched, rejects a nonexistent winner, unknown extension name is rejected, an out-of-range confidence commits silently without `extensions`, and is rejected with `CKS-EXT-CONFIDENCE-BOUNDS` when `confidence_bounds` is requested.
+
+### Changed
+- Minimum `cks-core` dependency raised to `>=1.19.0` (previously `>=1.18.0`) for `ResolveInferenceConflict`.
+
+---
+
 ## [1.22.0] - 2026-08-02
 
 ### Added

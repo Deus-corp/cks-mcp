@@ -8,6 +8,7 @@ from cks_runtime.session.session import RuntimeSession
 
 from cks_mcp import provenance
 from cks_mcp.errors import invalid_json_error
+from cks_mcp.tools.validate.handler import EXTENSION_ALIASES, resolve_extensions
 
 
 async def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -43,6 +44,26 @@ async def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[
             "message": "No evolution operations were provided.",
         }
 
+    # Opt-in validation extensions (see validate_knowledge): without
+    # this, the commit-time cks.validate() call below only ever checks
+    # BUILTIN_CONSTRAINTS, so an evolution that sets InferenceStep
+    # fields directly (e.g. 'update_object'/'resolve_inference_conflict'
+    # writing 'superseded_by') could commit a broken supersession chain
+    # or an out-of-range confidence value with no way for the caller to
+    # ask for those checks at commit time -- previously the only way to
+    # catch that was a separate, after-the-fact validate_knowledge call
+    # against the already-committed version.
+    requested_extensions = arguments.get("extensions") or []
+    extensions, unknown = resolve_extensions(requested_extensions)
+    if unknown:
+        return {
+            "error": "unknown_extension",
+            "message": (
+                f"Unknown validation extension(s): {', '.join(unknown)}. "
+                f"Available extensions: {', '.join(sorted(EXTENSION_ALIASES)) or '(none)'}."
+            ),
+        }
+
     # Dry-run to check provenance before committing. Unmetered: this is
     # a probe, not a committed operation -- the real execution (and the
     # one that should show up in get_metrics) happens below via
@@ -72,7 +93,7 @@ async def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[
 
     # Validate the evolved structure before committing
     try:
-        validation = cks.validate(prospective_structure)
+        validation = cks.validate(prospective_structure, extra_constraints=extensions or None)
     except Exception as e:
         return {
             "error": "validation_error",
@@ -121,4 +142,6 @@ async def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[
     }
     if cascade_removed:
         response["cascade_removed_relations"] = cascade_removed
+    if requested_extensions:
+        response["extensions_applied"] = requested_extensions
     return response
