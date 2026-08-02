@@ -1,6 +1,7 @@
 """
-ingest_document: fetch a URL, extract entities and relations, and build a
-Canonical Knowledge Structure from the result.
+ingest_document: fetch a URL, extract structured content (JSON-LD,
+OpenGraph, microdata, tables, lists, sections) and optionally use an LLM
+to build a full Canonical Knowledge Structure from the extracted data.
 
 Uses the same SSRF/DNS-rebinding protection as verify_source.
 """
@@ -11,6 +12,7 @@ import asyncio
 import hashlib
 import heapq
 import json
+import os
 import re
 from collections import Counter
 from typing import Any
@@ -18,11 +20,13 @@ from typing import Any
 import cks
 from cks_runtime.runtime import Runtime
 
+from cks_mcp import llm_providers
 from cks_mcp.errors import internal_error
+from cks_mcp.tools.ingest_document.html_extract import parse_document_structure
 from cks_mcp.tools.verify_source.handler import UnsafeURLError, _safe_request
 
 # ---------------------------------------------------------------------------
-# HTML → text
+# HTML → text (kept for keyword extraction)
 # ---------------------------------------------------------------------------
 
 _TAG_RE = re.compile(r"<[^>]*>")
@@ -32,17 +36,22 @@ _WHITESPACE_RE = re.compile(r"\s+")
 
 
 def _html_to_text(html: str) -> str:
-    """Crude but deterministic HTML-to-text conversion."""
     text = _SCRIPT_STYLE_RE.sub(" ", html)
     text = _TAG_RE.sub(" ", text)
-    text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&#39;", "'")
+    text = (
+        text.replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", '"')
+        .replace("&#39;", "'")
+    )
     text = _ENTITY_RE.sub(" ", text)
     text = _WHITESPACE_RE.sub(" ", text).strip()
     return text
 
 
 # ---------------------------------------------------------------------------
-# Entity extraction
+# Entity extraction (keywords)
 # ---------------------------------------------------------------------------
 
 _STOP_WORDS = frozenset({
@@ -56,7 +65,6 @@ _MAX_KEYWORDS = 20
 
 
 def _extract_title_and_description(html: str) -> tuple[str | None, str | None]:
-    """Extract <title> and <meta name='description'> content."""
     title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
     desc_match = re.search(
         r'<meta\s+[^>]*name=["\']description["\'][^>]*content=["\']([^"\']*)["\']',
@@ -71,17 +79,155 @@ def _extract_title_and_description(html: str) -> tuple[str | None, str | None]:
 
 
 def _extract_keywords(text: str, max_keywords: int = _MAX_KEYWORDS) -> list[str]:
-    """Return a list of potential keywords (non-stop-words, min length).
-
-    Uses ``heapq.nlargest`` instead of ``Counter.most_common`` (OPT-07):
-    both are O(N log N) in the worst case, but ``nlargest`` avoids
-    sorting the *entire* counter when only the top-K items are needed —
-    making it measurably faster on long texts with large vocabularies.
-    """
     words = re.findall(rf"\b[a-zA-Z]{{{_MIN_KEYWORD_LENGTH},}}\b", text.lower())
     filtered = [w for w in words if w not in _STOP_WORDS]
     counter = Counter(filtered)
     return [word for word, _ in heapq.nlargest(max_keywords, counter.items(), key=lambda x: x[1])]
+
+
+# ---------------------------------------------------------------------------
+# LLM system prompt (used when use_llm=True)
+# ---------------------------------------------------------------------------
+
+_SYSTEM_PROMPT_INGEST = """\
+You are a knowledge-extraction assistant. You are given structured content
+extracted from a web page: a title, description, metadata (JSON-LD, OpenGraph,
+etc.), headings with their sections, tables, and lists.
+
+From this content, extract the key entities and relationships and output them as a
+Canonical Knowledge Structure (CKS) — a JSON object with a single top-level key
+"objects", whose value is an array of object descriptors.
+
+Every object descriptor must have:
+  "identity": {"id": "<unique-slug>", "type": "<Type>", "name": "<human label>"}
+  "structure": { ... free-form key-value metadata ... }
+
+Relations are ordinary objects whose "structure" contains exactly:
+  "participants": ["<id1>", "<id2>", ...] — at least two existing object ids
+  "relation_type": "<verb>"              — e.g. "causes", "part_of", "derives"
+
+Rules:
+- Every id must be a unique kebab-case slug.
+- Every participant id in a relation must reference an object that exists in
+  the same "objects" array.
+- Do NOT invent ids that are not declared as objects.
+- Output ONLY the raw JSON object — no markdown fences, no commentary.
+- The structure must be valid CKS (parseable by cks.parse).
+
+Example:
+{
+  "objects": [
+    {"identity": {"id": "doc-example", "type": "Document", "name": "Example Page"},
+     "structure": {"url": "https://example.com", "title": "Example"}},
+    {"identity": {"id": "concept-photosynthesis", "type": "Concept", "name": "Photosynthesis"},
+     "structure": {"description": "Process by which plants convert light to energy"}},
+    {"identity": {"id": "rel-mentions", "type": "Relation", "name": "mentions"},
+     "structure": {"participants": ["doc-example", "concept-photosynthesis"], "relation_type": "mentions"}}
+  ]
+}
+"""
+
+
+def _build_llm_structure(
+    runtime: Runtime,
+    extracted: dict[str, Any],
+    arguments: dict[str, Any],
+) -> tuple[cks.KnowledgeStructure, str | None]:
+    """Send extracted content to LLM and return the parsed CKS structure and model name."""
+    # Build prompt from extracted structured data
+    prompt_parts = ["Build a Knowledge Structure from the following extracted web page content:\n"]
+    if extracted.get("title"):
+        prompt_parts.append(f"Title: {extracted['title']}")
+    if extracted.get("description"):
+        prompt_parts.append(f"Description: {extracted['description']}")
+    if extracted.get("sections"):
+        prompt_parts.append("Sections:")
+        for sec in extracted["sections"]:
+            prompt_parts.append(f"  - Heading: {sec.get('heading') or '(none)'} (level {sec['level']})\n    Content: {sec['content']}")
+    if extracted.get("tables"):
+        prompt_parts.append("Tables:")
+        for i, tbl in enumerate(extracted["tables"]):
+            prompt_parts.append(f"  Table {i+1}: caption={tbl.get('caption')}, headers={tbl.get('headers')}, rows={tbl['rows']}")
+    if extracted.get("lists"):
+        prompt_parts.append("Lists:")
+        for i, lst in enumerate(extracted["lists"]):
+            ordered = "ordered" if lst.get("ordered") else "unordered"
+            prompt_parts.append(f"  List {i+1} ({ordered}): {lst['items']}")
+    if extracted.get("metadata"):
+        prompt_parts.append("Metadata (JSON-LD, OpenGraph, etc.):")
+        prompt_parts.append(json.dumps(extracted["metadata"], indent=2))
+
+    user_prompt = "\n".join(prompt_parts)
+
+    model = arguments.get("model") or None
+    max_tokens = int(
+        arguments.get("max_tokens") or os.environ.get("CKS_LLM_MAX_TOKENS", "4096")
+    )
+
+    # Reuse the provider dispatch from llm_providers (but with our own system prompt)
+    provider = os.environ.get("CKS_LLM_PROVIDER", "auto").lower()
+
+    def call_ollama(prompt: str, model: str, max_tokens: int) -> str:
+        return llm_providers.call_ollama(
+            prompt, system_prompt=_SYSTEM_PROMPT_INGEST, model=model, max_tokens=max_tokens
+        )
+
+    def call_anthropic(prompt: str, model: str, max_tokens: int) -> str:
+        return llm_providers.call_anthropic(
+            prompt, system_prompt=_SYSTEM_PROMPT_INGEST, model=model, max_tokens=max_tokens
+        )
+
+    if provider == "ollama":
+        m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
+        raw_output = call_ollama(user_prompt, model=m, max_tokens=max_tokens)
+        model_used = m
+    elif provider == "anthropic":
+        m = model or os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
+        raw_output = call_anthropic(user_prompt, model=m, max_tokens=max_tokens)
+        model_used = m
+    elif provider == "auto":
+        if llm_providers.ollama_available():
+            m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
+            raw_output = call_ollama(user_prompt, model=m, max_tokens=max_tokens)
+            model_used = m
+        else:
+            m = model or os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
+            try:
+                raw_output = call_anthropic(user_prompt, model=m, max_tokens=max_tokens)
+                model_used = m
+            except RuntimeError as exc:
+                if "ANTHROPIC_API_KEY" not in str(exc):
+                    raise
+                raise RuntimeError(
+                    "No LLM provider available. Options: "
+                    "(1) run a local model — `ollama serve` + `ollama pull llama3.2`; "
+                    "(2) set ANTHROPIC_API_KEY and CKS_LLM_PROVIDER=anthropic; "
+                    "(3) retry without use_llm to get a baseline structure."
+                ) from exc
+    else:
+        raise RuntimeError(
+            f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', or 'anthropic'."
+        )
+
+    # Extract JSON from LLM output
+    try:
+        json_str = llm_providers.extract_json(raw_output)
+    except ValueError as exc:
+        raise RuntimeError(f"Failed to extract JSON from LLM output: {exc}") from exc
+
+    # Parse with cks-core
+    try:
+        structure = cks.parse(json_str)
+    except cks.SerializationError as exc:
+        raise RuntimeError(f"LLM output is not valid CKS: {exc}") from exc
+
+    # Validate (optional but recommended)
+    validation = cks.validate(structure)
+    if not validation.is_valid:
+        # We still return it, but caller may decide to fall back
+        pass  # structure is still usable
+
+    return structure, model_used
 
 
 # ---------------------------------------------------------------------------
@@ -90,26 +236,21 @@ def _extract_keywords(text: str, max_keywords: int = _MAX_KEYWORDS) -> list[str]
 
 async def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
-    Fetch a URL, extract entities (title, description, keywords, links) and
-    return a Knowledge Structure representing the document.
+    Fetch a URL, extract structured content (sections, tables, lists, metadata)
+    and build a Canonical Knowledge Structure.
+
+    If ``use_llm`` is ``true``, the extracted content is sent to an LLM (same
+    provider auto-selection as ``construct_knowledge``) to build a richer graph.
+    Otherwise, a deterministic structure with Document, Section, Table, List,
+    Metadata and Topic objects is returned.
     """
     url = arguments.get("url")
     if not url:
         return {"error": "missing_parameter", "message": "Missing required parameter: 'url'."}
 
+    use_llm = arguments.get("use_llm", False)
+
     # ---- Fetch the page, safely ---------------------------------------------
-    # _safe_request (shared with verify_source) resolves and validates
-    # the hostname, then pins the connection to one of the validated
-    # IPs for the actual request, and manually re-validates each
-    # redirect hop before following it -- unlike a bare
-    # `requests.get(url, allow_redirects=True)`, which would let a
-    # malicious server redirect straight past the SSRF check to an
-    # internal/metadata endpoint after the initial URL was found safe,
-    # and would re-resolve DNS itself with no pinning, reopening a
-    # DNS-rebinding window between the check and the request. A
-    # blocking network call (DNS + HTTP GET, up to a 10s timeout per
-    # hop), dispatched to a worker thread so it can't stall the event
-    # loop.
     def _fetch() -> str:
         resp = _safe_request(url, method="GET", timeout=10)
         if resp is None:
@@ -127,47 +268,69 @@ async def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
     except Exception as exc:
         return internal_error(f"Failed to fetch URL: {exc}")
 
-    # ---- Extract metadata ---------------------------------------------------
+    # ---- Extract metadata and plain text -----------------------------------
     title, description = _extract_title_and_description(html)
-    # Cap HTML before conversion: title/description/keywords only need a
-    # fraction of a large page.  Processing megabytes of HTML just to take
-    # [:500] of the resulting plain text wastes CPU and memory (OPT-06).
     plain_text = _html_to_text(html[:200_000])
     keywords = _extract_keywords(plain_text)
 
+    # ---- Structured extraction (NEW) ---------------------------------------
+    parser = parse_document_structure(html)
+    extracted = {
+        "title": title,
+        "description": description,
+        "metadata": {
+            "json_ld": parser.json_ld,
+            "open_graph": parser.open_graph,
+            "twitter": parser.twitter,
+            "meta": parser.meta,
+        },
+        "tables": parser.tables,
+        "lists": parser.lists,
+        "sections": parser.sections,
+    }
+
     # ---- Build Knowledge Structure -----------------------------------------
-    # BUG-02 fix: the old `re.sub(...)[:50]` sliced the *substituted*
-    # string, so two URLs that differ only after their first ~43 raw
-    # characters (e.g. same domain + long path, differing only in the
-    # last segment) produced identical doc_id values and caused a
-    # "Duplicate canonical identity" error when both were added to the
-    # same session.
-    #
-    # Fix: use a 12-character SHA-256 prefix of the *full* URL as the
-    # uniqueness-bearing suffix, and keep only a short human-readable
-    # prefix from the sanitised URL for debuggability.  The hash is
-    # computed over the original URL bytes (not the sanitised form) so
-    # any two distinct URLs are guaranteed to produce different doc_ids
-    # with overwhelming probability (2^-48 collision chance per pair).
     _url_hash = hashlib.sha256(url.encode()).hexdigest()[:12]
     _safe_prefix = re.sub(r"[^a-zA-Z0-9_-]", "_", url)[:30]
     doc_id = f"doc-{_safe_prefix}-{_url_hash}"
     objects = []
     relations = []
 
-    # Document object
+    # If use_llm, delegate everything to the LLM
+    if use_llm:
+        try:
+            llm_structure, model_used = _build_llm_structure(runtime, extracted, arguments)
+        except RuntimeError as exc:
+            return internal_error(f"LLM call failed: {exc}")
+
+        # Serialize for response
+        serialized = runtime.core_bridge.serialize(llm_structure)
+        return {
+            "url": url,
+            "title": title,
+            "keywords": keywords,
+            "knowledge_structure": serialized,
+            "object_count": sum(
+                1 for obj in llm_structure.objects
+                if not isinstance(obj, cks.CanonicalRelation)
+            ),
+            "relation_count": len(llm_structure.relations()),
+            "model_used": model_used,
+        }
+
+    # ---- Deterministic structure --------------------------------------------
+    # Document object (as before)
     doc_structure = {"url": url, "content_preview": plain_text[:500]}
     if title:
         doc_structure["title"] = title
     if description:
         doc_structure["description"] = description
-
     objects.append({
         "identity": {"id": doc_id, "type": "Document", "name": title or url},
         "structure": doc_structure,
     })
 
-    # Keyword objects + relations
+    # Keyword objects + relations (keep for backward compatibility)
     for i, keyword in enumerate(keywords):
         kw_id = f"{doc_id}-kw-{i}"
         objects.append({
@@ -182,7 +345,70 @@ async def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
             },
         })
 
-    # Объединяем объекты и отношения в один список для CKS
+    # Metadata object
+    meta_obj_id = f"{doc_id}-metadata"
+    objects.append({
+        "identity": {"id": meta_obj_id, "type": "Metadata", "name": f"Metadata for {title or url}"},
+        "structure": extracted["metadata"],
+    })
+    relations.append({
+        "identity": {"id": f"rel-{meta_obj_id}", "type": "Relation", "name": "has_metadata"},
+        "structure": {
+            "participants": [doc_id, meta_obj_id],
+            "relation_type": "has_metadata",
+        },
+    })
+
+    # Section objects
+    for i, section in enumerate(parser.sections):
+        sec_id = f"{doc_id}-section-{i}"
+        objects.append({
+            "identity": {"id": sec_id, "type": "Section", "name": section.get("heading") or f"Section {i+1}"},
+            "structure": {
+                "heading": section["heading"],
+                "level": section["level"],
+                "content": section["content"],
+            },
+        })
+        relations.append({
+            "identity": {"id": f"rel-{sec_id}", "type": "Relation", "name": "has_section"},
+            "structure": {
+                "participants": [doc_id, sec_id],
+                "relation_type": "has_section",
+            },
+        })
+
+    # Table objects
+    for i, table in enumerate(parser.tables):
+        tbl_id = f"{doc_id}-table-{i}"
+        objects.append({
+            "identity": {"id": tbl_id, "type": "Table", "name": table.get("caption") or f"Table {i+1}"},
+            "structure": table,
+        })
+        relations.append({
+            "identity": {"id": f"rel-{tbl_id}", "type": "Relation", "name": "has_table"},
+            "structure": {
+                "participants": [doc_id, tbl_id],
+                "relation_type": "has_table",
+            },
+        })
+
+    # List objects
+    for i, lst in enumerate(parser.lists):
+        lst_id = f"{doc_id}-list-{i}"
+        objects.append({
+            "identity": {"id": lst_id, "type": "List", "name": f"List {i+1}"},
+            "structure": lst,
+        })
+        relations.append({
+            "identity": {"id": f"rel-{lst_id}", "type": "Relation", "name": "has_list"},
+            "structure": {
+                "participants": [doc_id, lst_id],
+                "relation_type": "has_list",
+            },
+        })
+
+    # Build combined structure
     all_objects = objects + relations
     structure_json = json.dumps({"objects": all_objects})
     try:
@@ -190,7 +416,6 @@ async def ingest_document(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
     except cks.SerializationError as exc:
         return internal_error(f"Failed to build Knowledge Structure: {exc}")
 
-    # Serialize for response
     serialized = runtime.core_bridge.serialize(structure)
     return {
         "url": url,

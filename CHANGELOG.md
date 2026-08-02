@@ -3,6 +3,18 @@
 
 ---
 
+## [1.20.1] - 2026-08-02
+
+### Added
+- **`ingest_document` now extracts structured content** — uses a new single-pass HTML parser (`html_extract.py`) to capture JSON-LD, OpenGraph/meta/Twitter tags, schema.org microdata, tables, lists, and heading-delimited sections. These are turned into CKS objects (`Section`, `Table`, `List`, `Metadata`) linked to the `Document` via `has_section`, `has_table`, `has_list`, `has_metadata` relations.
+- **`ingest_document` gains optional `use_llm` parameter** — when `true`, the extracted structured content is sent to an LLM (using the same pluggable provider auto-selection as `construct_knowledge`) to build a full knowledge graph instead of the deterministic baseline. Returns the richer structure directly.
+- New shared HTML parser moved to `src/cks_mcp/tools/ingest_document/html_extract.py`; tests in `tests/tools/ingest_document/test_html_extract.py`.
+
+### Changed
+- `ingest_document` now returns up to 6 object types (`Document`, `Topic`, `Section`, `Table`, `List`, `Metadata`) plus their relations, giving LLMs a far more detailed starting point for further refinement.
+
+---
+
 ## [1.20.0] - 2026-08-02
 
 ### Added

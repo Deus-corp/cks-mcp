@@ -38,13 +38,13 @@ Environment variables:
 
 from __future__ import annotations
 
-import json
 import os
 from typing import Any
 
 import cks
 from cks_runtime.runtime import Runtime
 
+from cks_mcp import llm_providers
 from cks_mcp.errors import internal_error, missing_parameter
 
 # ---------------------------------------------------------------------------
@@ -87,76 +87,28 @@ Example output:
 """
 
 # ---------------------------------------------------------------------------
-# LLM call (httpx-free: uses stdlib urllib so no extra dependency)
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# Local LLM call via Ollama (no dependency, no API key — plain stdlib urllib
-# against Ollama's own local HTTP API)
+# LLM call -- thin wrappers around cks_mcp.llm_providers, binding in this
+# tool's own _SYSTEM_PROMPT. Kept as module-level functions (rather than
+# calling llm_providers directly from _call_llm/construct_knowledge) so
+# existing tests can keep patching e.g.
+# "cks_mcp.tools.construct_knowledge.handler._call_anthropic" -- the actual
+# HTTP/urllib plumbing lives in llm_providers and is shared with
+# ingest_document's optional LLM pass.
 # ---------------------------------------------------------------------------
 
 
 def _ollama_host() -> str:
-    return os.environ.get("CKS_OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    return llm_providers.ollama_host()
 
 
 def _ollama_available(host: str | None = None) -> bool:
-    """Cheap reachability check used by the 'auto' provider. Never raises."""
-    import urllib.error
-    import urllib.request
-
-    try:
-        with urllib.request.urlopen(f"{host or _ollama_host()}/api/tags", timeout=1.5) as resp:
-            return resp.status == 200
-    except Exception:
-        return False
+    return llm_providers.ollama_available(host)
 
 
 def _call_ollama(prompt: str, model: str, max_tokens: int) -> str:
-    """
-    Call a local Ollama server's generate endpoint. Raises RuntimeError with
-    a descriptive message (including how to fix it) on any failure.
-    """
-    import urllib.error
-    import urllib.request
-
-    host = _ollama_host()
-    payload = json.dumps(
-        {
-            "model": model,
-            "system": _SYSTEM_PROMPT,
-            "prompt": prompt,
-            "stream": False,
-            "options": {"num_predict": max_tokens},
-        }
-    ).encode()
-
-    req = urllib.request.Request(
-        f"{host}/api/generate",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
+    return llm_providers.call_ollama(
+        prompt, system_prompt=_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
     )
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            body = json.loads(resp.read().decode())
-    except urllib.error.HTTPError as exc:
-        raw = exc.read().decode(errors="replace")
-        raise RuntimeError(
-            f"Ollama returned HTTP {exc.code}: {raw[:400]}. "
-            f"Is model '{model}' pulled? Try: ollama pull {model}"
-        ) from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(
-            f"Could not reach Ollama at {host}: {exc.reason}. "
-            "Is `ollama serve` running? Install: https://ollama.com"
-        ) from exc
-
-    text = body.get("response", "")
-    if not text:
-        raise RuntimeError(f"Ollama returned no text. Full response: {body}")
-    return text
 
 
 # ---------------------------------------------------------------------------
@@ -211,64 +163,9 @@ def _call_llm(prompt: str, *, model: str | None, max_tokens: int) -> tuple[str, 
 
 
 def _call_anthropic(prompt: str, model: str, max_tokens: int) -> str:
-    """
-    Call the Anthropic Messages API synchronously via stdlib urllib.
-
-    Returns the text content of the first content block.  Raises
-    ``RuntimeError`` with a descriptive message on any failure.
-    """
-    import urllib.error
-    import urllib.request
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise RuntimeError(
-            "ANTHROPIC_API_KEY environment variable is not set. "
-            "construct_knowledge requires an Anthropic API key."
-        )
-
-    payload = json.dumps(
-        {
-            "model": model,
-            "max_tokens": max_tokens,
-            "system": _SYSTEM_PROMPT,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-    ).encode()
-
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-        },
-        method="POST",
+    return llm_providers.call_anthropic(
+        prompt, system_prompt=_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
     )
-
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            body = json.loads(resp.read().decode())
-    except urllib.error.HTTPError as exc:
-        raw = exc.read().decode(errors="replace")
-        raise RuntimeError(
-            f"Anthropic API returned HTTP {exc.code}: {raw[:400]}"
-        ) from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Network error calling Anthropic API: {exc.reason}") from exc
-
-    content = body.get("content", [])
-    if not content:
-        raise RuntimeError(f"Anthropic API returned no content blocks: {body}")
-
-    text_blocks = [b["text"] for b in content if b.get("type") == "text"]
-    if not text_blocks:
-        raise RuntimeError(
-            f"Anthropic API returned no text blocks. Stop reason: {body.get('stop_reason')}"
-        )
-
-    return "\n".join(text_blocks)
 
 
 # ---------------------------------------------------------------------------
@@ -277,46 +174,7 @@ def _call_anthropic(prompt: str, model: str, max_tokens: int) -> str:
 
 
 def _extract_json(raw: str) -> str:
-    """
-    Strip any accidental markdown fences the LLM may have emitted and
-    return the first JSON object found in *raw*.
-
-    Order of preference:
-    1. The raw string itself — if it starts with ``{`` after stripping.
-    2. Content between the first ``{`` and its matching ``}``.
-    """
-    stripped = raw.strip()
-    if stripped.startswith("{"):
-        return stripped
-
-    # Find balanced braces
-    start = stripped.find("{")
-    if start == -1:
-        raise ValueError("No JSON object found in LLM output.")
-
-    depth = 0
-    in_string = False
-    escape = False
-    for i, ch in enumerate(stripped[start:], start=start):
-        if escape:
-            escape = False
-            continue
-        if ch == "\\" and in_string:
-            escape = True
-            continue
-        if ch == '"':
-            in_string = not in_string
-            continue
-        if in_string:
-            continue
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                return stripped[start : i + 1]
-
-    raise ValueError("Unbalanced braces in LLM output — could not extract JSON.")
+    return llm_providers.extract_json(raw)
 
 
 # ---------------------------------------------------------------------------
