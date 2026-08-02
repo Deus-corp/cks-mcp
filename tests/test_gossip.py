@@ -17,11 +17,16 @@ import socket
 
 import cks
 import pytest
-from cks_runtime.events.runtime_event import SessionClosed, SessionCreated
+from cks_runtime.events.runtime_event import (
+    GossipConflictDetected,
+    SessionClosed,
+    SessionCreated,
+)
 from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
+from cks_mcp.conflict_inbox import conflict_inbox
 from cks_mcp.gossip import GossipSettings, setup_gossip
 
 pytestmark = pytest.mark.asyncio
@@ -199,4 +204,33 @@ async def test_events_still_fire_for_regular_observability_when_gossip_enabled()
 
         assert seen == ["created", "closed"]
     finally:
+        await runtime.aclose()
+
+
+async def test_gossip_conflict_lands_in_conflict_inbox():
+    """setup_gossip must subscribe GossipConflictDetected -> conflict_inbox
+    so an external Critic agent has something to poll (list_gossip_conflicts)
+    -- otherwise an escalated conflict is only ever logged and lost."""
+    await conflict_inbox.reset()
+    runtime = await Runtime.create(core=CksCoreAdapter(), storage=InMemoryStorage())
+    try:
+        settings = GossipSettings(enabled=True, port=_free_port())
+        handle = setup_gossip(runtime, settings)
+        assert handle is not None
+
+        await runtime.events.publish(
+            GossipConflictDetected(
+                source_replica_id="replica-a",
+                session_id="session-42",
+                conflicts=["obj-1"],
+            )
+        )
+
+        buffered = await conflict_inbox.list(drain=False)
+        assert len(buffered) == 1
+        assert buffered[0]["session_id"] == "session-42"
+        assert buffered[0]["source_replica_id"] == "replica-a"
+        assert buffered[0]["conflicts"] == ["obj-1"]
+    finally:
+        await conflict_inbox.reset()
         await runtime.aclose()

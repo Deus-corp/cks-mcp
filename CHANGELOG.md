@@ -3,6 +3,18 @@
 
 ---
 
+## [1.24.0] - 2026-08-02
+
+### Added
+- **`list_gossip_conflicts` tool** — drains (or, with `peek: true`, previews) the queue of gossip merge conflicts a running gossip peer (`CKS_GOSSIP_ENABLED=true`) escalated via `GossipConflictDetected` (cks-runtime ADR-008) but no one has resolved yet. Previously that event was only ever logged and lost — nothing consumed it, so an external Critic agent (a separate MCP client session responsible for deciding how to resolve conflicts) had no way to discover that a background gossip cycle had failed to merge automatically. Each record carries `session_id`, `source_replica_id`, the conflicting object ids, `detected_at`, and a `record_id`; resolving one is expected to follow up with `compare_versions`/`explain_diff` for the structured diff and commit the decision through the ordinary `merge_branch` call. See `docs/tools/gossip-and-conflicts.md`.
+- **`conflict_inbox.py`** — new process-level `ConflictInbox` singleton (same shape as the existing `ToolTelemetry`: lazily-created `asyncio.Lock`, capped ring buffer) that `gossip.py`'s `setup_gossip` now subscribes to `GossipConflictDetected` on the Runtime `EventBus`. Scoped to `gossip.py` rather than `observability.py`'s always-on lifecycle logging, since the event only ever fires once gossip is running.
+- 13 new unit tests: `tests/test_conflict_inbox.py` (record/list, drain-by-default vs. `peek`, `session_id` filtering, eviction cap) and `tests/tools/list_gossip_conflicts/test_handler.py`; plus one new wiring test in `tests/test_gossip.py` confirming `setup_gossip` actually connects `GossipConflictDetected` to the inbox, not just that the event class exists.
+
+### Changed
+- Minimum `cks-runtime` dependency raised to `>=1.31.2` (previously `>=1.31.1`), for `GossipConflictDetected.session_id` — without it, a drained conflict record couldn't say which session it belonged to, since the event previously carried only `source_replica_id` and the conflicting object ids.
+
+---
+
 ## [1.23.0] - 2026-08-02
 
 ### Added

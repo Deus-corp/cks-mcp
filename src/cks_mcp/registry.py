@@ -43,6 +43,8 @@ from cks_mcp.tools.get_metrics import get_metrics
 from cks_mcp.tools.get_metrics.schema import GET_METRICS_SCHEMA
 from cks_mcp.tools.ingest_document import ingest_document
 from cks_mcp.tools.ingest_document.schema import INGEST_DOCUMENT_SCHEMA
+from cks_mcp.tools.list_gossip_conflicts import list_gossip_conflicts
+from cks_mcp.tools.list_gossip_conflicts.schema import LIST_GOSSIP_CONFLICTS_SCHEMA
 from cks_mcp.tools.merge import merge_branch, merge_knowledge
 from cks_mcp.tools.merge.schema import MERGE_BRANCH_SCHEMA, MERGE_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
@@ -201,5 +203,9 @@ TOOLS = {
     "ingest_document": {
         **INGEST_DOCUMENT_SCHEMA,
         "handler": _wrap("ingest_document", "url")(ingest_document),
+    },
+    "list_gossip_conflicts": {
+        **LIST_GOSSIP_CONFLICTS_SCHEMA,
+        "handler": _wrap("list_gossip_conflicts")(list_gossip_conflicts),
     },
 }

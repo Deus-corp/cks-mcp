@@ -1,6 +1,6 @@
 # Tools Reference
 
-`cks-mcp` exposes **24 tools** over the Model Context Protocol. Every tool
+`cks-mcp` exposes **25 tools** over the Model Context Protocol. Every tool
 call is a canonical operation: it runs inside a `RuntimeSession`, and any
 call that mutates state does so through a `Transaction`, producing an
 immutable `Version` (see [Architecture](../architecture/ARCHITECTURE.md)).
@@ -17,6 +17,7 @@ used together rather than their declaration order in the registry:
 | [Verification & Integrity](verification.md) | `verify_source`, `detect_contradictions` | Anti-hallucination: provenance and logical consistency |
 | [AI-Assisted & Ingestion](ai-assisted.md) | `construct_knowledge`, `suggest_evolution`, `ingest_document` | From free text or a URL to a validated structure; `ingest_document` now extracts tables, lists, metadata and supports optional LLM enrichment |
 | [Export & Observability](export-and-audit.md) | `export_knowledge`, `export_session`, `get_metrics` | Get data out, and see how the server is performing |
+| [Gossip & Conflict Resolution](gossip-and-conflicts.md) | `list_gossip_conflicts` | Drain conflicts escalated by a background gossip cycle for a Critic agent to resolve |
 
 ## Conventions used across every tool
 
@@ -28,8 +29,11 @@ used together rather than their declaration order in the registry:
 - **Read vs. write** — `serialize_knowledge`, `explain_knowledge`,
   `query_subgraph`, `search_semantic`, `visualize_graph`,
   `detect_contradictions`, `compare_versions`, `explain_diff`,
-  `suggest_evolution` (without `operations`), `list_versions`, and
-  `get_metrics` never create a new version. Everything else does.
+  `suggest_evolution` (without `operations`), `list_versions`,
+  `get_metrics`, and `list_gossip_conflicts` never create a new version.
+  Everything else does. (`list_gossip_conflicts` still has a side effect
+  worth knowing about — by default it drains the records it returns from
+  the conflict queue; see [Gossip & Conflict Resolution](gossip-and-conflicts.md).)
 - **Dry-run before commit** — `evolve_knowledge`, `merge_branch`,
   `merge_knowledge`, and `fork_sandbox` (when given `operations`) all
   validate the *prospective* result — including a provenance check — before

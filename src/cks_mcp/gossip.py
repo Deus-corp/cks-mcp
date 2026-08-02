@@ -36,7 +36,11 @@ import os
 import sys
 from dataclasses import dataclass
 
-from cks_runtime.events.runtime_event import SessionClosed, SessionCreated
+from cks_runtime.events.runtime_event import (
+    GossipConflictDetected,
+    SessionClosed,
+    SessionCreated,
+)
 from cks_runtime.gossip.adapter import GossipAdapter
 from cks_runtime.gossip.discovery import PeerDiscovery
 from cks_runtime.gossip.http_transport import (
@@ -48,6 +52,8 @@ from cks_runtime.gossip.scheduling import PeerScheduler
 from cks_runtime.gossip.secret import load_secret
 from cks_runtime.gossip.service import GossipService
 from cks_runtime.runtime import Runtime
+
+from cks_mcp.conflict_inbox import conflict_inbox
 
 __all__ = ["GossipHandle", "GossipSettings", "setup_gossip"]
 
@@ -133,7 +139,12 @@ def setup_gossip(runtime: Runtime, settings: GossipSettings) -> GossipHandle | N
     session set stays in sync with this process's own Sessions from
     here on, and seeds it with every Session already restored from
     storage at startup (those predate this call and never fired
-    ``SessionCreated``).
+    ``SessionCreated``). Also subscribes to ``GossipConflictDetected``,
+    buffering it into ``conflict_inbox`` for an external Critic agent
+    to drain via the ``list_gossip_conflicts`` tool -- the event only
+    ever fires once gossip is running, so this subscription is scoped
+    to here rather than ``observability.py``'s always-on lifecycle
+    logging.
     """
     if not settings.enabled:
         return None
@@ -185,8 +196,12 @@ def setup_gossip(runtime: Runtime, settings: GossipSettings) -> GossipHandle | N
     def _on_closed(event: SessionClosed) -> None:
         service.untrack_session(event.session_id)
 
+    async def _on_conflict(event: GossipConflictDetected) -> None:
+        await conflict_inbox.record(event)
+
     runtime.events.subscribe(SessionCreated, _on_created)
     runtime.events.subscribe(SessionClosed, _on_closed)
+    runtime.events.subscribe(GossipConflictDetected, _on_conflict)
 
     print(
         f"[CKS-MCP] Gossip enabled: listening on {settings.host}:{settings.port}, "
