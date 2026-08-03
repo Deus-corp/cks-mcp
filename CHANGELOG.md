@@ -3,6 +3,19 @@
 
 ---
 
+## [1.30.0] - 2026-08-03
+
+### Added
+- **Critic Agent runtime loop** (`cks_mcp.critic_agent`) — the autonomous, unattended process ROADMAP.md's "Next Up" section described as the last missing piece of the Critic-agent design. Runs as its own OS process with its own `Runtime` sharing storage with the main `cks-mcp` server (same SQLite file or Postgres DSN, via `CKS_MCP_DB_PATH`), and loops: `claim_conflict_task` → resolve → `complete_conflict_task`/`fail_conflict_task`/`dead_letter_conflict_task`, for both `gossip_conflict` and `inference_conflict` task types.
+  - `gossip_conflict` resolution: `merge_branch(target_session_id=<task's session>, source_session_id=<payload's source_session_id>)`. A clean merge completes the task; a structural conflict (incompatible edits to the same object) is dead-lettered rather than guessed at.
+  - `inference_conflict` resolution: a single batch `arbitrate_inference_conflict(auto_resolve=True, commit=True)` call covering every `CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT` diagnostic in the task's payload. `CKS-EXT-STALE-PREMISE` findings have no arbitration primitive yet and are dead-lettered for human review.
+  - A task is dead-lettered once its retry count would reach `CKS_CRITIC_MAX_RETRIES` (default 5) instead of being retried forever.
+  - New console script: `cks-critic-agent` (entry point `cks_mcp.critic_agent:main_sync`).
+  - Env vars: `CKS_MCP_DB_PATH` (shared storage path, defaults to the same path `cks-mcp` itself uses), `CKS_CRITIC_POLL_INTERVAL` (default 5s), `CKS_CRITIC_MAX_RETRIES` (default 5).
+  - New tests: `tests/test_critic_agent.py` (16 tests, including one end-to-end test against a real SQLite-backed `Runtime` and a real `merge_branch` call, not just mocks).
+
+---
+
 ## [1.29.0] - 2026-08-03
 
 ### Added

@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-325%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-341%20passed-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
@@ -145,6 +145,27 @@ real request/response examples: [`docs/tools/`](docs/tools/index.md).
 | Export & Observability | `export_knowledge`, `export_session`, `get_metrics` |
 | Gossip & Conflict Resolution | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` |
 
+## Critic Agent (unattended conflict resolution)
+
+Alongside the interactive tools above, `cks-critic-agent` is a separate console
+script that runs autonomously: it polls the persistent outbox (SQLite/Postgres
+only — not the default in-memory backend) for `gossip_conflict` and
+`inference_conflict` tasks, resolves each via `merge_branch` /
+`arbitrate_inference_conflict(auto_resolve=True)`, and dead-letters whatever it
+can't confidently resolve for a human to review via
+`list_dead_lettered_conflicts`.
+
+```bash
+# Point it at the same database cks-mcp itself uses (defaults to
+# ~/.cks-mcp/cks_mcp.db if CKS_MCP_DB_PATH is unset).
+CKS_MCP_DB_PATH=~/.cks-mcp/cks_mcp.db cks-critic-agent
+```
+
+Env vars: `CKS_MCP_DB_PATH` (shared storage path), `CKS_CRITIC_POLL_INTERVAL`
+(seconds between polls, default 5), `CKS_CRITIC_MAX_RETRIES` (attempts before
+dead-lettering, default 5). See `cks_mcp/critic_agent.py` for the resolution
+policy in full.
+
 ---
 
 # Usage Examples
@@ -243,7 +264,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-325+ tests, all passing.
+341+ tests, all passing.
 
 ---
 

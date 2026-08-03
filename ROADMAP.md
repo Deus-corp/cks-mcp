@@ -81,11 +81,11 @@ All of the supporting plumbing already exists and has shipped:
 - Queueing: `ConflictInbox`, drained via `list_gossip_conflicts` / `list_inference_conflicts`.
 - Resolution primitives: `arbitrate_inference_conflict` (interactive, `auto_resolve`, and batch modes), `merge_branch` for structured diffs.
 
-What's still missing is the agent itself: an autonomous unattended loop (ReAct-style) that periodically polls the conflict inbox tools, decides on resolutions (via `auto_resolve` or its own policy), and commits them — with a dead-letter queue for conflicts it can't confidently resolve. This closes the "Critic loop" gap identified in `cks-runtime`'s ADR-009.
+This closes the "Critic loop" gap identified in `cks-runtime`'s ADR-009.
 
-- [ ] **Critic Agent runtime loop:** scheduled/background process driving `list_gossip_conflicts` → `merge_branch` and `list_inference_conflicts` → `arbitrate_inference_conflict`.
-- [ ] **Dead-letter queue (DLQ):** for conflicts the agent cannot confidently auto-resolve, surfaced for human review.
-- [ ] **Task Bus integration:** reuse the existing generalized Task Bus / Outbox Worker infrastructure (already used for embeddings) to schedule and retry the agent's work.
+- [x] **Critic Agent runtime loop:** `cks_mcp.critic_agent` (v1.30.0) — a standalone process with its own `Runtime` sharing storage with the main server, looping `claim_conflict_task` → `merge_branch` (gossip) / `arbitrate_inference_conflict` (inference) → `complete_conflict_task`. New `cks-critic-agent` console script.
+- [x] **Dead-letter queue (DLQ):** conflicts the agent cannot confidently auto-resolve (a structural merge conflict, an unarbitrable `CKS-EXT-STALE-PREMISE` finding, or repeated failures past `CKS_CRITIC_MAX_RETRIES`) are dead-lettered via `dead_letter_conflict_task`, surfaced for human review via `list_dead_lettered_conflicts`.
+- [x] **Task Bus integration:** built directly on the persistent outbox (`claim_conflict_task`/`fail_conflict_task`, `cks-runtime` 1.34.0+) the same Task Bus / Outbox Worker infrastructure already used for embeddings.
 
 ---
 

@@ -56,6 +56,7 @@ where = ["src"]
 
 [project.scripts]
 cks-mcp = "cks_mcp.server:main_sync"
+cks-critic-agent = "cks_mcp.critic_agent:main_sync"
 
 [tool.ruff.lint.per-file-ignores]
 "src/cks_mcp/server.py" = ["BLE001"]
