@@ -89,14 +89,8 @@ from cks_mcp.tools.dead_letter_conflict_task.handler import dead_letter_conflict
 from cks_mcp.tools.fail_conflict_task.handler import fail_conflict_task
 from cks_mcp.tools.merge.handler import merge_branch
 
-# The only diagnostic code arbitrate_inference_conflict knows how to
-# resolve. CKS-EXT-STALE-PREMISE (the other code InferenceConflict-
-# Detected can carry, see cks-runtime ADR-002) describes a premise
-# that has gone stale, not two active InferenceSteps disputing a
-# conclusion -- there is no arbitration primitive for it yet, so those
-# diagnostics are left for a human via the dead-letter queue instead
-# of guessing at a resolution this agent has no tool to apply.
 _ARBITRABLE_DIAGNOSTIC_CODE = "CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT"
+_STALE_PREMISE_CODE = "CKS-EXT-STALE-PREMISE"
 
 # Same backoff cap philosophy as OutboxEmbeddingWorker/fail_conflict_task:
 # a conflict is dead-lettered rather than retried forever once it's
@@ -214,20 +208,33 @@ async def resolve_inference_conflict(runtime: Runtime, task: dict[str, Any]) -> 
     )
     if not conclusion_ids:
         return Resolution(
-            False,
-            "no arbitrable conclusion_id found in diagnostics (only "
-            f"{_ARBITRABLE_DIAGNOSTIC_CODE} diagnostics carry one -- e.g. a "
-            "CKS-EXT-STALE-PREMISE-only finding has no arbitration primitive yet).",
+            True,  # no confidence conflicts -> nothing to arbitrate
+            "no CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT diagnostics in payload",
         )
+
+    stale_step_ids = sorted(
+        {
+            loc
+            for d in diagnostics
+            if isinstance(d, dict)
+            and d.get("code") == _STALE_PREMISE_CODE
+            for loc in [d.get("location")]
+            if loc
+        }
+    )
+
+    arguments: dict[str, Any] = {
+        "session_id": task["session_id"],
+        "conclusion_ids": conclusion_ids,
+        "auto_resolve": True,
+        "commit": True,
+    }
+    if stale_step_ids:
+        arguments["stale_premise_ids"] = stale_step_ids
 
     result = await arbitrate_inference_conflict(
         runtime,
-        {
-            "session_id": task["session_id"],
-            "conclusion_ids": conclusion_ids,
-            "auto_resolve": True,
-            "commit": True,
-        },
+        arguments,
     )
 
     if result.get("error"):

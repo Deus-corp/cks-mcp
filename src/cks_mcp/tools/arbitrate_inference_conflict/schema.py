@@ -32,7 +32,14 @@ ARBITRATE_INFERENCE_CONFLICT_SCHEMA = {
         "see its own parameter description) instead of 'conclusion_id': "
         "with 'auto_resolve', every conclusion still needing a decision is "
         "resolved in ONE combined LLM call rather than one per conflict, and "
-        "'commit' applies the whole batch as ONE new version."
+        "'commit' applies the whole batch as ONE new version. "
+        "Also resolves a second, unrelated diagnostic via 'stale_premise_ids': "
+        "an active InferenceStep citing another step as a premise that has "
+        "itself since been superseded (CKS-EXT-STALE-PREMISE) -- a purely "
+        "mechanical rewrite (no LLM, no 'auto_resolve') that repoints the "
+        "citation at the current successor. See that parameter's own "
+        "description; it is mutually exclusive with 'conclusion_id'/"
+        "'conclusion_ids'."
     ),
     "inputSchema": {
         "type": "object",
@@ -58,7 +65,9 @@ ARBITRATE_INFERENCE_CONFLICT_SCHEMA = {
                     "conclusion_id -- built for an unattended Critic agent "
                     "working through a backlog (e.g. from "
                     "list_gossip_conflicts). Mutually exclusive with "
-                    "'conclusion_id'/'winner_id' (use 'winners' instead). "
+                    "'conclusion_id'/'winner_id' (use 'winners' instead) "
+                    "and with 'stale_premise_ids' (a different diagnostic "
+                    "entirely -- see that parameter). "
                     "With 'auto_resolve': true, every conclusion_id still "
                     "needing a decision after 'winners' is applied is "
                     "resolved in ONE combined LLM call, not one call each. "
@@ -70,6 +79,29 @@ ARBITRATE_INFERENCE_CONFLICT_SCHEMA = {
                     "'commit': true applies every resolved conclusion in "
                     "ONE evolve_knowledge call (one new version for the "
                     "whole batch, not one per conclusion_id)."
+                ),
+            },
+            "stale_premise_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Resolve CKS-EXT-STALE-PREMISE findings instead of "
+                    "CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT ones: each entry "
+                    "is a step_id (the diagnostic's 'location') of an "
+                    "active InferenceStep whose 'premises' cite another "
+                    "InferenceStep that has itself since been superseded. "
+                    "Unlike 'conclusion_ids', this never calls an LLM and "
+                    "ignores 'auto_resolve'/'winners'/'model' -- the fix is "
+                    "mechanical: every stale premise citation is rewritten "
+                    "to point at its citing step's current successor "
+                    "(walking the supersession chain, so a premise "
+                    "superseded twice over still resolves to the live "
+                    "step). Mutually exclusive with 'conclusion_id'/"
+                    "'conclusion_ids'. Returns 'results' (one entry per "
+                    "step_id: 'resolved', and 'fixes' listing each "
+                    "from/to premise rewrite). 'commit': true applies every "
+                    "resolved step's rewritten 'premises' in ONE "
+                    "evolve_knowledge call."
                 ),
             },
             "winner_id": {

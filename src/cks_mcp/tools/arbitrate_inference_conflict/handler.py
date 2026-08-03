@@ -447,6 +447,20 @@ async def arbitrate_inference_conflict(
 ) -> dict[str, Any]:
     conclusion_id = arguments.get("conclusion_id")
     conclusion_ids = arguments.get("conclusion_ids")
+    stale_premise_ids = arguments.get("stale_premise_ids")
+
+    if stale_premise_ids is not None and (conclusion_id or conclusion_ids is not None):
+        return {
+            "error": "invalid_parameter",
+            "message": (
+                "'stale_premise_ids' resolves a different diagnostic "
+                "(CKS-EXT-STALE-PREMISE) than 'conclusion_id'/'conclusion_ids' "
+                "(CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT) -- call this tool "
+                "once per diagnostic type instead of mixing them."
+            ),
+        }
+    if stale_premise_ids is not None:
+        return await _resolve_stale_premises(runtime, arguments)
 
     if conclusion_id and conclusion_ids is not None:
         return {
@@ -835,3 +849,98 @@ async def _arbitrate_batch(runtime: Runtime, arguments: dict[str, Any]) -> dict[
         response["commit_result"] = evolve_result
 
     return response
+
+
+async def _resolve_stale_premises(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+    """
+    Resolve CKS-EXT-STALE-PREMISE findings: an active InferenceStep
+    whose 'premises' list includes a step_id that has itself since been
+    superseded. The fix is mechanical -- repoint every stale premise
+    citation to the current live successor (walking the supersession
+    chain), no LLM, no arbitration -- applied via one
+    ``evolve_knowledge`` call when ``commit`` is true, or returned as a
+    dry-run otherwise.
+    """
+    stale_premise_ids = arguments.get("stale_premise_ids")
+    if not isinstance(stale_premise_ids, list) or not stale_premise_ids:
+        return {
+            "error": "invalid_parameter",
+            "message": "'stale_premise_ids' must be a non-empty list of step ids.",
+        }
+    if not all(isinstance(s, str) and s for s in stale_premise_ids):
+        return {
+            "error": "invalid_parameter",
+            "message": "'stale_premise_ids' must contain only non-empty strings.",
+        }
+
+    session_id = arguments.get("session_id")
+    if not isinstance(session_id, str):
+        return missing_parameter("session_id")
+    session = runtime.get_session(session_id)
+    if session is None:
+        return session_not_found(session_id)
+
+    items: list[dict[str, Any]] = []
+    operations: list[dict[str, Any]] = []
+
+    for step_id in stale_premise_ids:
+        obj = session.knowledge_structure.get(step_id)
+        if obj is None:
+            items.append({"step_id": step_id, "error": f"Step '{step_id}' not found."})
+            continue
+        if obj.identity.type != "InferenceStep":
+            items.append({"step_id": step_id, "error": f"'{step_id}' is not an InferenceStep."})
+            continue
+
+        premises = obj.structure.get("premises") or []
+        fixes = {}
+        for premise_id in premises:
+            successor = _find_live_successor(session.knowledge_structure, premise_id)
+            if successor != premise_id:
+                fixes[premise_id] = successor
+
+        if not fixes:
+            items.append({"step_id": step_id, "resolved": False, "message": "No stale premises found."})
+            continue
+
+        new_premises = [fixes.get(p, p) for p in premises]
+        items.append({"step_id": step_id, "resolved": True, "fixes": fixes})
+        operations.append({
+            "type": "update_object",
+            "object_id": step_id,
+            "structure_patch": {"premises": new_premises},
+        })
+
+    response: dict[str, Any] = {
+        "session_id": session.session_id,
+        "results": items,
+    }
+
+    if arguments.get("commit") and operations:
+        evolve_result = await evolve_knowledge(
+            runtime,
+            {
+                "session_id": session.session_id,
+                "operations": operations,
+                "extensions": ["supersession_chain"],
+            },
+        )
+        response["commit_result"] = evolve_result
+
+    return response
+
+
+def _find_live_successor(structure, step_id: str) -> str:
+    """Walk the superseded_by chain to find the live successor of a step."""
+    seen = set()
+    current = step_id
+    while current not in seen:
+        seen.add(current)
+        obj = structure.get(current)
+        if obj is None or obj.identity.type != "InferenceStep":
+            break
+        next_id = obj.structure.get("superseded_by")
+        if not next_id or next_id == current:
+            break
+        current = next_id
+    return current

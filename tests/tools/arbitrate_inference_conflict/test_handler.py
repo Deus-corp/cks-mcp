@@ -770,3 +770,105 @@ class TestBatchCommit:
         assert result.get("error") == "missing_decision"
         # Still a full, inspectable batch response, not just the error.
         assert "results" in result
+
+
+class TestStalePremiseResolution:
+    async def test_single_stale_premise_rewrite(self):
+        from cks_mcp.tools.arbitrate_inference_conflict.handler import (
+            arbitrate_inference_conflict,
+        )
+
+        # step-a supersedes step-old, and step-b cites step-old as a premise
+        runtime = _make_batch_runtime({})
+        session = runtime.get_session.return_value
+        structure = MagicMock()
+        session.knowledge_structure = structure
+
+        def _get(oid):
+            if oid == "step-b":
+                return MagicMock(identity=MagicMock(type="InferenceStep"), structure={"premises": ["step-old"]})
+            if oid == "step-old":
+                return MagicMock(identity=MagicMock(type="InferenceStep"), structure={"superseded_by": "step-a"})
+            return None
+        structure.get.side_effect = _get
+
+        result = await arbitrate_inference_conflict(
+            runtime,
+            {"session_id": "s1", "stale_premise_ids": ["step-b"]},
+        )
+        assert result["results"][0]["resolved"] is True
+        assert result["results"][0]["fixes"] == {"step-old": "step-a"}
+
+    async def test_stale_premise_batch(self):
+        from cks_mcp.tools.arbitrate_inference_conflict.handler import (
+            arbitrate_inference_conflict,
+        )
+
+        runtime = _make_batch_runtime({})
+        session = runtime.get_session.return_value
+        structure = MagicMock()
+        session.knowledge_structure = structure
+
+        def _get(oid):
+            if oid == "step-x":
+                return MagicMock(identity=MagicMock(type="InferenceStep"), structure={"premises": ["stale-1"]})
+            if oid == "step-y":
+                return MagicMock(identity=MagicMock(type="InferenceStep"), structure={"premises": ["stale-2"]})
+            if oid == "stale-1":
+                return MagicMock(identity=MagicMock(type="InferenceStep"), structure={"superseded_by": "live-1"})
+            if oid == "stale-2":
+                return MagicMock(identity=MagicMock(type="InferenceStep"), structure={"superseded_by": "live-2"})
+            return None
+        structure.get.side_effect = _get
+
+        result = await arbitrate_inference_conflict(
+            runtime,
+            {"session_id": "s1", "stale_premise_ids": ["step-x", "step-y"]},
+        )
+        assert len(result["results"]) == 2
+        assert result["results"][0]["fixes"] == {"stale-1": "live-1"}
+        assert result["results"][1]["fixes"] == {"stale-2": "live-2"}
+
+    async def test_stale_premise_commit(self):
+        from cks_mcp.tools.arbitrate_inference_conflict.handler import (
+            arbitrate_inference_conflict,
+        )
+
+        runtime = _make_batch_runtime({})
+        session = runtime.get_session.return_value
+        structure = MagicMock()
+        session.knowledge_structure = structure
+        def _get(oid):
+            if oid == "step-x":
+                return MagicMock(identity=MagicMock(type="InferenceStep"), structure={"premises": ["stale-1"]})
+            if oid == "stale-1":
+                return MagicMock(identity=MagicMock(type="InferenceStep"), structure={"superseded_by": "live-1"})
+            return None
+        structure.get.side_effect = _get
+
+        fake_evolve = {"evolved": True, "version_id": "v2"}
+        with patch(
+            "cks_mcp.tools.arbitrate_inference_conflict.handler.evolve_knowledge",
+            AsyncMock(return_value=fake_evolve),
+        ) as mock_evolve:
+            result = await arbitrate_inference_conflict(
+                runtime,
+                {"session_id": "s1", "stale_premise_ids": ["step-x"], "commit": True},
+            )
+        assert result["commit_result"] == fake_evolve
+        mock_evolve.assert_called_once()
+
+    async def test_stale_premise_rejects_invalid_step(self):
+        from cks_mcp.tools.arbitrate_inference_conflict.handler import (
+            arbitrate_inference_conflict,
+        )
+
+        runtime = _make_batch_runtime({})
+        session = runtime.get_session.return_value
+        session.knowledge_structure.get.return_value = None
+
+        result = await arbitrate_inference_conflict(
+            runtime,
+            {"session_id": "s1", "stale_premise_ids": ["nonexistent"]},
+        )
+        assert "error" in result["results"][0]

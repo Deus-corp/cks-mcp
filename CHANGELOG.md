@@ -3,6 +3,15 @@
 
 ---
 
+## [1.31.0] - 2026-08-03
+
+### Added
+- **`arbitrate_inference_conflict` now resolves `CKS-EXT-STALE-PREMISE`** via a new `stale_premise_ids` parameter. An active `InferenceStep` that still cites a since-superseded premise can now be repaired mechanically, without an LLM call, by repointing its `premises` to the current successor(s). The fix is applied through `evolve_knowledge` with `update_object` operations when `commit: true` is set.
+- **`critic_agent.py` updated** to route `CKS-EXT-STALE-PREMISE` diagnostics to `stale_premise_ids` instead of dead-lettering them.
+- New tests: `tests/tools/arbitrate_inference_conflict/test_handler.py` extended with 4 cases for `stale_premise_ids`.
+
+---
+
 ## [1.30.0] - 2026-08-03
 
 ### Added

@@ -48,6 +48,15 @@ used together rather than their declaration order in the registry:
   alternative to `session_id`, for one-off calls that don't need a
   persisted session. Every one of these paths is provenance-gated exactly
   like the `session_id` path — see [Verification & Integrity](verification.md).
+- **Read vs. write** — `serialize_knowledge`, `explain_knowledge`,
+  `query_subgraph`, `search_semantic`, `visualize_graph`,
+  `detect_contradictions`, `compare_versions`, `explain_diff`,
+  `suggest_evolution` (without `operations`), `list_versions`,
+  `get_metrics`, `list_gossip_conflicts`, `list_inference_conflicts`,
+  `list_dead_lettered_conflicts` never create a new version. The
+  critic‑agent tools (`claim_conflict_task`, `complete_conflict_task`,
+  `fail_conflict_task`, `dead_letter_conflict_task`) modify outbox state
+  but never touch sessions or versions.
 
 See also: [Extension Model](../extensions.md) for the opt-in
 `extensions` parameter accepted by `validate_knowledge`.

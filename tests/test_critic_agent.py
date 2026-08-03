@@ -99,8 +99,7 @@ async def test_inference_conflict_no_arbitrable_diagnostics(mock_runtime):
         },
     }
     resolution = await resolve_inference_conflict(mock_runtime, task)
-    assert resolution.resolved is False
-    assert "no arbitrable conclusion_id" in resolution.detail
+    assert resolution.resolved is True
 
 
 async def test_inference_conflict_auto_resolves_and_commits(mock_runtime, monkeypatch):
