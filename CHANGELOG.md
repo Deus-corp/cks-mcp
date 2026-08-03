@@ -3,6 +3,13 @@
 
 ---
 
+## [1.27.1] - 2026-08-03
+
+### Fixed
+- **`evolve_knowledge` no longer silently drops non-blocking diagnostics on a successful commit.** `validation.is_valid` only means no `ERROR`-severity diagnostic was raised — a `WARNING`/`INFORMATION` (e.g. `CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT`, `CKS-EXT-STALE-PREMISE`) could still be present and, once the commit succeeded, was discarded instead of being returned. A caller could commit an edit that lands on top of an unresolved belief conflict and never learn about it unless they separately called `validate_knowledge`. The response now includes a `diagnostics` field (same shape as the existing failure-path diagnostics) whenever validation produced any, on every successful commit, regardless of whether `extensions` was requested; the key is omitted entirely when there are none.
+
+---
+
 ## [1.27.0] - 2026-08-03
 
 ### Added

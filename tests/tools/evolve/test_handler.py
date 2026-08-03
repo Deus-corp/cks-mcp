@@ -220,3 +220,57 @@ async def test_evolve_knowledge_with_confidence_bounds_extension_rejects_it():
     )
     assert result["error"] == "validation_failed"
     assert any(d["code"] == "CKS-EXT-CONFIDENCE-BOUNDS" for d in result["diagnostics"])
+
+
+async def test_evolve_knowledge_surfaces_warning_diagnostics_on_success():
+    # step-a and step-b (see _two_step_conflict_json) both stay active
+    # and disagree on confidence for the same conclusion -- a WARNING
+    # under 'inference_confidence_conflict', not an ERROR. A harmless
+    # rename elsewhere in the structure still commits successfully, but
+    # previously the WARNING was silently dropped from the response the
+    # moment the commit succeeded, so a caller who didn't separately
+    # call validate_knowledge would never learn their own edit landed
+    # on top of an unresolved belief conflict.
+    runtime = _real_runtime()
+    result = await evolve_knowledge(
+        runtime,
+        {
+            "json_data": _two_step_conflict_json(),
+            "operations": [
+                {
+                    "type": "rename_object",
+                    "object_id": "c1",
+                    "new_name": "Conclusion Renamed",
+                }
+            ],
+            "extensions": ["inference_confidence_conflict"],
+        },
+    )
+    assert result.get("evolved") is True
+    assert "diagnostics" in result
+    assert any(
+        d["code"] == "CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT" and d["severity"] == "warning"
+        for d in result["diagnostics"]
+    )
+
+
+async def test_evolve_knowledge_omits_diagnostics_key_when_none_raised(mock_runtime):
+    # Counterpart to the above: no extensions requested and nothing
+    # wrong, so 'diagnostics' must not appear at all -- an empty list
+    # would still be a behavior change for existing callers that only
+    # check `"diagnostics" in result`.
+    result = await evolve_knowledge(
+        mock_runtime,
+        {
+            "json_data": VALID_KNOWLEDGE_JSON,
+            "operations": [
+                {
+                    "type": "add_object",
+                    "identity": {"id": "obj-2", "type": "Lemma", "name": "New"},
+                    "structure": {},
+                }
+            ],
+        },
+    )
+    assert result.get("evolved") is True
+    assert "diagnostics" not in result

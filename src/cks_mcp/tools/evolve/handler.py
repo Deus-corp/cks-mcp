@@ -114,6 +114,24 @@ async def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[
             ],
         }
 
+    # validation.is_valid only means no ERROR-severity diagnostic was
+    # raised -- a WARNING/INFORMATION from a built-in constraint or an
+    # opted-in extension (e.g. CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT,
+    # CKS-EXT-STALE-PREMISE) can still be present here and was
+    # previously discarded once the commit succeeded, silently hiding
+    # e.g. a newly-created belief conflict from the caller. Surfaced
+    # below on every successful commit, regardless of whether
+    # 'extensions' was used.
+    non_blocking_diagnostics = [
+        {
+            "code": d.identity,
+            "severity": d.severity.value,
+            "message": d.message,
+            "location": d.location,
+        }
+        for d in validation.diagnostics
+    ]
+
     if not session_existed:
         session = await runtime.create_session(structure)
 
@@ -144,4 +162,6 @@ async def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[
         response["cascade_removed_relations"] = cascade_removed
     if requested_extensions:
         response["extensions_applied"] = requested_extensions
+    if non_blocking_diagnostics:
+        response["diagnostics"] = non_blocking_diagnostics
     return response
