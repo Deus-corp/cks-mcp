@@ -3,6 +3,18 @@
 
 ---
 
+## [1.27.0] - 2026-08-03
+
+### Added
+- **Batch mode for `arbitrate_inference_conflict`** — pass `conclusion_ids` (a list of object ids) instead of `conclusion_id` to resolve several disputed conclusions in one call. With `auto_resolve: true`, every conclusion_id still needing a decision after `winners` is resolved in **exactly one combined LLM call** (not one per conflict). `commit: true` applies the whole batch as a single `evolve_knowledge` call / version. A bad or conflict-free entry only affects its own result, never the rest of the batch.
+- **`winners` parameter** — batch counterpart to `winner_id`: an object mapping each `conclusion_id` to a pre-determined winner step id (e.g. `{"obj-1": "step-a", "obj-2": "step-c"}`). Conclusions covered by `winners` are not sent to the LLM.
+- **`_extract_json_array` helper** — batch-specific JSON-array extraction from LLM output, matching `extract_json` semantics but anchored on `[`/`]` instead of `{`/`}`. Handles markdown fences, trailing commentary, and truncated output.
+- **`_gather_active_steps` refactored** — shared by both the single-conclusion and batch paths, so they never disagree about how a conclusion's active steps are gathered.
+- **`_dispatch_llm`** — single provider-dispatch function shared by `_call_llm` and `_call_llm_batch`, so the auto/ollama/anthropic branching is implemented once.
+- 16 new unit tests in `tests/tools/arbitrate_inference_conflict/test_handler.py` covering batch parameter validation, mixed conflict/no-conflict entries, caller-supplied winners, combined LLM call behaviour, error isolation between entries, and batch commit.
+
+---
+
 ## [1.26.0] - 2026-08-03
 
 ### Added

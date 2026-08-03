@@ -26,7 +26,13 @@ ARBITRATE_INFERENCE_CONFLICT_SCHEMA = {
         "'resolve_inference_conflict' operation directly yourself. "
         "In all three cases, add 'commit': true to have this tool apply the "
         "winning step via evolve_knowledge and persist a new version, "
-        "instead of just returning the decision for you to apply."
+        "instead of just returning the decision for you to apply. "
+        "For several disputed conclusions at once -- e.g. working through a "
+        "list_gossip_conflicts backlog -- use 'conclusion_ids' (batch mode; "
+        "see its own parameter description) instead of 'conclusion_id': "
+        "with 'auto_resolve', every conclusion still needing a decision is "
+        "resolved in ONE combined LLM call rather than one per conflict, and "
+        "'commit' applies the whole batch as ONE new version."
     ),
     "inputSchema": {
         "type": "object",
@@ -39,7 +45,31 @@ ARBITRATE_INFERENCE_CONFLICT_SCHEMA = {
                 "type": "string",
                 "description": (
                     "The object_id whose active InferenceSteps may conflict "
-                    "(same meaning as explain_knowledge's 'object_id')."
+                    "(same meaning as explain_knowledge's 'object_id'). "
+                    "Mutually exclusive with 'conclusion_ids' (batch mode)."
+                ),
+            },
+            "conclusion_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Batch mode: resolve several disputed conclusions in "
+                    "this session in one call instead of one round trip per "
+                    "conclusion_id -- built for an unattended Critic agent "
+                    "working through a backlog (e.g. from "
+                    "list_gossip_conflicts). Mutually exclusive with "
+                    "'conclusion_id'/'winner_id' (use 'winners' instead). "
+                    "With 'auto_resolve': true, every conclusion_id still "
+                    "needing a decision after 'winners' is applied is "
+                    "resolved in ONE combined LLM call, not one call each. "
+                    "Returns 'results' (one entry per conclusion_id, same "
+                    "per-item shape as the single-conclusion response) "
+                    "instead of the top-level 'conflict'/'active_steps'/"
+                    "'decision' fields -- a bad or conflict-free entry only "
+                    "affects its own result, never the rest of the batch. "
+                    "'commit': true applies every resolved conclusion in "
+                    "ONE evolve_knowledge call (one new version for the "
+                    "whole batch, not one per conclusion_id)."
                 ),
             },
             "winner_id": {
@@ -49,7 +79,20 @@ ARBITRATE_INFERENCE_CONFLICT_SCHEMA = {
                     "returned 'active_steps') you've already determined is "
                     "strongest. When given, no LLM call is made by this "
                     "tool regardless of 'auto_resolve'. Must be one of the "
-                    "active step ids for this conclusion_id."
+                    "active step ids for this conclusion_id. Applies only "
+                    "to 'conclusion_id' -- use 'winners' with "
+                    "'conclusion_ids' instead."
+                ),
+            },
+            "winners": {
+                "type": "object",
+                "description": (
+                    "Batch counterpart to 'winner_id': an object mapping "
+                    "each conclusion_id to your own already-decided winner "
+                    "step id, e.g. {'obj-1': 'step-a', 'obj-2': 'step-c'}. "
+                    "Only used with 'conclusion_ids'. A conclusion_id not "
+                    "covered here falls through to 'auto_resolve' (if set) "
+                    "or is returned undecided for you to resolve next time."
                 ),
             },
             "reasoning": {
@@ -100,6 +143,6 @@ ARBITRATE_INFERENCE_CONFLICT_SCHEMA = {
                 ),
             },
         },
-        "required": ["session_id", "conclusion_id"],
+        "required": ["session_id"],
     },
 }
