@@ -218,6 +218,8 @@ async def test_gossip_conflict_dual_writes_to_outbox_when_supported(tmp_path):
     await conflict_inbox.reset()
     storage = SQLiteStorage(str(tmp_path / "gossip_dualwrite.db"))
     runtime = await Runtime.create(core=CksCoreAdapter(), storage=storage)
+    if hasattr(runtime, '_outbox_worker') and runtime._outbox_worker is not None:
+        await runtime._outbox_worker.stop()
     try:
         settings = GossipSettings(enabled=True, port=_free_port())
         handle = setup_gossip(runtime, settings)

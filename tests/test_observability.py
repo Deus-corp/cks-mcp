@@ -90,6 +90,9 @@ async def test_inference_conflict_dual_writes_to_outbox_when_supported(tmp_path)
     await conflict_inbox.reset()
     storage = SQLiteStorage(str(tmp_path / "inference_dualwrite.db"))
     runtime = await Runtime.create(core=CksCoreAdapter(), storage=storage)
+    # Stop the background worker so it doesn't steal tasks before the test can check them
+    if hasattr(runtime, '_outbox_worker') and runtime._outbox_worker is not None:
+        await runtime._outbox_worker.stop()
     try:
         setup_event_subscriptions(runtime)
         assert runtime.storage.supports_outbox is True
