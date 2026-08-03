@@ -32,6 +32,7 @@ agrees on it.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from dataclasses import dataclass
@@ -198,6 +199,32 @@ def setup_gossip(runtime: Runtime, settings: GossipSettings) -> GossipHandle | N
 
     async def _on_conflict(event: GossipConflictDetected) -> None:
         await conflict_inbox.record(event)
+        # Dual-write into the persistent outbox (task_type
+        # "gossip_conflict") whenever the storage backend supports it,
+        # so an external Critic-agent *process* -- which necessarily
+        # has its own Runtime/ConflictInbox instance, and therefore
+        # never sees this in-process singleton -- can still discover
+        # the conflict by sharing the same SQLite/Postgres backend.
+        # ``conflict_inbox`` stays the source of truth for same-process
+        # readers (``list_gossip_conflicts``/``list_inference_conflicts``
+        # below are unchanged); this write is purely additive. Gossip
+        # itself is only ever enabled when ``runtime.replica_id`` is
+        # not None (see this function's own guard above), which in
+        # turn requires a durable storage backend -- so in practice
+        # this is never reached with ``InMemoryStorage``, but the
+        # ``supports_outbox`` check is kept anyway rather than assumed.
+        if runtime.storage.supports_outbox:
+            await runtime.storage.enqueue_task(
+                task_type="gossip_conflict",
+                session_id=event.session_id,
+                payload=json.dumps(
+                    {
+                        "source_replica_id": event.source_replica_id,
+                        "source_session_id": event.source_session_id,
+                        "conflicts": [str(c) for c in event.conflicts],
+                    }
+                ),
+            )
 
     runtime.events.subscribe(SessionCreated, _on_created)
     runtime.events.subscribe(SessionClosed, _on_closed)

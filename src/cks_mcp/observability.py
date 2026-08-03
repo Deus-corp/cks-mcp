@@ -142,6 +142,26 @@ def setup_event_subscriptions(runtime: Runtime) -> None:
     async def _on_inference_conflict(event: InferenceConflictDetected) -> None:
         _on_event(event)
         await conflict_inbox.record_inference(event)
+        # Dual-write into the persistent outbox (task_type
+        # "inference_conflict") when supported -- see gossip.py's
+        # matching comment on ``_on_conflict``. Unlike gossip, the
+        # sweeper that publishes this event runs by default
+        # (``inference_sweep_interval=300.0``) regardless of storage
+        # backend, so this *does* fire under plain ``InMemoryStorage``
+        # too; the ``supports_outbox`` guard keeps that a harmless
+        # no-op there rather than an error, while a Critic-agent
+        # process sharing a SQLite/Postgres backend gains visibility.
+        if runtime.storage.supports_outbox:
+            await runtime.storage.enqueue_task(
+                task_type="inference_conflict",
+                session_id=event.session_id,
+                payload=json.dumps(
+                    {
+                        "version_id": event.version_id,
+                        "diagnostics": [dict(d) for d in event.diagnostics],
+                    }
+                ),
+            )
 
     runtime.events.subscribe(SessionCreated, _on_event)
     runtime.events.subscribe(SessionClosed, _on_event)

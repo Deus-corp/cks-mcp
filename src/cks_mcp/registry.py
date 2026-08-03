@@ -25,10 +25,18 @@ from cks_mcp.tools.arbitrate_inference_conflict.schema import (
 )
 from cks_mcp.tools.branch import close_session, create_branch
 from cks_mcp.tools.branch.schema import CLOSE_SESSION_SCHEMA, CREATE_BRANCH_SCHEMA
+from cks_mcp.tools.claim_conflict_task import claim_conflict_task
+from cks_mcp.tools.claim_conflict_task.schema import CLAIM_CONFLICT_TASK_SCHEMA
 from cks_mcp.tools.compare import compare_versions
 from cks_mcp.tools.compare.schema import COMPARE_VERSIONS_SCHEMA
+from cks_mcp.tools.complete_conflict_task import complete_conflict_task
+from cks_mcp.tools.complete_conflict_task.schema import COMPLETE_CONFLICT_TASK_SCHEMA
 from cks_mcp.tools.construct_knowledge import construct_knowledge
 from cks_mcp.tools.construct_knowledge.schema import CONSTRUCT_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.dead_letter_conflict_task import dead_letter_conflict_task
+from cks_mcp.tools.dead_letter_conflict_task.schema import (
+    DEAD_LETTER_CONFLICT_TASK_SCHEMA,
+)
 from cks_mcp.tools.detect_contradictions import detect_contradictions
 from cks_mcp.tools.detect_contradictions.schema import DETECT_CONTRADICTIONS_SCHEMA
 from cks_mcp.tools.evolve import evolve_knowledge
@@ -41,12 +49,18 @@ from cks_mcp.tools.export_knowledge import export_knowledge
 from cks_mcp.tools.export_knowledge.schema import EXPORT_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.export_session import export_session
 from cks_mcp.tools.export_session.schema import EXPORT_SESSION_SCHEMA
+from cks_mcp.tools.fail_conflict_task import fail_conflict_task
+from cks_mcp.tools.fail_conflict_task.schema import FAIL_CONFLICT_TASK_SCHEMA
 from cks_mcp.tools.fork_sandbox import fork_sandbox
 from cks_mcp.tools.fork_sandbox.schema import FORK_SANDBOX_SCHEMA
 from cks_mcp.tools.get_metrics import get_metrics
 from cks_mcp.tools.get_metrics.schema import GET_METRICS_SCHEMA
 from cks_mcp.tools.ingest_document import ingest_document
 from cks_mcp.tools.ingest_document.schema import INGEST_DOCUMENT_SCHEMA
+from cks_mcp.tools.list_dead_lettered_conflicts import list_dead_lettered_conflicts
+from cks_mcp.tools.list_dead_lettered_conflicts.schema import (
+    LIST_DEAD_LETTERED_CONFLICTS_SCHEMA,
+)
 from cks_mcp.tools.list_gossip_conflicts import list_gossip_conflicts
 from cks_mcp.tools.list_gossip_conflicts.schema import LIST_GOSSIP_CONFLICTS_SCHEMA
 from cks_mcp.tools.list_inference_conflicts import list_inference_conflicts
@@ -241,5 +255,29 @@ TOOLS = {
         "handler": _wrap_open_session_fields(
             "arbitrate_inference_conflict", "session_id", "session_id", "conclusion_id"
         )(arbitrate_inference_conflict),
+    },
+    "claim_conflict_task": {
+        **CLAIM_CONFLICT_TASK_SCHEMA,
+        "handler": _wrap("claim_conflict_task", "task_type")(claim_conflict_task),
+    },
+    "complete_conflict_task": {
+        **COMPLETE_CONFLICT_TASK_SCHEMA,
+        "handler": _wrap("complete_conflict_task", "task_id")(complete_conflict_task),
+    },
+    "fail_conflict_task": {
+        **FAIL_CONFLICT_TASK_SCHEMA,
+        "handler": _wrap(
+            "fail_conflict_task", "task_id", "retry_count", "error"
+        )(fail_conflict_task),
+    },
+    "dead_letter_conflict_task": {
+        **DEAD_LETTER_CONFLICT_TASK_SCHEMA,
+        "handler": _wrap(
+            "dead_letter_conflict_task", "task_id", "error"
+        )(dead_letter_conflict_task),
+    },
+    "list_dead_lettered_conflicts": {
+        **LIST_DEAD_LETTERED_CONFLICTS_SCHEMA,
+        "handler": _wrap("list_dead_lettered_conflicts")(list_dead_lettered_conflicts),
     },
 }

@@ -3,6 +3,18 @@
 
 ---
 
+## [1.29.0] - 2026-08-03
+
+### Added
+- **Critic-agent tool suite for the persistent outbox** — `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts`. These give an external Critic agent running as a genuinely *separate OS process* (its own `Runtime`, its own empty in-process `ConflictInbox`) a way to see and resolve conflicts by sharing the same SQLite/Postgres backend as the main server, using `cks-runtime` 1.34.0's new `dequeue_next_outbox_task(task_type=...)`, `dead_letter_outbox_task`, and `list_dead_letter_tasks`. `claim_conflict_task` atomically claims one `gossip_conflict`/`inference_conflict` task at a time (so two Critic-agent processes polling concurrently never claim the same one); `fail_conflict_task` reschedules with the same exponential backoff `OutboxEmbeddingWorker` uses; `dead_letter_conflict_task` permanently retires a conflict the agent couldn't resolve with confidence, visible afterwards via `list_dead_lettered_conflicts`. All five report `supported: false` under storage backends that don't implement the outbox (e.g. the default `InMemoryStorage`) instead of erroring.
+- **`gossip.py`/`observability.py` dual-write into the outbox** — `GossipConflictDetected` and `InferenceConflictDetected` are now also enqueued as outbox tasks (`task_type="gossip_conflict"`/`"inference_conflict"`) whenever `runtime.storage.supports_outbox` is true, in addition to the existing write into the in-process `ConflictInbox`. This is purely additive: `list_gossip_conflicts`/`list_inference_conflicts` are unchanged and remain the same-process read path; the outbox write is what makes conflicts visible to a genuinely separate Critic-agent process, which cannot see this process's `ConflictInbox` singleton no matter what. No-ops silently (as before) under `InMemoryStorage`.
+- Tool count increased from 27 to 32. New tests: `tests/tools/{claim_conflict_task,complete_conflict_task,fail_conflict_task,dead_letter_conflict_task,list_dead_lettered_conflicts}/test_handler.py`, plus dual-write coverage in `test_gossip.py` and `test_observability.py`.
+
+### Changed
+- Minimum `cks-runtime` version raised to `1.34.0` for the `task_type`-filtered `dequeue_next_outbox_task`, `dead_letter_outbox_task`, and `list_tasks_by_type`.
+
+---
+
 ## [1.28.0] - 2026-08-03
 
 ### Added

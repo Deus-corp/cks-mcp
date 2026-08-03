@@ -13,6 +13,7 @@ Covers:
 
 from __future__ import annotations
 
+import json
 import socket
 
 import cks
@@ -24,6 +25,7 @@ from cks_runtime.events.runtime_event import (
 )
 from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
+from cks_runtime.storage.sqlite_storage import SQLiteStorage
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.conflict_inbox import conflict_inbox
@@ -207,7 +209,71 @@ async def test_events_still_fire_for_regular_observability_when_gossip_enabled()
         await runtime.aclose()
 
 
-async def test_gossip_conflict_lands_in_conflict_inbox():
+async def test_gossip_conflict_dual_writes_to_outbox_when_supported(tmp_path):
+    """When the storage backend supports the outbox (SQLite/Postgres),
+    GossipConflictDetected must also land there as a "gossip_conflict"
+    task -- not just conflict_inbox -- so an external Critic-agent
+    *process* (its own Runtime, its own empty conflict_inbox) sharing
+    the same backend file can see it via claim_conflict_task."""
+    await conflict_inbox.reset()
+    storage = SQLiteStorage(str(tmp_path / "gossip_dualwrite.db"))
+    runtime = await Runtime.create(core=CksCoreAdapter(), storage=storage)
+    try:
+        settings = GossipSettings(enabled=True, port=_free_port())
+        handle = setup_gossip(runtime, settings)
+        assert handle is not None
+        assert runtime.storage.supports_outbox is True
+
+        await runtime.events.publish(
+            GossipConflictDetected(
+                source_replica_id="replica-a",
+                session_id="session-42",
+                source_session_id="branch-abc",
+                conflicts=["obj-1"],
+            )
+        )
+
+        # Same-process readers still see it via conflict_inbox...
+        buffered = await conflict_inbox.list(drain=False)
+        assert len(buffered) == 1
+
+        # ...and it is *also* durably queryable from the shared outbox,
+        # independent of the in-process ConflictInbox singleton.
+        task = await runtime.storage.dequeue_next_outbox_task(task_type="gossip_conflict")
+        assert task is not None
+        assert task.session_id == "session-42"
+        payload = json.loads(task.payload)
+        assert payload["source_replica_id"] == "replica-a"
+        assert payload["source_session_id"] == "branch-abc"
+        assert payload["conflicts"] == ["obj-1"]
+    finally:
+        await conflict_inbox.reset()
+        await runtime.aclose()
+
+
+async def test_gossip_conflict_under_inmemory_storage_only_writes_conflict_inbox():
+    """InMemoryStorage reports supports_outbox=False -- the dual-write
+    must no-op silently rather than raise, leaving conflict_inbox as
+    the only path (as before this change)."""
+    await conflict_inbox.reset()
+    runtime = await Runtime.create(core=CksCoreAdapter(), storage=InMemoryStorage())
+    try:
+        settings = GossipSettings(enabled=True, port=_free_port())
+        handle = setup_gossip(runtime, settings)
+        assert handle is not None
+        assert runtime.storage.supports_outbox is False
+
+        await runtime.events.publish(
+            GossipConflictDetected(
+                source_replica_id="replica-a", session_id="session-42", conflicts=["obj-1"]
+            )
+        )
+
+        buffered = await conflict_inbox.list(drain=False)
+        assert len(buffered) == 1
+    finally:
+        await conflict_inbox.reset()
+        await runtime.aclose()
     """setup_gossip must subscribe GossipConflictDetected -> conflict_inbox
     so an external Critic agent has something to poll (list_gossip_conflicts)
     -- otherwise an escalated conflict is only ever logged and lost."""
