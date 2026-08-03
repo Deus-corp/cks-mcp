@@ -1,6 +1,6 @@
 # Tools Reference
 
-`cks-mcp` exposes **25 tools** over the Model Context Protocol. Every tool
+`cks-mcp` exposes **27 tools** over the Model Context Protocol. Every tool
 call is a canonical operation: it runs inside a `RuntimeSession`, and any
 call that mutates state does so through a `Transaction`, producing an
 immutable `Version` (see [Architecture](../architecture/ARCHITECTURE.md)).

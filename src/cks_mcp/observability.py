@@ -16,6 +16,7 @@ from collections.abc import Callable
 from typing import Any
 
 from cks_runtime.events.runtime_event import (
+    InferenceConflictDetected,
     RuntimeEvent,
     SessionClosed,
     SessionCreated,
@@ -27,6 +28,7 @@ from cks_runtime.events.runtime_event import (
 )
 from cks_runtime.runtime import Runtime
 
+from cks_mcp.conflict_inbox import conflict_inbox
 from cks_mcp.telemetry import tool_telemetry
 
 
@@ -113,6 +115,15 @@ def setup_event_subscriptions(runtime: Runtime) -> None:
     Subscribe to lifecycle events from the Runtime and log them.
 
     Call this once after creating the Runtime in main().
+
+    Also subscribes ``InferenceConflictDetected`` (cks-runtime,
+    ADR-009) into ``conflict_inbox`` alongside the usual logging --
+    unlike ``GossipConflictDetected`` (wired in ``gossip.py``, scoped
+    to when gossip is enabled), the ``InferenceStalenessSweeper`` that
+    publishes this event runs by default (``RuntimeConfig
+    .inference_sweep_interval``), so this subscription lives here,
+    Runtime's always-on lifecycle logging, rather than behind an opt-in
+    flag. Drained through the ``list_inference_conflicts`` tool.
     """
 
     def _on_event(event: RuntimeEvent) -> None:
@@ -128,6 +139,10 @@ def setup_event_subscriptions(runtime: Runtime) -> None:
             }
         )
 
+    async def _on_inference_conflict(event: InferenceConflictDetected) -> None:
+        _on_event(event)
+        await conflict_inbox.record_inference(event)
+
     runtime.events.subscribe(SessionCreated, _on_event)
     runtime.events.subscribe(SessionClosed, _on_event)
     runtime.events.subscribe(TransactionCommitted, _on_event)
@@ -135,3 +150,4 @@ def setup_event_subscriptions(runtime: Runtime) -> None:
     runtime.events.subscribe(TransactionAborted, _on_event)
     runtime.events.subscribe(VersionCreated, _on_event)
     runtime.events.subscribe(ValidationFailed, _on_event)
+    runtime.events.subscribe(InferenceConflictDetected, _on_inference_conflict)

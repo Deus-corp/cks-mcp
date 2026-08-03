@@ -1,13 +1,13 @@
 """
-CKS MCP — Gossip Conflict Inbox.
+CKS MCP — Conflict Inbox.
 
 ``GossipAdapter`` (cks-runtime, ADR-008) escalates an unresolvable
 gossip merge by publishing ``GossipConflictDetected`` on the Runtime
 ``EventBus`` instead of raising synchronously -- a background gossip
 cycle has no caller waiting on the call. Nothing previously consumed
 that event: it was logged (see ``observability.py``'s general
-``RuntimeEvent`` handling, which does *not* currently subscribe to
-it) and then lost.
+``RuntimeEvent`` handling, which did *not* subscribe to it) and then
+lost.
 
 This module gives an external Critic agent -- a separate MCP client
 session that decides how to resolve conflicts -- something to poll:
@@ -29,6 +29,26 @@ is resolved. ``source_session_id`` is empty when a record predates this
 field, or when registering the branch itself failed -- treat that as
 "no diff available, only the conflicting ids above".
 
+``InferenceStalenessSweeper`` (cks-runtime, ADR-009) escalates the same
+way, for a different kind of finding: publishing
+``InferenceConflictDetected`` when a background sweep turns up a
+reasoning-staleness diagnostic (``CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT``
+/ ``CKS-EXT-STALE-PREMISE``) nobody has looked at yet. ADR-009 itself
+notes this consumer as unblocked-but-undecided; this module is that
+decision. Kept in a *separate* queue from the gossip one rather than
+folded into the same record shape -- ADR-009 is explicit that this is
+not ``GossipConflictDetected`` repurposed (a single-structure belief
+conflict has no ``source_replica_id``/``source_session_id`` to speak
+of), and unlike a gossip conflict there is no single ``conclusion_id``
+to hand a caller: ``CKS-EXT-STALE-PREMISE`` findings are keyed by
+InferenceStep id, not by conclusion, so extracting one field to act on
+would silently drop that case. Drained through
+``list_inference_conflicts``, mirroring ``list_gossip_conflicts``'
+peek/drain/session_id-filter shape; a Critic agent reads each finding's
+``message`` to work out the ``conclusion_id`` (present in the
+confidence-conflict message text) to hand ``arbitrate_inference_conflict``,
+the same way it already reasons over free-text diagnostics elsewhere.
+
 Kept separate from ``telemetry.py``: that module aggregates completed
 tool calls for dashboards; this one queues open work items awaiting
 action, and reads are destructive (draining) by default rather than
@@ -43,7 +63,18 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
 
-from cks_runtime.events.runtime_event import GossipConflictDetected
+from cks_runtime.events.runtime_event import (
+    GossipConflictDetected,
+    InferenceConflictDetected,
+)
+
+# Type alias for the record-list return shape, defined at module scope
+# rather than referenced as bare `list[...]` inside ConflictInbox: the
+# class defines a method literally named `list`, which shadows the
+# builtin `list` for any type annotation written later in the same
+# class body (mypy resolves annotations against the enclosing scope at
+# that point in the class body, same as plain Python name resolution).
+_Records = list[dict[str, Any]]
 
 # ---------------------------------------------------------------------------
 # Data model
@@ -70,6 +101,24 @@ class _ConflictRecord:
         }
 
 
+@dataclass(slots=True)
+class _InferenceConflictRecord:
+    record_id: str
+    detected_at: float
+    session_id: str
+    version_id: str
+    diagnostics: list[dict[str, Any]] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "record_id": self.record_id,
+            "detected_at": self.detected_at,
+            "session_id": self.session_id,
+            "version_id": self.version_id,
+            "diagnostics": list(self.diagnostics),
+        }
+
+
 # ---------------------------------------------------------------------------
 # Inbox
 # ---------------------------------------------------------------------------
@@ -77,15 +126,21 @@ class _ConflictRecord:
 
 class ConflictInbox:
     """
-    Process-level in-memory queue of unresolved gossip conflicts.
+    Process-level in-memory queues of unresolved conflicts: gossip merge
+    conflicts (``GossipConflictDetected``) and reasoning-staleness
+    findings (``InferenceConflictDetected``), kept as two separate lists
+    behind one process-level object since both are "things a Critic
+    agent should look at", but shaped too differently (see module
+    docstring) to share one record type.
 
-    The ring buffer is capped at ``max_records`` (oldest evicted first)
+    Each ring buffer is capped at ``max_records`` (oldest evicted first)
     so a Critic agent that never polls can't grow this unboundedly --
     the same trade-off ``ToolTelemetry`` makes for call history.
     """
 
     def __init__(self, max_records: int = 1_000) -> None:
         self._records: list[_ConflictRecord] = []
+        self._inference_records: list[_InferenceConflictRecord] = []
         self._lock: asyncio.Lock | None = None  # created lazily inside event loop
         self._max_records = max_records
 
@@ -113,6 +168,20 @@ class ConflictInbox:
             if len(self._records) > self._max_records:
                 self._records = self._records[-self._max_records :]
 
+    async def record_inference(self, event: InferenceConflictDetected) -> None:
+        """Buffer an ``InferenceConflictDetected`` event; evict oldest over budget."""
+        entry = _InferenceConflictRecord(
+            record_id=str(uuid4()),
+            detected_at=time.time(),
+            session_id=event.session_id,
+            version_id=event.version_id,
+            diagnostics=[dict(d) for d in event.diagnostics],
+        )
+        async with self._get_lock():
+            self._inference_records.append(entry)
+            if len(self._inference_records) > self._max_records:
+                self._inference_records = self._inference_records[-self._max_records :]
+
     # ------------------------------------------------------------------
     # Read path
     # ------------------------------------------------------------------
@@ -122,7 +191,7 @@ class ConflictInbox:
         *,
         session_id: str | None = None,
         drain: bool = True,
-    ) -> list[dict[str, Any]]:
+    ) -> _Records:
         """
         Return buffered conflict records, oldest first.
 
@@ -145,10 +214,37 @@ class ConflictInbox:
 
         return [r.as_dict() for r in matched]
 
+    async def list_inference(
+        self,
+        *,
+        session_id: str | None = None,
+        drain: bool = True,
+    ) -> _Records:
+        """
+        Return buffered inference-staleness findings, oldest first.
+
+        Same ``session_id``/``drain`` semantics as ``list`` above, over
+        the separate inference-conflict queue.
+        """
+        async with self._get_lock():
+            if session_id is None:
+                matched_inf = list(self._inference_records)
+                if drain:
+                    self._inference_records.clear()
+            else:
+                matched_inf = [r for r in self._inference_records if r.session_id == session_id]
+                if drain:
+                    self._inference_records = [
+                        r for r in self._inference_records if r.session_id != session_id
+                    ]
+
+        return [r.as_dict() for r in matched_inf]
+
     async def reset(self) -> None:
-        """Clear all buffered records."""
+        """Clear all buffered records (both gossip and inference conflicts)."""
         async with self._get_lock():
             self._records.clear()
+            self._inference_records.clear()
 
 
 # ---------------------------------------------------------------------------

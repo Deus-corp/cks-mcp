@@ -3,6 +3,21 @@
 
 ---
 
+## [1.28.0] - 2026-08-03
+
+### Added
+- **`list_inference_conflicts` tool** — drains (or peeks) the queue of reasoning conflicts found by `InferenceStalenessSweeper` (ADR-009) and published as `InferenceConflictDetected` events. Each record carries `session_id`, `version_id`, and `diagnostics` (code/severity/message/location). For `CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT`, the `conclusion_id` can be extracted from the diagnostic message and passed to `arbitrate_inference_conflict` for resolution. Same peek/drain semantics as `list_gossip_conflicts`.
+- **Parallel inference queue in `conflict_inbox.py`** — `ConflictInbox` now buffers `InferenceConflictDetected` events alongside gossip conflicts, with `record_inference()` / `list_inference()` methods and session-id filtering.
+- **`InferenceConflictDetected` subscription in `observability.py`** — the event is always subscribed to (unlike gossip, which is opt-in), because `InferenceStalenessSweeper` is enabled by default in `cks-runtime` 1.33.0.
+- New tests: `test_conflict_inbox.py` (inference queue), `test_observability.py` (subscription), and `tests/tools/list_inference_conflicts/test_handler.py`.
+- Tool count increased from 26 to 27. Documentation updated: `README.md`, `docs/tools/index.md`, `docs/tools/gossip-and-conflicts.md`.
+
+### Fixed
+- `docs/tools/gossip-and-conflicts.md` — added missing `list_inference_conflicts` section and fixed broken cross-references to non-existent `reasoning.md` / `../adr/` files.
+- `docs/tools/index.md` — now correctly lists 27 tools and includes `arbitrate_inference_conflict` and `list_inference_conflicts` in the Conflict Resolution group.
+
+---
+
 ## [1.27.1] - 2026-08-03
 
 ### Fixed

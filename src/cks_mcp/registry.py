@@ -49,6 +49,10 @@ from cks_mcp.tools.ingest_document import ingest_document
 from cks_mcp.tools.ingest_document.schema import INGEST_DOCUMENT_SCHEMA
 from cks_mcp.tools.list_gossip_conflicts import list_gossip_conflicts
 from cks_mcp.tools.list_gossip_conflicts.schema import LIST_GOSSIP_CONFLICTS_SCHEMA
+from cks_mcp.tools.list_inference_conflicts import list_inference_conflicts
+from cks_mcp.tools.list_inference_conflicts.schema import (
+    LIST_INFERENCE_CONFLICTS_SCHEMA,
+)
 from cks_mcp.tools.merge import merge_branch, merge_knowledge
 from cks_mcp.tools.merge.schema import MERGE_BRANCH_SCHEMA, MERGE_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
@@ -227,6 +231,10 @@ TOOLS = {
     "list_gossip_conflicts": {
         **LIST_GOSSIP_CONFLICTS_SCHEMA,
         "handler": _wrap("list_gossip_conflicts")(list_gossip_conflicts),
+    },
+    "list_inference_conflicts": {
+        **LIST_INFERENCE_CONFLICTS_SCHEMA,
+        "handler": _wrap("list_inference_conflicts")(list_inference_conflicts),
     },
     "arbitrate_inference_conflict": {
         **ARBITRATE_INFERENCE_CONFLICT_SCHEMA,
