@@ -331,6 +331,10 @@ async def test_end_to_end_gossip_conflict_resolution_with_real_storage(tmp_path)
     runtime = await Runtime.create(
         core=CksCoreAdapter(), config=RuntimeConfig(storage_path=db_path)
     )
+    if hasattr(runtime, '_outbox_worker') and runtime._outbox_worker is not None:
+        await runtime._outbox_worker.stop()
+    if hasattr(runtime, '_inference_sweeper') and runtime._inference_sweeper is not None:
+        await runtime._inference_sweeper.stop()
     try:
         assert runtime.storage.supports_outbox is True
 
