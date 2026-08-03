@@ -204,11 +204,12 @@ async def resolve_inference_conflict(runtime: Runtime, task: dict[str, Any]) -> 
     diagnostics = payload.get("diagnostics") or []
     conclusion_ids = sorted(
         {
-            d.get("location")
+            loc
             for d in diagnostics
             if isinstance(d, dict)
             and d.get("code") == _ARBITRABLE_DIAGNOSTIC_CODE
-            and d.get("location")
+            for loc in [d.get("location")]
+            if loc
         }
     )
     if not conclusion_ids:
