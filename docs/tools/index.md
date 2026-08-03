@@ -1,6 +1,6 @@
 # Tools Reference
 
-`cks-mcp` exposes **27 tools** over the Model Context Protocol. Every tool
+`cks-mcp` exposes **32 tools** over the Model Context Protocol. Every tool
 call is a canonical operation: it runs inside a `RuntimeSession`, and any
 call that mutates state does so through a `Transaction`, producing an
 immutable `Version` (see [Architecture](../architecture/ARCHITECTURE.md)).
@@ -17,7 +17,7 @@ used together rather than their declaration order in the registry:
 | [Verification & Integrity](verification.md) | `verify_source`, `detect_contradictions` | Anti-hallucination: provenance and logical consistency |
 | [AI-Assisted & Ingestion](ai-assisted.md) | `construct_knowledge`, `suggest_evolution`, `ingest_document` | From free text or a URL to a validated structure; `ingest_document` now extracts tables, lists, metadata and supports optional LLM enrichment |
 | [Export & Observability](export-and-audit.md) | `export_knowledge`, `export_session`, `get_metrics` | Get data out, and see how the server is performing |
-| [Gossip & Conflict Resolution](gossip-and-conflicts.md) | `list_gossip_conflicts` | Drain conflicts escalated by a background gossip cycle for a Critic agent to resolve |
+| [Gossip & Conflict Resolution](gossip-and-conflicts.md) | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` | Drain and resolve conflicts escalated by gossip or inference, plus the critic-agent task lifecycle |
 
 ## Conventions used across every tool
 
