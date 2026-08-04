@@ -19,6 +19,8 @@ from cks_mcp.critic_agent import (
     reset_critic_agent_state,
     resolve_gossip_conflict,
     resolve_inference_conflict,
+    resolve_provenance_conflict,
+    resolve_temporal_conflict,
     run_once,
 )
 
@@ -345,6 +347,151 @@ async def test_inference_conflict_nothing_to_commit_is_resolved(mock_runtime, mo
 
 
 # ---------------------------------------------------------------------------
+# resolve_provenance_conflict
+# ---------------------------------------------------------------------------
+
+
+async def test_provenance_conflict_missing_record_or_subject_id(mock_runtime):
+    task = {"session_id": "s1", "payload": {"source_url": "https://example.com"}}
+    resolution = await resolve_provenance_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "record_id" in resolution.detail
+
+
+async def test_provenance_conflict_missing_source_url(mock_runtime):
+    task = {
+        "session_id": "s1",
+        "payload": {"record_id": "rec-1", "subject_id": "doc-1"},
+    }
+    resolution = await resolve_provenance_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "source_url" in resolution.detail
+
+
+async def test_provenance_conflict_refreshes_and_commits(mock_runtime, monkeypatch):
+    task = {
+        "session_id": "s1",
+        "payload": {
+            "record_id": "rec-1",
+            "subject_id": "doc-1",
+            "source_url": "https://example.com/doc",
+        },
+    }
+
+    async def _fake_refresh_verification(runtime, arguments):
+        assert arguments == {
+            "session_id": "s1",
+            "record_id": "rec-1",
+            "subject_id": "doc-1",
+            "source_url": "https://example.com/doc",
+            "auto_resolve": True,
+            "commit": True,
+        }
+        return {"commit_result": {"session_id": "s1"}}
+
+    monkeypatch.setattr(
+        "cks_mcp.critic_agent.refresh_verification", _fake_refresh_verification
+    )
+
+    resolution = await resolve_provenance_conflict(mock_runtime, task)
+    assert resolution.resolved is True
+
+
+async def test_provenance_conflict_refresh_error_is_a_failure(mock_runtime, monkeypatch):
+    task = {
+        "session_id": "s1",
+        "payload": {
+            "record_id": "rec-1",
+            "subject_id": "doc-1",
+            "source_url": "https://example.com/doc",
+        },
+    }
+
+    async def _fake_refresh_verification(runtime, arguments):
+        return {"error": "unreachable", "message": "connection refused"}
+
+    monkeypatch.setattr(
+        "cks_mcp.critic_agent.refresh_verification", _fake_refresh_verification
+    )
+
+    resolution = await resolve_provenance_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "refresh_verification error" in resolution.detail
+
+
+# ---------------------------------------------------------------------------
+# resolve_temporal_conflict
+# ---------------------------------------------------------------------------
+
+
+async def test_temporal_conflict_missing_object_id(mock_runtime):
+    task = {"session_id": "s1", "payload": {}}
+    resolution = await resolve_temporal_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "object_id" in resolution.detail
+
+
+async def test_temporal_conflict_non_dict_payload(mock_runtime):
+    task = {"session_id": "s1", "payload": "not a dict"}
+    resolution = await resolve_temporal_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+
+
+async def test_temporal_conflict_bumps_valid_until_and_commits(mock_runtime, monkeypatch):
+    task = {"session_id": "s1", "payload": {"object_id": "fact-1"}}
+
+    async def _fake_resolve_temporal_conflict_tool(runtime, arguments):
+        assert arguments == {
+            "session_id": "s1",
+            "object_id": "fact-1",
+            "action": "bump",
+            "extend_by_days": 30,
+            "commit": True,
+        }
+        return {"commit_result": {"session_id": "s1"}}
+
+    monkeypatch.setattr(
+        "cks_mcp.critic_agent._resolve_temporal_conflict_tool",
+        _fake_resolve_temporal_conflict_tool,
+    )
+
+    resolution = await resolve_temporal_conflict(mock_runtime, task)
+    assert resolution.resolved is True
+
+
+async def test_temporal_conflict_tool_error_is_a_failure(mock_runtime, monkeypatch):
+    task = {"session_id": "s1", "payload": {"object_id": "fact-1"}}
+
+    async def _fake_resolve_temporal_conflict_tool(runtime, arguments):
+        return {"error": "object_not_found", "message": "gone"}
+
+    monkeypatch.setattr(
+        "cks_mcp.critic_agent._resolve_temporal_conflict_tool",
+        _fake_resolve_temporal_conflict_tool,
+    )
+
+    resolution = await resolve_temporal_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "resolve_temporal_conflict error" in resolution.detail
+
+
+async def test_temporal_conflict_commit_error_is_a_failure(mock_runtime, monkeypatch):
+    task = {"session_id": "s1", "payload": {"object_id": "fact-1"}}
+
+    async def _fake_resolve_temporal_conflict_tool(runtime, arguments):
+        return {"commit_result": {"error": "invalid_parameter"}}
+
+    monkeypatch.setattr(
+        "cks_mcp.critic_agent._resolve_temporal_conflict_tool",
+        _fake_resolve_temporal_conflict_tool,
+    )
+
+    resolution = await resolve_temporal_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "commit failed" in resolution.detail
+
+
+# ---------------------------------------------------------------------------
 # _process_one / run_once: claim -> resolve -> complete/fail/dead-letter
 # ---------------------------------------------------------------------------
 
@@ -550,8 +697,8 @@ async def test_end_to_end_gossip_conflict_resolution_with_real_storage(tmp_path)
         await runtime.aclose()
 
 
-async def test_run_once_drains_both_queues(mock_runtime):
-    """Two gossip tasks then empty, one inference task then empty."""
+async def test_run_once_drains_all_queues(mock_runtime):
+    """Two gossip tasks then empty, one inference/provenance/temporal task each."""
     gossip_tasks = [
         OutboxTask(task_id=1, task_type="gossip_conflict", session_id="s1", payload="{}", retry_count=0),
         OutboxTask(task_id=2, task_type="gossip_conflict", session_id="s1", payload="{}", retry_count=0),
@@ -561,26 +708,40 @@ async def test_run_once_drains_both_queues(mock_runtime):
         OutboxTask(task_id=3, task_type="inference_conflict", session_id="s1", payload="{}", retry_count=0),
         None,
     ]
+    provenance_tasks = [
+        OutboxTask(task_id=4, task_type="provenance_conflict", session_id="s1", payload="{}", retry_count=0),
+        None,
+    ]
+    temporal_tasks = [
+        OutboxTask(task_id=5, task_type="temporal_conflict", session_id="s1", payload="{}", retry_count=0),
+        None,
+    ]
 
     async def _dequeue(task_type=None):
         if task_type == "gossip_conflict":
             return gossip_tasks.pop(0)
         if task_type == "inference_conflict":
             return inference_tasks.pop(0)
-        # provenance_conflict — not used in this test
+        if task_type == "provenance_conflict":
+            return provenance_tasks.pop(0)
+        if task_type == "temporal_conflict":
+            return temporal_tasks.pop(0)
         return None
 
     mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=_dequeue)
 
     processed = await run_once(mock_runtime, _settings(max_retries=1))
 
-    # Every task fails to resolve (no source_session_id / no arbitrable
-    # diagnostics) and immediately dead-letters at max_retries=1 -- the
-    # point of this test is that run_once claims all 3 before stopping,
-    # not the individual outcomes.
-    assert processed == 3
+    # Every task fails to resolve (empty payloads carry none of the
+    # required keys) and immediately dead-letters at max_retries=1 --
+    # the point of this test is that run_once claims all 5 before
+    # stopping, across all four task types, not the individual
+    # outcomes.
+    assert processed == 5
     assert gossip_tasks == []
     assert inference_tasks == []
+    assert provenance_tasks == []
+    assert temporal_tasks == []
 
 
 # ---------------------------------------------------------------------------

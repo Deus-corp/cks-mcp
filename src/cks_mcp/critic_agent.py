@@ -1,6 +1,7 @@
 """
 Critic Agent: an autonomous, unattended process that resolves gossip,
-inference, and provenance conflicts from the persistent outbox.
+inference, provenance, and temporal conflicts from the persistent
+outbox.
 
 This is the "Critic Agent runtime loop" item from ROADMAP.md's "Next
 Up" section -- the last missing piece of the Critic-agent design. All
@@ -33,7 +34,7 @@ of the supporting plumbing already shipped before this module:
 This module is the loop that ties them together: it runs as its own
 OS process with its *own* ``Runtime`` instance pointed at the same
 persistent storage the main ``cks-mcp`` server uses (same SQLite file,
-or the same Postgres DSN), polls both queues, and drives each task
+or the same Postgres DSN), polls all queues, and drives each task
 through claim -> resolve -> complete/fail/dead-letter. It does not
 talk MCP/JSON-RPC to the running server -- there is no protocol
 boundary here to cross, since ``claim_conflict_task`` and friends are
@@ -77,6 +78,14 @@ policy)"):
   re-runs the same real HTTP check ``verify_source`` performs and
   commits the fresh, signed record. A task whose subject carries no
   URL to re-check is dead-lettered for a human rather than retried.
+- ``temporal_conflict`` (ADR-011): an expired ``valid_until`` found by
+  ``TemporalStalenessSweeper`` (cks-runtime) is resolved via a safe
+  default policy -- ``resolve_temporal_conflict(action="bump",
+  extend_by_days=30, commit=True)`` -- rather than guessing whether
+  the fact should instead be archived. A missing ``object_id`` in the
+  payload, or an object that no longer exists (already resolved/
+  removed by an earlier pass), is reported as a failure rather than
+  silently dropped.
 
 A task is dead-lettered (not retried forever) once its retry_count
 would reach ``max_retries`` (default 5, same cap philosophy as
@@ -112,6 +121,9 @@ from cks_mcp.tools.dead_letter_conflict_task.handler import dead_letter_conflict
 from cks_mcp.tools.fail_conflict_task.handler import fail_conflict_task
 from cks_mcp.tools.merge.handler import merge_branch
 from cks_mcp.tools.refresh_verification.handler import refresh_verification
+from cks_mcp.tools.resolve_temporal_conflict.handler import (
+    resolve_temporal_conflict as _resolve_temporal_conflict_tool,
+)
 
 # Resolution/run_resolver_with_heartbeat now live in cks_mcp.agent_loop
 # (shared with cks_mcp.enrichment_agent) -- re-exported under their
@@ -137,7 +149,17 @@ _DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60.0
 _DEFAULT_LLM_BREAKER_THRESHOLD = 3
 _DEFAULT_LLM_BREAKER_COOLDOWN_SECONDS = 60.0
 
-_TASK_TYPES = ("gossip_conflict", "inference_conflict", "provenance_conflict")
+_TASK_TYPES = (
+    "gossip_conflict",
+    "inference_conflict",
+    "provenance_conflict",
+    "temporal_conflict",
+)
+
+# Default "bump" extension applied by resolve_temporal_conflict below --
+# a safe default policy: if nobody has removed/superseded the fact, just
+# give it more time rather than guessing it should be archived.
+_TEMPORAL_BUMP_EXTEND_DAYS = 30
 
 
 @dataclass(slots=True)
@@ -436,6 +458,65 @@ async def resolve_provenance_conflict(runtime: Runtime, task: dict[str, Any]) ->
     return Resolution(True)
 
 
+async def resolve_temporal_conflict(runtime: Runtime, task: dict[str, Any]) -> Resolution:
+    """
+    Attempt to resolve a ``temporal_conflict`` task (ADR-011,
+    ``TemporalStalenessSweeper`` in cks-runtime) via
+    ``resolve_temporal_conflict(action="bump", extend_by_days=30,
+    commit=True)``.
+
+    The task's payload is the sweeper's own escalation shape (at
+    minimum ``{"object_id"}`` -- see
+    ``TemporalStalenessSweeper._sweep_session``). Unlike
+    ``resolve_provenance_conflict``'s single mechanical remedy, an
+    expired ``valid_until`` has no single canonical fix (bump/archive/
+    ignore are all legitimate depending on domain knowledge this agent
+    doesn't have) -- but "bump 30 days" is a safe default: if the fact
+    is genuinely still true, extending it costs nothing, and if it
+    should actually be archived a human/future policy can still catch
+    it via ``resolve_temporal_conflict``'s other actions. This mirrors
+    the "own policy" half of the Critic Agent design rather than
+    guessing which of ``archive``/``ignore`` is correct with no
+    evidence either way.
+
+    Like ``resolve_provenance_conflict``, there is no LLM circuit
+    breaker to guard here: the underlying ``resolve_temporal_conflict``
+    tool is purely mechanical (one ``update_object`` via
+    ``evolve_knowledge``), never calls an LLM.
+    """
+    payload = task.get("payload")
+    if not isinstance(payload, dict):
+        return Resolution(False, f"payload was not a JSON object: {payload!r}")
+
+    object_id = payload.get("object_id")
+    if not object_id:
+        return Resolution(
+            False,
+            "payload has no 'object_id' -- cannot bump a valid_until without "
+            "knowing which object it belongs to.",
+        )
+
+    result = await _resolve_temporal_conflict_tool(
+        runtime,
+        {
+            "session_id": task["session_id"],
+            "object_id": object_id,
+            "action": "bump",
+            "extend_by_days": _TEMPORAL_BUMP_EXTEND_DAYS,
+            "commit": True,
+        },
+    )
+
+    if result.get("error"):
+        return Resolution(False, f"resolve_temporal_conflict error: {result}")
+
+    commit_result = result.get("commit_result")
+    if isinstance(commit_result, dict) and commit_result.get("error"):
+        return Resolution(False, f"commit failed: {commit_result}")
+
+    return Resolution(True)
+
+
 def _extract_locations(diagnostics: list[Any], code: str) -> list[str]:
     return sorted(
         {
@@ -625,6 +706,7 @@ _RESOLVERS = {
     "gossip_conflict": resolve_gossip_conflict,
     "inference_conflict": resolve_inference_conflict,
     "provenance_conflict": resolve_provenance_conflict,
+    "temporal_conflict": resolve_temporal_conflict,
 }
 
 
@@ -719,7 +801,7 @@ async def _process_one(
 
 async def run_once(runtime: Runtime, settings: CriticAgentSettings | None = None) -> int:
     """
-    Drain every currently-eligible task across both task types once
+    Drain every currently-eligible task across every task type once
     (claiming one at a time per type until each queue reports empty),
     returning the total number of tasks processed. Used by the main
     loop's each iteration, and directly by tests / a one-shot CLI mode
@@ -749,7 +831,7 @@ async def run_critic_agent(
     """
     Construct this process' own ``Runtime`` (sharing storage with the
     main ``cks-mcp`` server via the same ``storage_path``) and loop:
-    drain both conflict queues, sleep ``poll_interval``, repeat.
+    drain all conflict queues, sleep ``poll_interval``, repeat.
 
     ``max_iterations``, when given, stops the loop after that many
     poll cycles instead of running forever -- used by tests and by a

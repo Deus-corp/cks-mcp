@@ -3,6 +3,18 @@
 
 ---
 
+## [1.36.0] - 2026-08-04
+
+### Added
+- **`temporal_conflict` support in `critic_agent.py`** – the Critic Agent now polls for `temporal_conflict` tasks (escalated by `TemporalStalenessSweeper`, cks‑runtime ADR‑011) alongside `gossip_conflict`, `inference_conflict`, and `provenance_conflict`. Resolution uses a safe default policy — `resolve_temporal_conflict(action="bump", extend_by_days=30, commit=True)` — rather than guessing whether the fact should be archived.
+- New tests for `resolve_provenance_conflict` and `resolve_temporal_conflict` in `tests/test_critic_agent.py`, covering missing payload keys, successful resolution, tool errors, and commit failures.
+- `test_run_once_drains_all_queues` updated to verify that `run_once` processes all four task types (gossip, inference, provenance, temporal) before stopping.
+
+### Changed
+- Docstring and comments in `critic_agent.py` updated to reflect four task types instead of two/three.
+
+---
+
 ## [1.35.0] - 2026-08-04
 
 ### Added
