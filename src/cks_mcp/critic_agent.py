@@ -47,16 +47,24 @@ policy)"):
   agent guesses at -- it dead-letters the task for human review via
   ``resolutions``, rather than picking a side with no evidence either
   way.
-- ``inference_conflict``: only ``CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT``
-  diagnostics name a ``conclusion_id`` that ``arbitrate_inference_conflict``
-  knows how to arbitrate (``CKS-EXT-STALE-PREMISE`` findings describe a
-  different condition -- a premise going stale, not two active steps
-  disputing a conclusion -- and have no arbitration primitive yet, so
-  they are dead-lettered for a human to look at). Every arbitrable
-  conclusion_id in one task is resolved via ONE batch
-  ``arbitrate_inference_conflict(auto_resolve=True, commit=True)``
-  call, reusing that tool's own LLM provider dispatch
+- ``inference_conflict``: a task's payload can carry two unrelated
+  diagnostic codes at once. ``CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT``
+  diagnostics name a ``conclusion_id`` that's resolved via ONE batch
+  ``arbitrate_inference_conflict(conclusion_ids=..., auto_resolve=True,
+  commit=True)`` call, reusing that tool's own LLM provider dispatch
   (``CKS_LLM_PROVIDER`` etc. -- see that tool's docstring).
+  ``CKS-EXT-STALE-PREMISE`` findings describe a different condition --
+  a premise going stale, not two active steps disputing a conclusion
+  -- and are resolved mechanically (no LLM) via a separate batch
+  ``arbitrate_inference_conflict(stale_premise_ids=..., commit=True)``
+  call. The two calls are kept separate because the tool itself
+  rejects ``conclusion_ids`` and ``stale_premise_ids`` together in one
+  call; a task containing both diagnostic types gets one call per
+  type, and the task only completes once both parts succeed. A step
+  that path genuinely can't fix (e.g. it names a step_id the session
+  doesn't have) is not silently dropped -- it's reported in the
+  ``Resolution``'s detail and, after enough retries, dead-lettered for
+  a human to look at.
 
 A task is dead-lettered (not retried forever) once its retry_count
 would reach ``max_retries`` (default 5, same cap philosophy as
@@ -185,60 +193,38 @@ async def resolve_gossip_conflict(runtime: Runtime, task: dict[str, Any]) -> Res
     return Resolution(False, f"merge_branch did not succeed: {result}")
 
 
-async def resolve_inference_conflict(runtime: Runtime, task: dict[str, Any]) -> Resolution:
-    """
-    Attempt to resolve an ``inference_conflict`` task via a single
-    batch ``arbitrate_inference_conflict(auto_resolve=True, commit=True)``
-    call covering every arbitrable diagnostic in the task's payload.
-    """
-    payload = task.get("payload")
-    if not isinstance(payload, dict):
-        return Resolution(False, f"payload was not a JSON object: {payload!r}")
-
-    diagnostics = payload.get("diagnostics") or []
-    conclusion_ids = sorted(
+def _extract_locations(diagnostics: list[Any], code: str) -> list[str]:
+    return sorted(
         {
             loc
             for d in diagnostics
-            if isinstance(d, dict)
-            and d.get("code") == _ARBITRABLE_DIAGNOSTIC_CODE
-            for loc in [d.get("location")]
-            if loc
-        }
-    )
-    if not conclusion_ids:
-        return Resolution(
-            True,  # no confidence conflicts -> nothing to arbitrate
-            "no CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT diagnostics in payload",
-        )
-
-    stale_step_ids = sorted(
-        {
-            loc
-            for d in diagnostics
-            if isinstance(d, dict)
-            and d.get("code") == _STALE_PREMISE_CODE
+            if isinstance(d, dict) and d.get("code") == code
             for loc in [d.get("location")]
             if loc
         }
     )
 
-    arguments: dict[str, Any] = {
-        "session_id": task["session_id"],
-        "conclusion_ids": conclusion_ids,
-        "auto_resolve": True,
-        "commit": True,
-    }
-    if stale_step_ids:
-        arguments["stale_premise_ids"] = stale_step_ids
 
+async def _resolve_confidence_conflicts(
+    runtime: Runtime, session_id: str, conclusion_ids: list[str]
+) -> Resolution:
+    """
+    Resolve every ``CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT`` finding in
+    one batch ``arbitrate_inference_conflict(conclusion_ids=...,
+    auto_resolve=True, commit=True)`` call.
+    """
     result = await arbitrate_inference_conflict(
         runtime,
-        arguments,
+        {
+            "session_id": session_id,
+            "conclusion_ids": conclusion_ids,
+            "auto_resolve": True,
+            "commit": True,
+        },
     )
 
     if result.get("error"):
-        return Resolution(False, f"arbitrate_inference_conflict error: {result}")
+        return Resolution(False, f"arbitrate_inference_conflict (conclusion_ids) error: {result}")
 
     results = result.get("results") or []
     unresolved = [
@@ -265,6 +251,104 @@ async def resolve_inference_conflict(runtime: Runtime, task: dict[str, Any]) -> 
         return Resolution(False, f"commit failed: {commit_result}")
 
     return Resolution(True)
+
+
+async def _resolve_stale_premises(
+    runtime: Runtime, session_id: str, stale_step_ids: list[str]
+) -> Resolution:
+    """
+    Resolve every ``CKS-EXT-STALE-PREMISE`` finding via the mechanical
+    (no-LLM) ``arbitrate_inference_conflict(stale_premise_ids=...,
+    commit=True)`` path, instead of silently discarding the task.
+    """
+    result = await arbitrate_inference_conflict(
+        runtime,
+        {
+            "session_id": session_id,
+            "stale_premise_ids": stale_step_ids,
+            "commit": True,
+        },
+    )
+
+    if result.get("error"):
+        return Resolution(False, f"arbitrate_inference_conflict (stale_premise_ids) error: {result}")
+
+    results = result.get("results") or []
+    failed = [
+        item.get("step_id")
+        for item in results
+        if item.get("error") is not None
+    ]
+    if failed:
+        return Resolution(
+            False,
+            f"arbitrate_inference_conflict could not resolve {len(failed)} "
+            f"stale premise step(s): {failed}",
+        )
+
+    commit_result = result.get("commit_result")
+    if isinstance(commit_result, dict) and commit_result.get("error"):
+        return Resolution(False, f"commit failed: {commit_result}")
+
+    # No commit_result means every step either had no stale premises
+    # left to fix (nothing to do -- fine) or was never given operations
+    # to run; either way there was no per-step 'error', so this counts
+    # as resolved.
+    return Resolution(True)
+
+
+async def resolve_inference_conflict(runtime: Runtime, task: dict[str, Any]) -> Resolution:
+    """
+    Attempt to resolve an ``inference_conflict`` task.
+
+    The task's payload can carry two unrelated diagnostic codes at
+    once (``InferenceStalenessSweeper`` bundles whatever it found in
+    one sweep into a single event/payload): confidence conflicts
+    (``CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT``) and stale premises
+    (``CKS-EXT-STALE-PREMISE``). ``arbitrate_inference_conflict``
+    treats these as mutually exclusive -- passing both
+    ``conclusion_ids`` and ``stale_premise_ids`` in one call is
+    rejected with an ``invalid_parameter`` error -- so each diagnostic
+    type is resolved via its own, independent call, and the two
+    outcomes are combined below. This also means a payload made up of
+    stale-premise findings only, with no confidence conflicts, is
+    genuinely repaired (via the mechanical ``stale_premise_ids`` path)
+    instead of just being marked complete with nothing done.
+    """
+    payload = task.get("payload")
+    if not isinstance(payload, dict):
+        return Resolution(False, f"payload was not a JSON object: {payload!r}")
+
+    diagnostics = payload.get("diagnostics") or []
+    conclusion_ids = _extract_locations(diagnostics, _ARBITRABLE_DIAGNOSTIC_CODE)
+    stale_step_ids = _extract_locations(diagnostics, _STALE_PREMISE_CODE)
+
+    if not conclusion_ids and not stale_step_ids:
+        return Resolution(
+            True,  # nothing arbitrable in this payload
+            "no CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT or CKS-EXT-STALE-PREMISE "
+            "diagnostics in payload",
+        )
+
+    session_id = task["session_id"]
+    details: list[str] = []
+    resolved = True
+
+    if conclusion_ids:
+        confidence_resolution = await _resolve_confidence_conflicts(
+            runtime, session_id, conclusion_ids
+        )
+        resolved = resolved and confidence_resolution.resolved
+        if confidence_resolution.detail:
+            details.append(confidence_resolution.detail)
+
+    if stale_step_ids:
+        stale_resolution = await _resolve_stale_premises(runtime, session_id, stale_step_ids)
+        resolved = resolved and stale_resolution.resolved
+        if stale_resolution.detail:
+            details.append(stale_resolution.detail)
+
+    return Resolution(resolved, "; ".join(details) if details else None)
 
 
 _RESOLVERS = {

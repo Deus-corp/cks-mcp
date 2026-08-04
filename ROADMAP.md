@@ -71,10 +71,14 @@ a verifiable, persistent knowledge backbone, semantic search, and a full suite o
 
 ---
 
-# Next Up
+# Next Up — Autonomous Agents
+
+**Goal:** Move from a tool for LLMs to a platform run by LLMs. The Critic
+Agent was the first unattended agent built on the persistent outbox; the
+same claim → resolve → complete/fail/dead-letter pattern is now the
+template for every agent below, not a one-off.
 
 ## Critic Agent (Conflict Resolution Agent)
-**Goal:** Move from a tool for LLMs to a platform run by LLMs — this is the literal next step for the project.
 
 All of the supporting plumbing already exists and has shipped:
 - Detection: `InferenceStalenessSweeper` (background), `GossipConflictDetected` / `InferenceConflictDetected` events.
@@ -86,6 +90,42 @@ This closes the "Critic loop" gap identified in `cks-runtime`'s ADR-009.
 - [x] **Critic Agent runtime loop:** `cks_mcp.critic_agent` (v1.30.0) — a standalone process with its own `Runtime` sharing storage with the main server, looping `claim_conflict_task` → `merge_branch` (gossip) / `arbitrate_inference_conflict` (inference) → `complete_conflict_task`. New `cks-critic-agent` console script.
 - [x] **Dead-letter queue (DLQ):** conflicts the agent cannot confidently auto-resolve (a structural merge conflict, an unarbitrable `CKS-EXT-STALE-PREMISE` finding, or repeated failures past `CKS_CRITIC_MAX_RETRIES`) are dead-lettered via `dead_letter_conflict_task`, surfaced for human review via `list_dead_lettered_conflicts`.
 - [x] **Task Bus integration:** built directly on the persistent outbox (`claim_conflict_task`/`fail_conflict_task`, `cks-runtime` 1.34.0+) the same Task Bus / Outbox Worker infrastructure already used for embeddings.
+- [x] **Bugfix — mixed-diagnostic `inference_conflict` tasks:** `resolve_inference_conflict` used to send `conclusion_ids` and `stale_premise_ids` in one `arbitrate_inference_conflict` call whenever a task's payload carried both diagnostic codes; the tool rejects that combination (`invalid_parameter`), so every such task deterministically failed to `CKS_CRITIC_MAX_RETRIES` and was dead-lettered instead of resolved. Also fixed: a payload with *only* `CKS-EXT-STALE-PREMISE` findings was silently marked complete without ever calling the (already-existing) mechanical `stale_premise_ids` repair path. Now resolved via two independent calls, combined into one `Resolution`. Regression tests added in `tests/test_critic_agent.py`.
+
+### Hardening backlog (found during audit, not yet shipped)
+- [ ] **Lease heartbeat for long-running resolutions:** `dequeue_next_outbox_task` reclaims an `IN_PROGRESS` task after a fixed 5-minute lease with no renewal. A slow `auto_resolve` LLM call can outlive the lease, letting a second worker (or the same one after a hang) reclaim and reprocess the same task concurrently — risk of a double `merge_branch`/`arbitrate_inference_conflict`. Needs either a heartbeat that extends `claimed_at` during processing, or an enforced timeout on the LLM call shorter than the lease.
+- [ ] **Circuit breaker on the LLM provider:** if `CKS_LLM_PROVIDER` is down (bad key, provider outage), every `inference_conflict` task currently retries independently with its own exponential backoff until it dead-letters — no shared "provider is down, pause LLM-dependent resolution" state. The mechanical `stale_premise_ids` path doesn't need an LLM and should keep running even while this is tripped.
+- [ ] **Critic-specific metrics:** `get_metrics` currently only reports generic per-tool telemetry (calls/success_rate/latency). Add queue depth per task_type, resolution rate, and dead-letter rate over time so an operator doesn't have to poll `list_dead_lettered_conflicts` by hand to notice the agent is stuck.
+- [ ] **Idempotency guard on resolution primitives:** a task reclaimed after a stale lease (see above) risks `merge_branch`/`arbitrate_inference_conflict` running twice for the same conflict; neither is currently guaranteed idempotent against a repeat call for an already-resolved conclusion/branch.
+
+---
+
+## Enrichment Agent (external RAG / graph auto-growth)
+**Goal:** the graph should be able to grow itself. `search_semantic` only
+searches *inside* the existing graph — there is currently no way for CKS
+to notice a gap (a low-confidence conclusion, a sparsely-connected
+object, an explicit request) and go fill it from an external source on
+its own. Same architectural pattern as the Critic Agent: a new outbox
+task_type (`enrichment_request`), a `claim_enrichment_task`, and a
+resolver loop — not a new concurrency model.
+
+Design (see project discussion for full rationale):
+- [ ] **`enrichment_request` task type + `claim_enrichment_task` tool**, mirroring `claim_conflict_task`.
+- [ ] **Manual trigger:** new `request_enrichment(session_id, object_id, hint?)` tool — the interactive counterpart, like `list_gossip_conflicts` vs. `claim_conflict_task`.
+- [ ] **Proactive trigger:** a sweeper (same shape as `InferenceStalenessSweeper`) that finds under-sourced objects — low confidence, zero `verify_source` provenance, sparse neighborhood — and enqueues `enrichment_request` tasks on its own.
+- [ ] **Query builder:** derive a search query from an object's `identity.name` + surrounding relations (LLM-assisted, reusing `cks_mcp.llm_providers` dispatch already used by `construct_knowledge`/`arbitrate_inference_conflict`).
+- [ ] **External source adapters:** start with one (Wikipedia — simplest free API), then arXiv, then PubMed. Each adapter returns a list of candidate URLs, not content — content extraction stays `ingest_document`'s job.
+- [ ] **robots.txt compliance:** cks-mcp currently has *no* robots.txt check anywhere (`ingest_document`/`verify_source` only do SSRF/DNS-rebinding protection). Needed before any agent fetches URLs unattended, at scale, without a human approving each one.
+- [ ] **Candidate filtering/ranking before spending an `ingest_document` call:** domain allow/deny lists, relevance scoring, dedup against already-ingested sources. (Adapted from patterns in an unrelated internal crawler project's `rank_and_deduplicate_targets`/`score_targets`/`is_low_value_target_url` — reimplemented against CKS's own data model, not a code port: that project's CRDT swarm coordination doesn't apply here.)
+- [ ] **Confidence-gated commit:** don't write every fetched result into the graph. Gate on relevance/source-quality thresholds before calling `evolve_knowledge`, and if nothing clears the bar, resolve the task as "nothing relevant found" rather than a failure — the same silent-vs-honest distinction just fixed in the Critic Agent's stale-premise handling applies here too.
+- [ ] **Provenance + linking:** `verify_source` for the fetched URL, then `evolve_knowledge(add_relation, relation_type="enriched_by")` linking the new object(s) to the one that triggered the search.
+- [ ] **`cks-enrichment-agent` console script**, same shape as `cks-critic-agent`.
+
+## Future Agents (backlog, not yet designed in detail)
+Same outbox-task pattern, lower priority than the Enrichment Agent above:
+- **Contradiction Agent:** `detect_contradictions` exists as an on-demand extension but nothing runs it proactively in the background the way `InferenceStalenessSweeper` does for inference conflicts. A sweeper + `contradiction_conflict` task type would close that gap.
+- **Source Verification Agent:** periodically re-runs `verify_source` against already-committed claims to catch sources that have gone stale, moved, or disappeared since they were first cited.
+- **Compaction/Pruning Agent:** uses `compare_versions`/`list_versions` to find sessions with runaway version history or abandoned branches and proposes archival — human-approved by default, not auto-destructive.
 
 ---
 

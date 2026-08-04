@@ -3,6 +3,12 @@
 
 ---
 
+### Fixed
+- **Critic Agent now correctly resolves `CKS-EXT-STALE-PREMISE` diagnostics** — previously a payload containing only stale-premise findings was marked complete without any repair. The agent now routes them to the mechanical `arbitrate_inference_conflict(stale_premise_ids=..., commit=True)` path, and mixed payloads (confidence conflicts + stale premises) are resolved via two independent calls instead of a single call that would be rejected as `invalid_parameter`.
+- New regression tests: stale-premise-only resolution, step-level errors, mixed-diagnostic payloads handled via two separate `arbitrate_inference_conflict` calls, and partial failure in a mixed payload.
+
+---
+
 ## [1.31.0] - 2026-08-03
 
 ### Added

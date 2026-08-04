@@ -89,17 +89,73 @@ async def test_gossip_conflict_structural_conflict_not_auto_resolved(mock_runtim
 # ---------------------------------------------------------------------------
 
 
-async def test_inference_conflict_no_arbitrable_diagnostics(mock_runtime):
+async def test_inference_conflict_no_diagnostics_at_all(mock_runtime):
+    """An empty/irrelevant diagnostics list has nothing to arbitrate."""
+    task = {"session_id": "s1", "payload": {"diagnostics": []}}
+    resolution = await resolve_inference_conflict(mock_runtime, task)
+    assert resolution.resolved is True
+
+
+async def test_inference_conflict_stale_premise_only_is_actually_resolved(
+    mock_runtime, monkeypatch
+):
+    """
+    A payload with ONLY CKS-EXT-STALE-PREMISE findings must genuinely
+    call the mechanical stale_premise_ids path, not just be marked
+    complete without doing anything.
+    """
     task = {
         "session_id": "s1",
         "payload": {
             "diagnostics": [
-                {"code": "CKS-EXT-STALE-PREMISE", "location": "obj-1"},
+                {"code": "CKS-EXT-STALE-PREMISE", "location": "step-1"},
             ]
         },
     }
+
+    calls: list[dict] = []
+
+    async def _fake_arbitrate(runtime, arguments):
+        calls.append(arguments)
+        assert "conclusion_ids" not in arguments
+        assert arguments["stale_premise_ids"] == ["step-1"]
+        return {
+            "session_id": "s1",
+            "results": [{"step_id": "step-1", "resolved": True, "fixes": {"old": "new"}}],
+            "commit_result": {"committed": True},
+        }
+
+    monkeypatch.setattr("cks_mcp.critic_agent.arbitrate_inference_conflict", _fake_arbitrate)
+
     resolution = await resolve_inference_conflict(mock_runtime, task)
     assert resolution.resolved is True
+    assert len(calls) == 1
+
+
+async def test_inference_conflict_stale_premise_step_error_is_unresolved(
+    mock_runtime, monkeypatch
+):
+    """A step-level error from the stale-premise path must not be swallowed."""
+    task = {
+        "session_id": "s1",
+        "payload": {
+            "diagnostics": [
+                {"code": "CKS-EXT-STALE-PREMISE", "location": "missing-step"},
+            ]
+        },
+    }
+
+    async def _fake_arbitrate(runtime, arguments):
+        return {
+            "session_id": "s1",
+            "results": [{"step_id": "missing-step", "error": "Step 'missing-step' not found."}],
+        }
+
+    monkeypatch.setattr("cks_mcp.critic_agent.arbitrate_inference_conflict", _fake_arbitrate)
+
+    resolution = await resolve_inference_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "missing-step" in resolution.detail
 
 
 async def test_inference_conflict_auto_resolves_and_commits(mock_runtime, monkeypatch):
@@ -156,6 +212,95 @@ async def test_inference_conflict_leaves_unresolved_conclusions(mock_runtime, mo
     resolution = await resolve_inference_conflict(mock_runtime, task)
     assert resolution.resolved is False
     assert "obj-1" in resolution.detail
+
+
+async def test_inference_conflict_mixed_diagnostics_use_two_separate_calls(
+    mock_runtime, monkeypatch
+):
+    """
+    Regression test: arbitrate_inference_conflict rejects a call that
+    mixes 'conclusion_ids' and 'stale_premise_ids' (invalid_parameter).
+    A payload with BOTH diagnostic codes must therefore resolve via
+    two independent calls -- one per diagnostic type -- never one
+    call carrying both parameters at once.
+    """
+    task = {
+        "session_id": "s1",
+        "payload": {
+            "diagnostics": [
+                {"code": "CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT", "location": "obj-1"},
+                {"code": "CKS-EXT-STALE-PREMISE", "location": "step-9"},
+            ]
+        },
+    }
+
+    calls: list[dict] = []
+
+    async def _fake_arbitrate(runtime, arguments):
+        calls.append(arguments)
+        # The real tool would return invalid_parameter if both were
+        # ever present together -- assert the agent never does that.
+        assert not ("conclusion_ids" in arguments and "stale_premise_ids" in arguments), (
+            "resolve_inference_conflict must never send conclusion_ids and "
+            "stale_premise_ids in the same arbitrate_inference_conflict call"
+        )
+        if "conclusion_ids" in arguments:
+            assert arguments["conclusion_ids"] == ["obj-1"]
+            assert arguments["auto_resolve"] is True
+            return {
+                "session_id": "s1",
+                "results": [
+                    {"conclusion_id": "obj-1", "conflict": True, "decision": {"winner_step_id": "x"}}
+                ],
+                "commit_result": {"committed": True},
+            }
+        assert arguments["stale_premise_ids"] == ["step-9"]
+        return {
+            "session_id": "s1",
+            "results": [{"step_id": "step-9", "resolved": True, "fixes": {"old": "new"}}],
+            "commit_result": {"committed": True},
+        }
+
+    monkeypatch.setattr("cks_mcp.critic_agent.arbitrate_inference_conflict", _fake_arbitrate)
+
+    resolution = await resolve_inference_conflict(mock_runtime, task)
+
+    assert resolution.resolved is True
+    assert len(calls) == 2
+    call_kinds = {"conclusion_ids" if "conclusion_ids" in c else "stale_premise_ids" for c in calls}
+    assert call_kinds == {"conclusion_ids", "stale_premise_ids"}
+
+
+async def test_inference_conflict_mixed_diagnostics_partial_failure(mock_runtime, monkeypatch):
+    """
+    If the confidence-conflict half fails but the stale-premise half
+    succeeds (or vice versa), the combined task must be reported as
+    unresolved, with both diagnostic types actually attempted.
+    """
+    task = {
+        "session_id": "s1",
+        "payload": {
+            "diagnostics": [
+                {"code": "CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT", "location": "obj-1"},
+                {"code": "CKS-EXT-STALE-PREMISE", "location": "step-9"},
+            ]
+        },
+    }
+
+    async def _fake_arbitrate(runtime, arguments):
+        if "conclusion_ids" in arguments:
+            return {"error": "llm_error", "message": "provider unavailable"}
+        return {
+            "session_id": "s1",
+            "results": [{"step_id": "step-9", "resolved": True, "fixes": {"old": "new"}}],
+            "commit_result": {"committed": True},
+        }
+
+    monkeypatch.setattr("cks_mcp.critic_agent.arbitrate_inference_conflict", _fake_arbitrate)
+
+    resolution = await resolve_inference_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "conclusion_ids" in resolution.detail or "obj-1" in resolution.detail or resolution.detail
 
 
 async def test_inference_conflict_nothing_to_commit_is_resolved(mock_runtime, monkeypatch):
