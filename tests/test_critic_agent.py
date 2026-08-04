@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -9,8 +10,13 @@ from cks_runtime.storage.storage import OutboxTask
 
 from cks_mcp.critic_agent import (
     CriticAgentSettings,
+    LLMCircuitBreaker,
     Resolution,
     _process_one,
+    _resolve_confidence_conflicts,
+    _run_resolver_with_heartbeat,
+    get_critic_metrics,
+    reset_critic_agent_state,
     resolve_gossip_conflict,
     resolve_inference_conflict,
     run_once,
@@ -26,6 +32,15 @@ def _settings(**overrides) -> CriticAgentSettings:
     return base
 
 
+@pytest.fixture(autouse=True)
+def _reset_critic_global_state():
+    """Metrics and the LLM circuit breaker are module-level singletons --
+    reset before and after every test so they don't leak across tests."""
+    reset_critic_agent_state()
+    yield
+    reset_critic_agent_state()
+
+
 @pytest.fixture
 def mock_runtime():
     runtime = MagicMock()
@@ -34,6 +49,7 @@ def mock_runtime():
     runtime.storage.complete_outbox_task = AsyncMock()
     runtime.storage.fail_outbox_task = AsyncMock()
     runtime.storage.dead_letter_outbox_task = AsyncMock()
+    runtime.storage.touch_outbox_task = AsyncMock(return_value=True)
     return runtime
 
 
@@ -562,3 +578,204 @@ async def test_run_once_drains_both_queues(mock_runtime):
     assert processed == 3
     assert gossip_tasks == []
     assert inference_tasks == []
+
+
+# ---------------------------------------------------------------------------
+# Heartbeat / lease renewal
+# ---------------------------------------------------------------------------
+
+
+async def test_heartbeat_renews_lease_during_slow_resolver(mock_runtime):
+    """A resolver slower than heartbeat_interval must get its lease
+    renewed at least once before it finishes."""
+
+    async def _slow_resolver(runtime, task):
+        await asyncio.sleep(0.05)
+        return Resolution(True)
+
+    resolution, lease_lost = await _run_resolver_with_heartbeat(
+        mock_runtime, _slow_resolver, {"session_id": "s1"}, task_id=42, heartbeat_interval=0.01
+    )
+
+    assert resolution.resolved is True
+    assert lease_lost is False
+    assert mock_runtime.storage.touch_outbox_task.await_count >= 2
+    mock_runtime.storage.touch_outbox_task.assert_awaited_with(42)
+
+
+async def test_heartbeat_does_not_fire_for_fast_resolver(mock_runtime):
+    """A resolver that finishes well inside heartbeat_interval shouldn't
+    renew at all -- no need to touch storage for a quick task."""
+
+    async def _fast_resolver(runtime, task):
+        return Resolution(True)
+
+    resolution, lease_lost = await _run_resolver_with_heartbeat(
+        mock_runtime, _fast_resolver, {"session_id": "s1"}, task_id=1, heartbeat_interval=60.0
+    )
+
+    assert resolution.resolved is True
+    assert lease_lost is False
+    mock_runtime.storage.touch_outbox_task.assert_not_awaited()
+
+
+async def test_lease_lost_during_resolution_is_not_completed_or_failed(mock_runtime):
+    """
+    If touch_outbox_task reports the lease is gone (another worker
+    reclaimed it), _process_one must not call complete/fail/dead_letter
+    for that task -- doing so would race with whoever holds it now.
+    """
+    task = OutboxTask(
+        task_id=7, task_type="gossip_conflict", session_id="s1", payload="{}", retry_count=0
+    )
+    mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=[task, None])
+    mock_runtime.storage.touch_outbox_task = AsyncMock(return_value=False)  # lease already gone
+
+    async def _slow_resolver(runtime, task):
+        await asyncio.sleep(0.02)
+        return Resolution(True)
+
+    import cks_mcp.critic_agent as critic_agent_module
+
+    original = critic_agent_module._RESOLVERS["gossip_conflict"]
+    critic_agent_module._RESOLVERS["gossip_conflict"] = _slow_resolver
+    try:
+        result = await _process_one(
+            mock_runtime, "gossip_conflict", _settings(heartbeat_interval=0.005, max_retries=3)
+        )
+    finally:
+        critic_agent_module._RESOLVERS["gossip_conflict"] = original
+
+    assert result is True
+    mock_runtime.storage.complete_outbox_task.assert_not_awaited()
+    mock_runtime.storage.fail_outbox_task.assert_not_awaited()
+    mock_runtime.storage.dead_letter_outbox_task.assert_not_awaited()
+
+    metrics = get_critic_metrics()
+    assert metrics["lease_lost"]["gossip_conflict"] == 1
+
+
+# ---------------------------------------------------------------------------
+# LLM circuit breaker
+# ---------------------------------------------------------------------------
+
+
+async def test_breaker_opens_after_threshold_consecutive_llm_failures(mock_runtime, monkeypatch):
+    breaker = LLMCircuitBreaker(threshold=2, cooldown=60.0)
+    call_count = 0
+
+    async def _fake_arbitrate(runtime, arguments):
+        nonlocal call_count
+        call_count += 1
+        return {
+            "session_id": "s1",
+            "results": [
+                {
+                    "conclusion_id": "obj-1",
+                    "conflict": True,
+                    "error": "internal_error",
+                    "message": "Internal error: LLM arbiter call failed: connection refused",
+                }
+            ],
+        }
+
+    monkeypatch.setattr("cks_mcp.critic_agent.arbitrate_inference_conflict", _fake_arbitrate)
+
+    r1 = await _resolve_confidence_conflicts(mock_runtime, "s1", ["obj-1"], breaker)
+    assert r1.resolved is False
+    assert breaker.is_open() is False  # 1st failure, threshold is 2
+
+    r2 = await _resolve_confidence_conflicts(mock_runtime, "s1", ["obj-1"], breaker)
+    assert r2.resolved is False
+    assert breaker.is_open() is True  # 2nd consecutive failure trips it
+    assert call_count == 2
+
+    # Breaker open -> next call must be skipped entirely, no 3rd LLM call.
+    r3 = await _resolve_confidence_conflicts(mock_runtime, "s1", ["obj-1"], breaker)
+    assert r3.resolved is False
+    assert "circuit breaker" in r3.detail
+    assert call_count == 2  # unchanged -- arbitrate_inference_conflict never called
+
+
+async def test_breaker_resets_on_success(mock_runtime, monkeypatch):
+    breaker = LLMCircuitBreaker(threshold=2, cooldown=60.0)
+
+    async def _fake_success(runtime, arguments):
+        return {
+            "session_id": "s1",
+            "results": [
+                {
+                    "conclusion_id": "obj-1",
+                    "conflict": True,
+                    "decision": {"winner_step_id": "x"},
+                }
+            ],
+            "commit_result": {"committed": True},
+        }
+
+    monkeypatch.setattr("cks_mcp.critic_agent.arbitrate_inference_conflict", _fake_success)
+
+    resolution = await _resolve_confidence_conflicts(mock_runtime, "s1", ["obj-1"], breaker)
+    assert resolution.resolved is True
+    assert breaker.is_open() is False
+
+
+async def test_breaker_does_not_trip_on_non_llm_error(mock_runtime, monkeypatch):
+    """A structural error (e.g. session_not_found) is not the LLM
+    provider's fault -- must not count towards the breaker threshold."""
+    breaker = LLMCircuitBreaker(threshold=1, cooldown=60.0)
+
+    async def _fake_structural_error(runtime, arguments):
+        return {"error": "session_not_found", "message": "no such session"}
+
+    monkeypatch.setattr("cks_mcp.critic_agent.arbitrate_inference_conflict", _fake_structural_error)
+
+    resolution = await _resolve_confidence_conflicts(mock_runtime, "s1", ["obj-1"], breaker)
+    assert resolution.resolved is False
+    assert breaker.is_open() is False
+
+
+async def test_breaker_half_open_after_cooldown(mock_runtime):
+    breaker = LLMCircuitBreaker(threshold=1, cooldown=0.01)
+    breaker.record_failure()
+    assert breaker.is_open() is True
+    await asyncio.sleep(0.02)
+    assert breaker.is_open() is False  # cooldown elapsed -> half-open
+
+
+# ---------------------------------------------------------------------------
+# Metrics
+# ---------------------------------------------------------------------------
+
+
+async def test_metrics_track_completed_and_dead_lettered(mock_runtime):
+    gossip_tasks = [
+        OutboxTask(task_id=1, task_type="gossip_conflict", session_id="s1", payload="{}", retry_count=0),
+        None,
+    ]
+    inference_tasks = [None]
+
+    async def _dequeue(task_type=None):
+        if task_type == "gossip_conflict":
+            return gossip_tasks.pop(0)
+        return inference_tasks.pop(0)
+
+    mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=_dequeue)
+
+    await run_once(mock_runtime, _settings(max_retries=1))
+
+    metrics = get_critic_metrics()
+    assert metrics["processed"]["gossip_conflict"] == 1
+    # payload "{}" has no source_session_id -> fails -> dead-lettered at max_retries=1
+    assert metrics["dead_lettered"]["gossip_conflict"] == 1
+    assert metrics["completed"].get("gossip_conflict", 0) == 0
+
+
+async def test_get_critic_metrics_starts_at_zero():
+    metrics = get_critic_metrics()
+    assert metrics["processed"] == {}
+    assert metrics["completed"] == {}
+    assert metrics["dead_lettered"] == {}
+    assert metrics["lease_lost"] == {}
+    assert metrics["llm_breaker_open"] is False
+    assert metrics["llm_breaker_trips"] == 0

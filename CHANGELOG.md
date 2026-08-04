@@ -3,6 +3,34 @@
 
 ---
 
+## [1.32.0] - 2026-08-04
+
+### Added — Critic Agent Hardening
+- **Lease heartbeat for long-running resolutions** – `critic_agent` now renews its outbox lease (via the new `touch_outbox_task` in cks‑runtime 1.35.0) while a resolver runs, preventing slow `auto_resolve` LLM calls from being reclaimed by another worker. If the lease is lost, the task is abandoned without completing/failing/dead‑lettering to avoid racing with the new claimant. Configured via `CKS_CRITIC_HEARTBEAT_INTERVAL` (default 60s).
+- **Circuit breaker on the LLM provider** – `LLMCircuitBreaker` opens after consecutive LLM‑attributable arbitration failures (`CKS_CRITIC_LLM_BREAKER_THRESHOLD`, default 3). While open, `auto_resolve` calls are skipped entirely for a cooldown period (`CKS_CRITIC_LLM_BREAKER_COOLDOWN`, default 60s), preventing one queued task per retry from burning LLM quota during an outage. Structural errors (e.g. `session_not_found`) never count toward the breaker. The mechanical `stale_premise_ids` path is unaffected.
+- **Critic‑specific metrics** – `get_critic_metrics()` exposes processed/completed/retried/dead‑lettered counters per task type, `lease_lost`, and LLM breaker state. Wired into the existing `get_metrics` MCP tool as `critic_agent_metrics`. Process‑local (the Critic Agent runs as a separate OS process), so cross‑process observability requires future work.
+- **Bugfix – mixed‑diagnostic `inference_conflict` tasks** – A payload containing both `CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT` and `CKS-EXT-STALE-PREMISE` diagnostics now resolves each via a separate `arbitrate_inference_conflict` call, instead of sending both parameter sets in one call (which the tool rejects). A payload with only stale‑premise findings is now genuinely repaired, not silently marked complete.
+
+### Added — Enrichment Agent (external RAG / graph auto‑growth)
+- **`cks‑enrichment‑agent` console script** – a new unattended agent (separate OS process, same architecture as `cks‑critic‑agent`) that polls the outbox for `enrichment_request` tasks, searches external sources, and links relevant findings back into the graph.
+- **`request_enrichment` MCP tool** – enqueues an enrichment request for a given object, optionally with a custom search query. Requires a persistent storage backend (SQLite/Postgres).
+- **Enrichment library** (`src/cks_mcp/enrichment/`):
+  - `filters.py` – deterministic low‑value URL filtering and operator‑configured domain/prefix allow/block policy.
+  - `scoring.py` – candidate scoring by domain authority + query relevance.
+  - `robots.py` – `robots.txt` compliance check for unattended fetches.
+  - `adapters.py` – search adapters for Wikipedia (opensearch API) and arXiv (Atom API). Adapter failures are isolated per source.
+- **Agent loop** (`src/cks_mcp/agent_loop.py`) – extracted from `critic_agent.py` so all unattended agents share the same lease‑renewal (`run_resolver_with_heartbeat`) and `Resolution` type.
+
+### Changed
+- Tool count increased from 32 to 33 (`request_enrichment`). Tests updated.
+- `critic_agent.py` refactored to use the shared `agent_loop` module.
+- `get_metrics` schema updated to describe the new `critic_agent_metrics` field.
+- ROADMAP.md updated: Critic Agent hardening backlog items marked complete; Enrichment Agent design and future agents backlog added.
+
+---
+
+## [1.31.1] - 2026-08-03
+
 ### Fixed
 - **Critic Agent now correctly resolves `CKS-EXT-STALE-PREMISE` diagnostics** — previously a payload containing only stale-premise findings was marked complete without any repair. The agent now routes them to the mechanical `arbitrate_inference_conflict(stale_premise_ids=..., commit=True)` path, and mixed payloads (confidence conflicts + stale premises) are resolved via two independent calls instead of a single call that would be rejected as `invalid_parameter`.
 - New regression tests: stale-premise-only resolution, step-level errors, mixed-diagnostic payloads handled via two separate `arbitrate_inference_conflict` calls, and partial failure in a mixed payload.

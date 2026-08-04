@@ -79,7 +79,9 @@ import asyncio
 import os
 import signal
 import sys
+import time
 import traceback
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -87,6 +89,7 @@ from cks_runtime.config import RuntimeConfig
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
+from cks_mcp.agent_loop import Resolution, run_resolver_with_heartbeat
 from cks_mcp.paths import data_dir
 from cks_mcp.tools.arbitrate_inference_conflict.handler import (
     arbitrate_inference_conflict,
@@ -97,6 +100,12 @@ from cks_mcp.tools.dead_letter_conflict_task.handler import dead_letter_conflict
 from cks_mcp.tools.fail_conflict_task.handler import fail_conflict_task
 from cks_mcp.tools.merge.handler import merge_branch
 
+# Resolution/run_resolver_with_heartbeat now live in cks_mcp.agent_loop
+# (shared with cks_mcp.enrichment_agent) -- re-exported under their
+# original names here for backward compatibility (this module's own
+# tests, and any external code, import them from cks_mcp.critic_agent).
+_run_resolver_with_heartbeat = run_resolver_with_heartbeat
+
 _ARBITRABLE_DIAGNOSTIC_CODE = "CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT"
 _STALE_PREMISE_CODE = "CKS-EXT-STALE-PREMISE"
 
@@ -105,6 +114,15 @@ _STALE_PREMISE_CODE = "CKS-EXT-STALE-PREMISE"
 # failed this many times.
 _DEFAULT_MAX_RETRIES = 5
 _DEFAULT_POLL_INTERVAL_SECONDS = 5.0
+
+# Must stay comfortably under SQLiteStorage's/PostgresStorage's stale-lease
+# reclaim window (5 minutes) -- see _run_resolver_with_heartbeat.
+_DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60.0
+
+# Consecutive LLM-attributable arbitration failures before the circuit
+# breaker opens and auto_resolve calls are skipped for a cooldown period.
+_DEFAULT_LLM_BREAKER_THRESHOLD = 3
+_DEFAULT_LLM_BREAKER_COOLDOWN_SECONDS = 60.0
 
 _TASK_TYPES = ("gossip_conflict", "inference_conflict")
 
@@ -116,6 +134,9 @@ class CriticAgentSettings:
     poll_interval: float = _DEFAULT_POLL_INTERVAL_SECONDS
     max_retries: int = _DEFAULT_MAX_RETRIES
     storage_path: str = field(default_factory=lambda: "")
+    heartbeat_interval: float = _DEFAULT_HEARTBEAT_INTERVAL_SECONDS
+    llm_breaker_threshold: int = _DEFAULT_LLM_BREAKER_THRESHOLD
+    llm_breaker_cooldown: float = _DEFAULT_LLM_BREAKER_COOLDOWN_SECONDS
 
     @classmethod
     def from_env(cls) -> CriticAgentSettings:
@@ -130,15 +151,158 @@ class CriticAgentSettings:
                 os.environ.get("CKS_CRITIC_MAX_RETRIES", _DEFAULT_MAX_RETRIES)
             ),
             storage_path=storage_path,
+            heartbeat_interval=float(
+                os.environ.get(
+                    "CKS_CRITIC_HEARTBEAT_INTERVAL", _DEFAULT_HEARTBEAT_INTERVAL_SECONDS
+                )
+            ),
+            llm_breaker_threshold=int(
+                os.environ.get(
+                    "CKS_CRITIC_LLM_BREAKER_THRESHOLD", _DEFAULT_LLM_BREAKER_THRESHOLD
+                )
+            ),
+            llm_breaker_cooldown=float(
+                os.environ.get(
+                    "CKS_CRITIC_LLM_BREAKER_COOLDOWN", _DEFAULT_LLM_BREAKER_COOLDOWN_SECONDS
+                )
+            ),
         )
 
 
-@dataclass(slots=True)
-class Resolution:
-    """The outcome of attempting to resolve one claimed conflict task."""
+# ---------------------------------------------------------------------------
+# Metrics (in-process; surfaced via get_metrics, see cks_mcp.observability)
+# ---------------------------------------------------------------------------
 
-    resolved: bool
-    detail: str | None = None
+
+@dataclass
+class CriticAgentMetrics:
+    """
+    Critic-Agent-specific counters, kept in addition to the generic
+    per-tool telemetry ``get_metrics`` already reports (calls/success_rate/
+    latency say nothing about queue depth or dead-letter rate). Process-
+    local -- a Critic Agent running as its own OS process only reports
+    what it itself has seen since it started; there's no cross-process
+    aggregation here.
+    """
+
+    processed: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    completed: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    retried: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    dead_lettered: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    lease_lost: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    llm_breaker_trips: int = 0
+    llm_breaker_open: bool = False
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "processed": dict(self.processed),
+            "completed": dict(self.completed),
+            "retried": dict(self.retried),
+            "dead_lettered": dict(self.dead_lettered),
+            "lease_lost": dict(self.lease_lost),
+            "llm_breaker_trips": self.llm_breaker_trips,
+            "llm_breaker_open": self.llm_breaker_open,
+        }
+
+    def reset(self) -> None:
+        self.processed.clear()
+        self.completed.clear()
+        self.retried.clear()
+        self.dead_lettered.clear()
+        self.lease_lost.clear()
+        self.llm_breaker_trips = 0
+        self.llm_breaker_open = False
+
+
+_METRICS = CriticAgentMetrics()
+
+
+def get_critic_metrics() -> dict[str, Any]:
+    """
+    Snapshot of this process' Critic Agent metrics, for ``get_metrics``
+    (see ``cks_mcp.observability``) or direct inspection. Returns zeros
+    for every counter if no Critic Agent has processed anything in this
+    process yet -- this does not query the outbox table itself, so it's
+    silent about tasks another process (e.g. a second Critic Agent
+    worker) has handled.
+    """
+    return _METRICS.snapshot()
+
+
+# ---------------------------------------------------------------------------
+# LLM circuit breaker (guards auto_resolve, not the mechanical
+# stale-premise path, which never calls an LLM)
+# ---------------------------------------------------------------------------
+
+# Error codes arbitrate_inference_conflict attaches to a batch item when
+# the LLM call itself (not the conflict data) is why no decision was
+# reached -- see that tool's handler.py. Used to tell "the provider is
+# down" apart from "this particular conflict is unresolvable", so the
+# breaker only trips on the former.
+_LLM_ATTRIBUTABLE_ERROR_CODES = frozenset(
+    {"internal_error", "llm_output_parse_error", "invalid_arbiter_decision", "missing_decision"}
+)
+
+
+class LLMCircuitBreaker:
+    """
+    Trips after ``threshold`` consecutive LLM-attributable arbitration
+    failures and, while open, makes ``_resolve_confidence_conflicts``
+    skip the ``arbitrate_inference_conflict(auto_resolve=True, ...)``
+    call entirely for ``cooldown`` seconds -- instead of burning an LLM
+    call (and a retry/backoff cycle) per queued task while the provider
+    is down. The mechanical ``stale_premise_ids`` path never calls an
+    LLM and is unaffected by this breaker's state.
+    """
+
+    def __init__(
+        self,
+        threshold: int = _DEFAULT_LLM_BREAKER_THRESHOLD,
+        cooldown: float = _DEFAULT_LLM_BREAKER_COOLDOWN_SECONDS,
+    ) -> None:
+        self.threshold = threshold
+        self.cooldown = cooldown
+        self._consecutive_failures = 0
+        self._open_until: float = 0.0
+
+    def is_open(self) -> bool:
+        if self._open_until and time.monotonic() < self._open_until:
+            return True
+        if self._open_until:
+            # Cooldown elapsed -- half-open: let the next call through as
+            # a trial rather than staying open forever.
+            self._open_until = 0.0
+            _METRICS.llm_breaker_open = False
+        return False
+
+    def record_success(self) -> None:
+        self._consecutive_failures = 0
+        self._open_until = 0.0
+        _METRICS.llm_breaker_open = False
+
+    def record_failure(self) -> None:
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= self.threshold:
+            self._open_until = time.monotonic() + self.cooldown
+            _METRICS.llm_breaker_trips += 1
+            _METRICS.llm_breaker_open = True
+
+    def configure(self, *, threshold: int, cooldown: float) -> None:
+        """Apply settings without losing accumulated failure state."""
+        self.threshold = threshold
+        self.cooldown = cooldown
+
+
+# Module-level singleton: one Critic Agent process, one breaker, shared
+# across every _resolve_confidence_conflicts call in that process.
+_LLM_BREAKER = LLMCircuitBreaker()
+
+
+def reset_critic_agent_state() -> None:
+    """Reset global metrics and breaker state -- for tests only."""
+    _METRICS.reset()
+    _LLM_BREAKER._consecutive_failures = 0
+    _LLM_BREAKER._open_until = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -206,13 +370,30 @@ def _extract_locations(diagnostics: list[Any], code: str) -> list[str]:
 
 
 async def _resolve_confidence_conflicts(
-    runtime: Runtime, session_id: str, conclusion_ids: list[str]
+    runtime: Runtime,
+    session_id: str,
+    conclusion_ids: list[str],
+    breaker: LLMCircuitBreaker | None = None,
 ) -> Resolution:
     """
     Resolve every ``CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT`` finding in
     one batch ``arbitrate_inference_conflict(conclusion_ids=...,
     auto_resolve=True, commit=True)`` call.
+
+    Guarded by ``breaker`` (the module's shared ``_LLM_BREAKER`` unless
+    a caller passes its own, e.g. in tests): if the breaker is open,
+    this returns a failed ``Resolution`` without making the call at
+    all, so a downed LLM provider doesn't cost one LLM call per queued
+    task on top of the outage itself.
     """
+    breaker = breaker if breaker is not None else _LLM_BREAKER
+    if breaker.is_open():
+        return Resolution(
+            False,
+            "LLM circuit breaker open (repeated arbiter failures) -- skipping "
+            f"auto_resolve for {len(conclusion_ids)} conclusion(s) until cooldown elapses",
+        )
+
     result = await arbitrate_inference_conflict(
         runtime,
         {
@@ -224,6 +405,8 @@ async def _resolve_confidence_conflicts(
     )
 
     if result.get("error"):
+        # Structural error (invalid_parameter, session_not_found, ...) --
+        # not the LLM provider's fault, so this doesn't affect the breaker.
         return Resolution(False, f"arbitrate_inference_conflict (conclusion_ids) error: {result}")
 
     results = result.get("results") or []
@@ -233,6 +416,12 @@ async def _resolve_confidence_conflicts(
         if item.get("conflict") and "decision" not in item
     ]
     if unresolved:
+        llm_attributable = any(
+            item.get("conclusion_id") in unresolved and item.get("error") in _LLM_ATTRIBUTABLE_ERROR_CODES
+            for item in results
+        )
+        if llm_attributable:
+            breaker.record_failure()
         return Resolution(
             False,
             f"arbitrate_inference_conflict left {len(unresolved)} conclusion(s) "
@@ -243,13 +432,15 @@ async def _resolve_confidence_conflicts(
         # Every conclusion_id resolved to "conflict": False (nothing to
         # arbitrate after all, e.g. staleness cleared itself) -- there
         # was genuinely nothing to commit. Treat as resolved: the task
-        # described a state that no longer needs action.
+        # described a state that no longer needs action. Doesn't touch
+        # the breaker -- no LLM call was actually needed or made.
         return Resolution(True)
 
     commit_result = result["commit_result"]
     if isinstance(commit_result, dict) and commit_result.get("error"):
         return Resolution(False, f"commit failed: {commit_result}")
 
+    breaker.record_success()
     return Resolution(True)
 
 
@@ -389,16 +580,32 @@ async def _process_one(
     if task is None:
         return None
 
+    task_id = task["task_id"]
+    _METRICS.processed[task_type] += 1
+
     resolver = _RESOLVERS[task_type]
     try:
-        resolution = await resolver(runtime, task)
+        resolution, lease_lost = await _run_resolver_with_heartbeat(
+            runtime, resolver, task, task_id, settings.heartbeat_interval
+        )
     except Exception as exc:  # noqa: BLE001 -- must never crash the loop
         resolution = Resolution(False, f"unexpected exception: {exc}")
+        lease_lost = False
         traceback.print_exc(file=sys.stderr)
 
-    task_id = task["task_id"]
+    if lease_lost:
+        _METRICS.lease_lost[task_type] += 1
+        print(
+            f"[cks-critic-agent] lost lease on {task_type} task_id={task_id} while "
+            "resolving (reclaimed by another worker) -- abandoning without "
+            "completing/failing/dead-lettering it",
+            file=sys.stderr,
+        )
+        return True
+
     if resolution.resolved:
         await complete_conflict_task(runtime, {"task_id": task_id})
+        _METRICS.completed[task_type] += 1
         print(
             f"[cks-critic-agent] resolved {task_type} task_id={task_id} "
             f"session_id={task['session_id']}",
@@ -410,6 +617,7 @@ async def _process_one(
     next_retry_count = task["retry_count"] + 1
     if next_retry_count >= settings.max_retries:
         await dead_letter_conflict_task(runtime, {"task_id": task_id, "error": error})
+        _METRICS.dead_lettered[task_type] += 1
         print(
             f"[cks-critic-agent] dead-lettered {task_type} task_id={task_id} "
             f"after {next_retry_count} attempt(s): {error}",
@@ -420,6 +628,7 @@ async def _process_one(
             runtime,
             {"task_id": task_id, "retry_count": next_retry_count, "error": error},
         )
+        _METRICS.retried[task_type] += 1
         print(
             f"[cks-critic-agent] retrying {task_type} task_id={task_id} "
             f"(attempt {next_retry_count}/{settings.max_retries}): {error}",
@@ -437,6 +646,9 @@ async def run_once(runtime: Runtime, settings: CriticAgentSettings | None = None
     that doesn't want to poll forever.
     """
     settings = settings or CriticAgentSettings.from_env()
+    _LLM_BREAKER.configure(
+        threshold=settings.llm_breaker_threshold, cooldown=settings.llm_breaker_cooldown
+    )
     processed = 0
     for task_type in _TASK_TYPES:
         while await _process_one(runtime, task_type, settings):
@@ -488,7 +700,10 @@ async def run_critic_agent(
 
     print(
         f"[cks-critic-agent] started (storage_path={settings.storage_path!r}, "
-        f"poll_interval={settings.poll_interval}s, max_retries={settings.max_retries})",
+        f"poll_interval={settings.poll_interval}s, max_retries={settings.max_retries}, "
+        f"heartbeat_interval={settings.heartbeat_interval}s, "
+        f"llm_breaker_threshold={settings.llm_breaker_threshold}, "
+        f"llm_breaker_cooldown={settings.llm_breaker_cooldown}s)",
         file=sys.stderr,
     )
 

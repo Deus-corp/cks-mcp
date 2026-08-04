@@ -71,6 +71,8 @@ from cks_mcp.tools.merge import merge_branch, merge_knowledge
 from cks_mcp.tools.merge.schema import MERGE_BRANCH_SCHEMA, MERGE_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 from cks_mcp.tools.query_subgraph.schema import QUERY_SUBGRAPH_SCHEMA
+from cks_mcp.tools.request_enrichment import request_enrichment
+from cks_mcp.tools.request_enrichment.schema import REQUEST_ENRICHMENT_SCHEMA
 from cks_mcp.tools.revert import list_versions, revert_version
 from cks_mcp.tools.revert.schema import LIST_VERSIONS_SCHEMA, REVERT_VERSION_SCHEMA
 from cks_mcp.tools.search_semantic import search_semantic
@@ -279,5 +281,9 @@ TOOLS = {
     "list_dead_lettered_conflicts": {
         **LIST_DEAD_LETTERED_CONFLICTS_SCHEMA,
         "handler": _wrap("list_dead_lettered_conflicts")(list_dead_lettered_conflicts),
+    },
+    "request_enrichment": {
+        **REQUEST_ENRICHMENT_SCHEMA,
+        "handler": _wrap("request_enrichment", "session_id", "object_id")(request_enrichment),
     },
 }

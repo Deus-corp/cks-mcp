@@ -13,7 +13,12 @@ GET_METRICS_SCHEMA = {
     "times per runtime operation type. "
     "'tool_telemetry' contains per-MCP-tool call counts, success rates, "
     "latency percentiles (p50/p95/p99), and top error types since the "
-    "server started.",
+    "server started. "
+    "'critic_agent_metrics' contains Critic Agent counters (processed/"
+    "completed/retried/dead_lettered per task_type, lease_lost, and LLM "
+    "circuit breaker state) -- process-local to whichever process ran the "
+    "Critic Agent loop, so this is all zeros when called against the main "
+    "server process while the Critic Agent runs as its own OS process.",
     "inputSchema": {
         "type": "object",
         "properties": {},

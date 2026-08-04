@@ -134,11 +134,11 @@ attempts to resolve it:
 - `gossip_conflict` → calls `merge_branch` with the task's recorded
   `source_session_id`. A clean merge completes the task; a structural
   conflict dead-letters it for a human to review.
-- `inference_conflict` → collects every `CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT`
-  diagnostic, extracts their `conclusion_id`s, and calls the batch version of
-  `arbitrate_inference_conflict(auto_resolve=True, commit=True)`.
-  `CKS-EXT-STALE-PREMISE` diagnostics have no arbitration primitive yet and
-  are also dead-lettered.
+- `inference_conflict` → resolves both `CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT`
+  (batch `arbitrate_inference_conflict(auto_resolve=True, commit=True)`) and
+  `CKS-EXT-STALE-PREMISE` (mechanical rewrite via `stale_premise_ids`) in one
+  combined `Resolution`. A single task may contain both diagnostic types; the
+  agent handles them separately.
 
 Tasks the agent cannot resolve after `CKS_CRITIC_MAX_RETRIES` attempts are
 placed in the dead-letter queue for manual inspection.
@@ -188,3 +188,27 @@ remain in `cks_outbox_tasks` with status `DEAD`. Inspect them with
     "arguments": {"task_type": "inference_conflict"}
   }
 }
+```
+
+## Enrichment Agent (autonomous)
+
+`cks-enrichment-agent` grows the graph from external sources. It polls the
+outbox for `enrichment_request` tasks (enqueued via the `request_enrichment`
+tool), searches Wikipedia and arXiv, filters and scores candidates, respects
+`robots.txt`, ingests promising URLs, and links the resulting `Document`
+objects back to the original object via `enriched_by` relations — all as a
+single atomic `evolve_knowledge` call.
+
+- **Query:** from the task's `query` field, or the target object's name.
+- **Filters:** structural low‑value URL patterns + operator‑configured
+  domain allow/block lists (see `CKS_ENRICHMENT_ALLOW_*` / `CKS_ENRICHMENT_BLOCK_*`).
+- **Scoring:** domain authority + query relevance. Only candidates above
+  `CKS_ENRICHMENT_MIN_SCORE` (default 0.5) are fetched.
+- **Robots.txt:** checked before every unattended fetch.
+- **Provenance:** each ingested source is verified with `verify_source`.
+
+**Start:** `CKS_MCP_DB_PATH=~/.cks-mcp/cks_mcp.db cks-enrichment-agent`
+
+**Environment variables:** `CKS_MCP_DB_PATH`, `CKS_ENRICHMENT_POLL_INTERVAL`,
+`CKS_ENRICHMENT_MAX_RETRIES`, `CKS_ENRICHMENT_MIN_SCORE`, `CKS_ENRICHMENT_MAX_INGESTS`,
+and adapter‑specific overrides (see `cks_mcp/enrichment_agent.py`).

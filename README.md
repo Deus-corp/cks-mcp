@@ -4,11 +4,11 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-349%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-397%20passed-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
-that gives LLMs a **canonical knowledge backbone**. It exposes **32
+that gives LLMs a **canonical knowledge backbone**. It exposes **33
 tools** (listed under *Available Tools* below) for validation, evolution,
 branching, merging, semantic search, contradiction detection, sandboxing,
 and more, backed by the deterministic, immutable semantics of `cks-core`
@@ -44,7 +44,7 @@ Other projects build upon it:
    models instead, set `CKS_EMBEDDING_PROVIDER=huggingface` and
    `export HF_TOKEN=hf_...`. See [Getting Started](docs/getting-started.md).
 3. In the chat, start your message with **"Use cks-mcp to…"**.
-4. Claude automatically picks the right tool from the 32 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
+4. Claude automatically picks the right tool from the 33 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
 5. Every operation is logged, versioned, and stored in a persistent SQLite database.
 
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
@@ -52,7 +52,7 @@ Other projects build upon it:
 
 ![CKS Demo](https://github.com/Deus-corp/cks-mcp/releases/download/v1.10.2/demo.gif)
 
-*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. All 32 tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, gossip conflict resolution, and more — all triggered by plain English.*
+*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. All 33 tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, gossip conflict resolution, and more — all triggered by plain English.*
 
 ---
 
@@ -122,7 +122,7 @@ for the full list of environment variables and how to set them via a
    ```
 
 3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
-   After restart, a connector icon will appear – `cks-mcp` with 32 tools is ready to use.
+   After restart, a connector icon will appear – `cks-mcp` with 33 tools is ready to use.
 
 See [Getting Started](docs/getting-started.md) for a walkthrough of your
 first session once the server is connected.
@@ -131,7 +131,7 @@ first session once the server is connected.
 
 # Available Tools
 
-32 tools, grouped by function. Full reference with parameters and
+33 tools, grouped by function. Full reference with parameters and
 real request/response examples: [`docs/tools/`](docs/tools/index.md).
 
 | Group | Tools |
@@ -141,7 +141,7 @@ real request/response examples: [`docs/tools/`](docs/tools/index.md).
 | Branching & Merging | `create_branch`, `merge_branch`, `merge_knowledge`, `close_session`, `fork_sandbox` |
 | Graph Exploration | `query_subgraph`, `search_semantic`, `visualize_graph` |
 | Verification & Integrity | `verify_source`, `detect_contradictions` |
-| AI-Assisted & Ingestion | `construct_knowledge`, `suggest_evolution`, `ingest_document` |
+| AI-Assisted & Ingestion | `construct_knowledge`, `suggest_evolution`, `ingest_document`, `request_enrichment` |
 | Export & Observability | `export_knowledge`, `export_session`, `get_metrics` |
 | Gossip & Conflict Resolution | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` |
 
@@ -165,6 +165,22 @@ Env vars: `CKS_MCP_DB_PATH` (shared storage path), `CKS_CRITIC_POLL_INTERVAL`
 (seconds between polls, default 5), `CKS_CRITIC_MAX_RETRIES` (attempts before
 dead-lettering, default 5). See `cks_mcp/critic_agent.py` for the resolution
 policy in full.
+
+## Enrichment Agent (external RAG / auto‑growth)
+
+`cks-enrichment-agent` is a companion process that searches external sources
+(Wikipedia, arXiv) for more context about an object marked for enrichment
+(via `request_enrichment`) and links whatever it finds back into the graph
+with provenance. Same outbox‑polling architecture as the Critic Agent —
+runs autonomously against the same database.
+
+```bash
+CKS_MCP_DB_PATH=~/.cks-mcp/cks_mcp.db cks-enrichment-agent
+```
+
+Env vars: `CKS_MCP_DB_PATH` (shared storage), `CKS_ENRICHMENT_POLL_INTERVAL`
+(default 5s), `CKS_ENRICHMENT_MAX_RETRIES` (default 5), `CKS_ENRICHMENT_MIN_SCORE`
+(default 0.5), and adapter‑specific tuning (see `cks_mcp/enrichment_agent.py`).
 
 ---
 
@@ -264,7 +280,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-349+ tests, all passing.
+397+ tests, all passing.
 
 ---
 
