@@ -123,6 +123,38 @@ pass `peek: true` to keep entries queued for another reader.
 last drain. Unlike gossip, the sweeper runs by default, so an empty result
 on a fresh server usually just means no sweep has found anything yet.
 
+## `resolve_gossip_conflict`
+
+The counterpart to `arbitrate_inference_conflict` for the structural merge
+conflicts `list_gossip_conflicts` drains, closing the asymmetry where those
+required a hand-rolled `merge_branch(..., resolutions=...)` call while
+inference conflicts already had LLM assistance. Internally it just probes
+with `merge_branch(target_session_id, source_session_id)` and, if that comes
+back with `conflicts` instead of `merged: true`, either returns them for the
+caller to resolve or — with `auto_resolve: true` — resolves them itself via
+an LLM call and re-applies the merge with the resulting `resolutions`.
+
+**Parameters:** `target_session_id`, `source_session_id` (both required),
+`auto_resolve` (optional, default `false`), `model` / `max_tokens`
+(optional overrides for the `auto_resolve` LLM call).
+
+- Without `auto_resolve`: returns `{"merged": false, "conflicts": [...],
+  "policy": "..."}` — the same conflict shape `merge_branch` itself returns,
+  plus the resolution policy text, so an interactive client (typically
+  already an LLM) can decide and call `merge_branch` with `resolutions`
+  directly.
+- With `auto_resolve: true`: makes one LLM call over the conflict list using
+  the same `CKS_LLM_PROVIDER` (`auto` | `ollama` | `anthropic`) dispatch as
+  `arbitrate_inference_conflict`, then calls `merge_branch` again with the
+  parsed `resolutions` and returns that result.
+- If the probe merge already succeeds (no conflicts), returns that
+  `merge_branch` result unchanged — this tool never merges a second time in
+  that case.
+
+Session validation (existence and open state) for both `target_session_id`
+and `source_session_id` is enforced the same way `merge_branch` enforces it
+for its `target_session_id`.
+
 ## Critic Agent (autonomous)
 
 `cks-critic-agent` is a separate console process that runs alongside the

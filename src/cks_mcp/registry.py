@@ -73,6 +73,10 @@ from cks_mcp.tools.query_subgraph import query_subgraph_tool
 from cks_mcp.tools.query_subgraph.schema import QUERY_SUBGRAPH_SCHEMA
 from cks_mcp.tools.request_enrichment import request_enrichment
 from cks_mcp.tools.request_enrichment.schema import REQUEST_ENRICHMENT_SCHEMA
+from cks_mcp.tools.resolve_gossip_conflict import resolve_gossip_conflict
+from cks_mcp.tools.resolve_gossip_conflict.schema import (
+    RESOLVE_GOSSIP_CONFLICT_SCHEMA,
+)
 from cks_mcp.tools.revert import list_versions, revert_version
 from cks_mcp.tools.revert.schema import LIST_VERSIONS_SCHEMA, REVERT_VERSION_SCHEMA
 from cks_mcp.tools.search_semantic import search_semantic
@@ -285,5 +289,11 @@ TOOLS = {
     "request_enrichment": {
         **REQUEST_ENRICHMENT_SCHEMA,
         "handler": _wrap("request_enrichment", "session_id", "object_id")(request_enrichment),
+    },
+    "resolve_gossip_conflict": {
+        **RESOLVE_GOSSIP_CONFLICT_SCHEMA,
+        "handler": _wrap_open_session(
+            "resolve_gossip_conflict", "target_session_id", "source_session_id"
+        )(resolve_gossip_conflict),
     },
 }

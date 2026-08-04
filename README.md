@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-407%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-419%20passed-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
@@ -143,7 +143,7 @@ real request/response examples: [`docs/tools/`](docs/tools/index.md).
 | Verification & Integrity | `verify_source`, `detect_contradictions` |
 | AI-Assisted & Ingestion | `construct_knowledge`, `suggest_evolution`, `ingest_document`, `request_enrichment` |
 | Export & Observability | `export_knowledge`, `export_session`, `get_metrics` |
-| Gossip & Conflict Resolution | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` |
+| Gossip & Conflict Resolution | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` |
 
 ## Critic Agent (unattended conflict resolution)
 
@@ -280,7 +280,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-407+ tests, all passing.
+419+ tests, all passing.
 
 ---
 

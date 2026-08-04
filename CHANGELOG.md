@@ -3,6 +3,22 @@
 
 ---
 
+## [1.33.0] - 2026-08-04
+
+### Added
+- **`resolve_gossip_conflict` tool** (ADR-006) — closes the asymmetry between inference and gossip conflict resolution by adding an LLM‑assisted arbitration path for structural merge conflicts. The tool has three modes:
+  * *Interactive* — returns conflicting objects with their `target_diff`/`source_diff` and a resolution policy; the caller supplies a `resolutions` dict on the next call.
+  * *Unattended* (`auto_resolve: true`) — the tool calls an LLM via the same provider dispatch as `construct_knowledge`/`arbitrate_inference_conflict` and proposes ready‑to‑use resolutions.
+  * *Bypass* — the caller can always hand‑craft resolutions and call `merge_branch` directly.
+- Registered in the middleware stack under `_wrap_open_session` (mirroring `merge_branch`), so both `target_session_id` and `source_session_id` are validated before the handler runs.
+- 12 new unit tests in `tests/tools/resolve_gossip_conflict/test_handler.py` covering the three paths, provider dispatch (`auto`/`ollama`/`anthropic`), error handling, and already‑merged edge cases.
+- Tool count increased from 33 to 34. Documentation updated in `README.md`, `docs/tools/index.md`, and `docs/tools/gossip-and-conflicts.md`.
+
+### Changed
+- ROADMAP.md — the "LLM‑assisted gossip conflict resolution" item is now marked complete (`[x]`).
+
+---
+
 ## [1.32.2] - 2026-08-04
 
 ### Fixed

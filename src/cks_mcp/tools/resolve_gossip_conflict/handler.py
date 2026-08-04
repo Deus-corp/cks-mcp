@@ -3,6 +3,23 @@ resolve_gossip_conflict: LLM-assisted resolution of structural gossip
 merge conflicts -- the counterpart to arbitrate_inference_conflict for
 gossip conflicts, closing the asymmetry where gossip conflicts required
 hand-rolled resolutions while inference conflicts had LLM assistance.
+
+Session existence/open-state validation is handled by this tool's
+registry.py middleware (require_open_session on both target_session_id
+and source_session_id), matching merge_branch's own registration --
+this handler does not duplicate those checks. Missing-parameter
+validation for the two session ids is likewise left to the downstream
+merge_branch() call, which already reports it the same way.
+
+Environment variables (auto_resolve only; same names/semantics as
+arbitrate_inference_conflict's, see llm_providers.py):
+    CKS_LLM_PROVIDER   -- "auto" (default) | "ollama" | "anthropic".
+    ANTHROPIC_API_KEY  -- required only for the "anthropic" provider.
+    CKS_LLM_MODEL       -- model override (default: "claude-sonnet-4-6").
+    CKS_OLLAMA_MODEL    -- model override for the "ollama" provider
+                            (default: llama3.2).
+    CKS_OLLAMA_HOST     -- Ollama server URL (default: http://localhost:11434).
+    CKS_LLM_MAX_TOKENS  -- optional override (default: 4096).
 """
 
 from __future__ import annotations
@@ -14,7 +31,7 @@ from typing import Any
 from cks_runtime.runtime import Runtime
 
 from cks_mcp import llm_providers
-from cks_mcp.errors import internal_error, missing_parameter, session_not_found
+from cks_mcp.errors import internal_error
 from cks_mcp.tools.merge.handler import merge_branch
 
 _POLICY = """\
@@ -30,28 +47,55 @@ ONLY a JSON object mapping object_id to resolution, e.g.:
 _SYSTEM_PROMPT = _POLICY
 
 
+def _default_model() -> str:
+    return os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
+
+
+def _call_ollama(prompt: str, model: str, max_tokens: int) -> str:
+    return llm_providers.call_ollama(
+        prompt, system_prompt=_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
+    )
+
+
+def _call_anthropic(prompt: str, model: str, max_tokens: int) -> str:
+    return llm_providers.call_anthropic(
+        prompt, system_prompt=_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
+    )
+
+
 def _call_llm(prompt: str, *, model: str | None, max_tokens: int) -> str:
+    """
+    Route the resolution prompt to whichever LLM provider is configured
+    or available, mirroring arbitrate_inference_conflict's 'auto' |
+    'ollama' | 'anthropic' dispatch (ADR-006) instead of always falling
+    through to Anthropic for anything other than an explicit 'ollama'.
+    """
     provider = os.environ.get("CKS_LLM_PROVIDER", "auto").lower()
+
     if provider == "ollama":
         m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
-        return llm_providers.call_ollama(prompt, system_prompt=_SYSTEM_PROMPT, model=m, max_tokens=max_tokens)
-    m = model or os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
-    return llm_providers.call_anthropic(prompt, system_prompt=_SYSTEM_PROMPT, model=m, max_tokens=max_tokens)
+        return _call_ollama(prompt, m, max_tokens)
+
+    if provider == "anthropic":
+        m = model or _default_model()
+        return _call_anthropic(prompt, m, max_tokens)
+
+    if provider != "auto":
+        raise RuntimeError(
+            f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', or 'anthropic'."
+        )
+
+    if llm_providers.ollama_available():
+        m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
+        return _call_ollama(prompt, m, max_tokens)
+
+    m = model or _default_model()
+    return _call_anthropic(prompt, m, max_tokens)
 
 
 async def resolve_gossip_conflict(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     target_session_id = arguments.get("target_session_id")
     source_session_id = arguments.get("source_session_id")
-
-    if not target_session_id:
-        return missing_parameter("target_session_id")
-    if not source_session_id:
-        return missing_parameter("source_session_id")
-
-    if runtime.get_session(target_session_id) is None:
-        return session_not_found(target_session_id)
-    if runtime.get_session(source_session_id) is None:
-        return session_not_found(source_session_id)
 
     # 1. Probe for conflicts
     probe = await merge_branch(runtime, {
