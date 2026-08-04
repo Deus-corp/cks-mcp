@@ -17,6 +17,7 @@ used together rather than their declaration order in the registry:
 | [Verification & Integrity](verification.md) | `verify_source`, `detect_contradictions` | Anti-hallucination: provenance and logical consistency |
 | [AI-Assisted & Ingestion](ai-assisted.md) | `construct_knowledge`, `suggest_evolution`, `ingest_document`, `request_enrichment` | From free text, a URL, or an external search query to a validated structure |
 | [Export & Observability](export-and-audit.md) | `export_knowledge`, `export_session`, `get_metrics` | Get data out, and see how the server is performing |
+| [Memory & Persistence](export-and-audit.md) | `register_graph`, `get_graph`, `list_graphs` | Save and reuse Knowledge Graphs across conversations by registering them under memorable names |
 | [Gossip & Conflict Resolution](gossip-and-conflicts.md) | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `refresh_verification`, `resolve_temporal_conflict`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` | Drain and resolve conflicts escalated by gossip, inference, provenance, or temporal staleness, plus the critic‑agent task lifecycle |
 
 ## Conventions used across every tool

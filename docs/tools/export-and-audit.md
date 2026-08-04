@@ -75,3 +75,31 @@ Returns two independent dashboards: runtime-level operation metrics from
 restart. Use it to spot which tool is slow or erroring most often across a
 session, not as a durable audit log (for that, see `list_versions` and
 `export_session`).
+
+## `register_graph`
+
+Saves a named reference to an existing session's Knowledge Graph,
+allowing it to be found and reused later via `get_graph`.
+
+**Parameters:** `name` (required), `session_id` (required),
+`description` (optional), `tags` (optional, comma-separated).
+
+**Response:** `{"registered": true, "name": "my-graph"}`.
+
+## `get_graph`
+
+Looks up a previously registered graph by name and returns its `session_id`
+and metadata, or `{"found": false}` if no graph is registered under that name.
+
+**Parameters:** `name` (required).
+
+**Response:** `{"found": true, "name": "my-graph", "session_id": "...", "description": "...", "tags": "...", "created_at": "...", "updated_at": "..."}`.
+
+## `list_graphs`
+
+Lists every registered graph, most recently updated first.
+Optionally filter to graphs whose tags contain a given substring.
+
+**Parameters:** `tag` (optional).
+
+**Response:** `{"graphs": [{"name": "my-graph", "session_id": "...", ...}, ...]}`.

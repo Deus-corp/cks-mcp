@@ -127,6 +127,7 @@ Design (see project discussion for full rationale):
 - [ ] **`cks-enrichment-agent` console script**, same shape as `cks-critic-agent`.
 
 ## Future Agents (backlog, not yet designed in detail)
+- [x] **Memory Agent v1:** `register_graph`, `get_graph`, `list_graphs` tools (v1.37.0) — LLMs can now save graphs under memorable names and reuse them across conversations.
 Same outbox-task pattern, lower priority than the Enrichment Agent above:
 - **Contradiction Agent:** `detect_contradictions` exists as an on-demand extension but nothing runs it proactively in the background the way `InferenceStalenessSweeper` does for inference conflicts. A sweeper + `contradiction_conflict` task type would close that gap.
 - **Source Verification Agent:** periodically re-runs `verify_source` against already-committed claims to catch sources that have gone stale, moved, or disappeared since they were first cited.
