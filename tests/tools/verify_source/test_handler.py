@@ -107,3 +107,34 @@ async def test_verify_source_signature_verifies():
 async def test_verify_source_rejects_unsafe_url():
     result = await verify_source(MagicMock(), {"url": "http://127.0.0.1", "subject_id": "doc-1"})
     assert result["error"] == "unsafe_url"
+
+
+def test_safe_request_sends_descriptive_user_agent():
+    # Regression: requests' default "python-requests/x.y" User-Agent gets
+    # a 403 from Wikimedia (and other sites enforcing a bot policy) --
+    # _safe_request must send something identifiable instead, on every
+    # request it makes (this is the one fetch path ingest_document,
+    # verify_source, and the Enrichment Agent's robots.txt check all share).
+    from cks_mcp.tools.verify_source.handler import _USER_AGENT, _safe_request
+
+    assert _USER_AGENT != "python-requests"
+    assert "python-requests" not in _USER_AGENT.lower()
+
+    with patch(
+        "cks_mcp.tools.verify_source.handler._resolve_and_validate_host",
+        return_value=("example.com", ["93.184.216.34"]),
+    ):
+        sent_headers = {}
+
+        class FakeResponse:
+            is_redirect = False
+            status_code = 200
+
+        def fake_get(self, url, timeout, allow_redirects):
+            sent_headers.update(self.headers)
+            return FakeResponse()
+
+        with patch("requests.Session.get", fake_get):
+            _safe_request("https://example.com", method="GET")
+
+    assert sent_headers.get("User-Agent") == _USER_AGENT

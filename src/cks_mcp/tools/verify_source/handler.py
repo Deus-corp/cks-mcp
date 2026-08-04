@@ -30,6 +30,16 @@ _ALLOWED_SCHEMES = frozenset({"http", "https"})
 _MAX_REDIRECTS = 3
 _TIMEOUT_SECONDS = 5
 
+# A descriptive User-Agent, not just requests' default "python-requests/x.y".
+# Several major sites -- most notably Wikimedia, whose User-Agent policy
+# (https://meta.wikimedia.org/wiki/User-Agent_policy) actively 403s
+# generic/default HTTP client UAs to keep unattributed bot traffic off
+# their infrastructure -- reject requests that don't identify themselves.
+# Without this, every ingest_document/verify_source call against
+# wikipedia.org (the Enrichment Agent's first DEFAULT_ADAPTERS entry)
+# fails outright, regardless of how good a match the candidate was.
+_USER_AGENT = "cks-mcp/1.0 (+https://github.com/Deus-corp/cks-mcp)"
+
 
 class UnsafeURLError(ValueError):
     """Raised when a URL is not a safe target for an outbound request."""
@@ -207,6 +217,7 @@ def _safe_request(
     """
     hostname, candidate_ips = _resolve_and_validate_host(url)
     session = requests.Session()
+    session.headers["User-Agent"] = _USER_AGENT
 
     request_fn = getattr(session, method.lower())
 
