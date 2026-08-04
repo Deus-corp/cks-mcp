@@ -1,0 +1,36 @@
+"""Input schema definition for the register_graph tool."""
+
+from __future__ import annotations
+
+REGISTER_GRAPH_SCHEMA = {
+    "name": "register_graph",
+    "description": (
+        "Register (or update) a memorable name for an existing session's "
+        "Knowledge Graph, so it -- or another LLM/person -- can find and "
+        "reuse it later via get_graph/list_graphs instead of rebuilding "
+        "the graph from scratch. Registering an already-used name replaces "
+        "its existing entry (last write wins)."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "A short, memorable, unique name for this graph (the registry key).",
+            },
+            "session_id": {
+                "type": "string",
+                "description": "The session id of the Knowledge Graph to register under this name.",
+            },
+            "description": {
+                "type": "string",
+                "description": "Optional free-text description of what this graph contains.",
+            },
+            "tags": {
+                "type": "string",
+                "description": "Optional comma-separated tags, usable as a filter in list_graphs.",
+            },
+        },
+        "required": ["name", "session_id"],
+    },
+}

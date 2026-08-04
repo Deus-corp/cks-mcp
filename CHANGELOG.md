@@ -3,6 +3,19 @@
 
 ---
 
+## [1.37.0] - 2026-08-04
+
+### Added
+- **Memory Agent v1: graph registry tools.** Three new MCP tools that let LLMs (and humans) save, find, and reuse Knowledge Graphs across conversations by registering them under memorable names:
+  - `register_graph(name, session_id, description?, tags?)` – register or update a named reference to an existing session's graph.
+  - `get_graph(name)` – look up a registered graph and return its `session_id` and metadata, or `{"found": false}`.
+  - `list_graphs(tag?)` – list all registered graphs, most recently updated first, optionally filtered by tag substring.
+- The tools write to the `graph_registry` table added in `cks-runtime` 1.38.0, which is automatically created on first use in SQLite and Postgres backends. `InMemoryStorage` supports them for testing.
+- New unit tests in `tests/tools/register_graph/`, `tests/tools/get_graph/`, and `tests/tools/list_graphs/`.
+- Tool count increased from 36 to 39 (`test_server.py` updated).
+
+---
+
 ## [1.36.0] - 2026-08-04
 
 ### Added

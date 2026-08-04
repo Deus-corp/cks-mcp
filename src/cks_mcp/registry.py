@@ -53,6 +53,8 @@ from cks_mcp.tools.fail_conflict_task import fail_conflict_task
 from cks_mcp.tools.fail_conflict_task.schema import FAIL_CONFLICT_TASK_SCHEMA
 from cks_mcp.tools.fork_sandbox import fork_sandbox
 from cks_mcp.tools.fork_sandbox.schema import FORK_SANDBOX_SCHEMA
+from cks_mcp.tools.get_graph import get_graph
+from cks_mcp.tools.get_graph.schema import GET_GRAPH_SCHEMA
 from cks_mcp.tools.get_metrics import get_metrics
 from cks_mcp.tools.get_metrics.schema import GET_METRICS_SCHEMA
 from cks_mcp.tools.ingest_document import ingest_document
@@ -63,6 +65,8 @@ from cks_mcp.tools.list_dead_lettered_conflicts.schema import (
 )
 from cks_mcp.tools.list_gossip_conflicts import list_gossip_conflicts
 from cks_mcp.tools.list_gossip_conflicts.schema import LIST_GOSSIP_CONFLICTS_SCHEMA
+from cks_mcp.tools.list_graphs import list_graphs
+from cks_mcp.tools.list_graphs.schema import LIST_GRAPHS_SCHEMA
 from cks_mcp.tools.list_inference_conflicts import list_inference_conflicts
 from cks_mcp.tools.list_inference_conflicts.schema import (
     LIST_INFERENCE_CONFLICTS_SCHEMA,
@@ -73,6 +77,8 @@ from cks_mcp.tools.query_subgraph import query_subgraph_tool
 from cks_mcp.tools.query_subgraph.schema import QUERY_SUBGRAPH_SCHEMA
 from cks_mcp.tools.refresh_verification import refresh_verification
 from cks_mcp.tools.refresh_verification.schema import REFRESH_VERIFICATION_SCHEMA
+from cks_mcp.tools.register_graph import register_graph
+from cks_mcp.tools.register_graph.schema import REGISTER_GRAPH_SCHEMA
 from cks_mcp.tools.request_enrichment import request_enrichment
 from cks_mcp.tools.request_enrichment.schema import REQUEST_ENRICHMENT_SCHEMA
 from cks_mcp.tools.resolve_gossip_conflict import resolve_gossip_conflict
@@ -321,5 +327,17 @@ TOOLS = {
             "session_id",
             "object_id",
         )(resolve_temporal_conflict),
+    },
+    "register_graph": {
+        **REGISTER_GRAPH_SCHEMA,
+        "handler": _wrap("register_graph", "name", "session_id")(register_graph),
+    },
+    "get_graph": {
+        **GET_GRAPH_SCHEMA,
+        "handler": _wrap("get_graph", "name")(get_graph),
+    },
+    "list_graphs": {
+        **LIST_GRAPHS_SCHEMA,
+        "handler": _wrap("list_graphs")(list_graphs),
     },
 }
