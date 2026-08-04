@@ -71,6 +71,8 @@ from cks_mcp.tools.merge import merge_branch, merge_knowledge
 from cks_mcp.tools.merge.schema import MERGE_BRANCH_SCHEMA, MERGE_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 from cks_mcp.tools.query_subgraph.schema import QUERY_SUBGRAPH_SCHEMA
+from cks_mcp.tools.refresh_verification import refresh_verification
+from cks_mcp.tools.refresh_verification.schema import REFRESH_VERIFICATION_SCHEMA
 from cks_mcp.tools.request_enrichment import request_enrichment
 from cks_mcp.tools.request_enrichment.schema import REQUEST_ENRICHMENT_SCHEMA
 from cks_mcp.tools.resolve_gossip_conflict import resolve_gossip_conflict
@@ -295,5 +297,16 @@ TOOLS = {
         "handler": _wrap_open_session(
             "resolve_gossip_conflict", "target_session_id", "source_session_id"
         )(resolve_gossip_conflict),
+    },
+    "refresh_verification": {
+        **REFRESH_VERIFICATION_SCHEMA,
+        "handler": _wrap_open_session_fields(
+            "refresh_verification",
+            "session_id",
+            "session_id",
+            "record_id",
+            "subject_id",
+            "source_url",
+        )(refresh_verification),
     },
 }

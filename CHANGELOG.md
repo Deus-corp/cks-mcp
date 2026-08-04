@@ -3,6 +3,18 @@
 
 ---
 
+## [1.34.0] - 2026-08-04
+
+### Added
+- **`refresh_verification` tool** – resolves `provenance_conflict` tasks escalated by `ProvenanceStalenessSweeper` (cks-runtime ADR-010). Re‑runs `verify_source` against the original URL and applies the new verification record via `evolve_knowledge` when `commit: true` is set. Fully mechanical – no LLM call, no `auto_resolve` parameter.
+- **`provenance_conflict` support in `critic_agent.py`** – the Critic Agent now polls for `provenance_conflict` tasks alongside `gossip_conflict` and `inference_conflict`. Resolution calls `refresh_verification` with `commit=True`; a failing re‑verification is retried with backoff and dead‑lettered after exceeding `CKS_CRITIC_MAX_RETRIES`.
+- Tool count increased from 34 to 35. New tests for `refresh_verification` handler and for the Critic Agent's provenance resolution path.
+
+### Changed
+- `tests/test_critic_agent.py` – updated mock dequeue functions to handle the new `provenance_conflict` task type in `run_once` and metrics tests.
+
+---
+
 ## [1.33.0] - 2026-08-04
 
 ### Added

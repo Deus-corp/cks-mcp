@@ -1,27 +1,32 @@
 """
-Critic Agent: an autonomous, unattended process that resolves gossip
-and inference conflicts from the persistent outbox.
+Critic Agent: an autonomous, unattended process that resolves gossip,
+inference, and provenance conflicts from the persistent outbox.
 
 This is the "Critic Agent runtime loop" item from ROADMAP.md's "Next
 Up" section -- the last missing piece of the Critic-agent design. All
 of the supporting plumbing already shipped before this module:
 
 - Detection: ``InferenceStalenessSweeper`` (cks-runtime, ADR-009),
-  ``GossipConflictDetected`` (ADR-008).
+  ``GossipConflictDetected`` (ADR-008), ``ProvenanceStalenessSweeper``
+  (cks-runtime, ADR-010).
 - Queueing: gossip/inference conflicts are dual-written into the
   persistent outbox (``cks_outbox_tasks``, task_type
   ``"gossip_conflict"``/``"inference_conflict"``) by
   ``cks_mcp.gossip``/``cks_mcp.observability`` whenever the storage
   backend supports it (SQLite or Postgres -- never the default
-  in-memory backend).
+  in-memory backend). ``ProvenanceStalenessSweeper`` writes
+  ``"provenance_conflict"`` tasks onto the same outbox directly, since
+  detection there already lives in cks-runtime rather than cks-mcp.
 - Claiming: ``claim_conflict_task`` atomically dequeues one task at a
   time from a *separate* Runtime/process, exactly what this module
   needs -- see that tool's own docstring for why a separate process
   can't just read the in-process ``ConflictInbox`` the interactive
   ``list_gossip_conflicts``/``list_inference_conflicts`` tools use.
-- Resolution: ``merge_branch`` (gossip) and
+- Resolution: ``merge_branch`` (gossip),
   ``arbitrate_inference_conflict`` with ``auto_resolve``+``commit``
-  (inference).
+  (inference), and ``refresh_verification`` with ``commit`` (provenance
+  -- see that tool's own docstring for why it has no ``auto_resolve``
+  LLM path).
 - Outcome: ``complete_conflict_task`` / ``fail_conflict_task`` /
   ``dead_letter_conflict_task``.
 
@@ -65,6 +70,13 @@ policy)"):
   doesn't have) is not silently dropped -- it's reported in the
   ``Resolution``'s detail and, after enough retries, dead-lettered for
   a human to look at.
+- ``provenance_conflict`` (ADR-010): a stale ``VerificationRecord``
+  found by ``ProvenanceStalenessSweeper`` (cks-runtime) is resolved
+  mechanically -- no LLM involved at all -- via
+  ``refresh_verification(auto_resolve=True, commit=True)``, which
+  re-runs the same real HTTP check ``verify_source`` performs and
+  commits the fresh, signed record. A task whose subject carries no
+  URL to re-check is dead-lettered for a human rather than retried.
 
 A task is dead-lettered (not retried forever) once its retry_count
 would reach ``max_retries`` (default 5, same cap philosophy as
@@ -99,6 +111,7 @@ from cks_mcp.tools.complete_conflict_task.handler import complete_conflict_task
 from cks_mcp.tools.dead_letter_conflict_task.handler import dead_letter_conflict_task
 from cks_mcp.tools.fail_conflict_task.handler import fail_conflict_task
 from cks_mcp.tools.merge.handler import merge_branch
+from cks_mcp.tools.refresh_verification.handler import refresh_verification
 
 # Resolution/run_resolver_with_heartbeat now live in cks_mcp.agent_loop
 # (shared with cks_mcp.enrichment_agent) -- re-exported under their
@@ -124,7 +137,7 @@ _DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60.0
 _DEFAULT_LLM_BREAKER_THRESHOLD = 3
 _DEFAULT_LLM_BREAKER_COOLDOWN_SECONDS = 60.0
 
-_TASK_TYPES = ("gossip_conflict", "inference_conflict")
+_TASK_TYPES = ("gossip_conflict", "inference_conflict", "provenance_conflict")
 
 
 @dataclass(slots=True)
@@ -357,6 +370,72 @@ async def resolve_gossip_conflict(runtime: Runtime, task: dict[str, Any]) -> Res
     return Resolution(False, f"merge_branch did not succeed: {result}")
 
 
+async def resolve_provenance_conflict(runtime: Runtime, task: dict[str, Any]) -> Resolution:
+    """
+    Attempt to resolve a ``provenance_conflict`` task (ADR-010,
+    ``ProvenanceStalenessSweeper`` in cks-runtime) via
+    ``refresh_verification(auto_resolve=True, commit=True)``.
+
+    The task's payload is the sweeper's own escalation shape:
+    ``{"record_id", "subject_id", "source_url", "checked_at", "reason"}``
+    (see ``ProvenanceStalenessSweeper._sweep_session``). ``source_url``
+    can legitimately be absent -- the sweeper only includes it when the
+    VerificationRecord's subject happens to carry a ``url`` field (e.g.
+    a ``Document``) -- in which case there is nothing for this agent to
+    re-check automatically, and the task is dead-lettered for a human
+    (not retried: a missing URL on the subject won't appear on a later
+    attempt).
+
+    Unlike ``resolve_inference_conflict``, there is no LLM circuit
+    breaker to guard here: ``refresh_verification`` never calls an LLM
+    (see that tool's own docstring), so there is no provider outage
+    for a breaker to protect against.
+    """
+    payload = task.get("payload")
+    if not isinstance(payload, dict):
+        return Resolution(False, f"payload was not a JSON object: {payload!r}")
+
+    record_id = payload.get("record_id")
+    subject_id = payload.get("subject_id")
+    source_url = payload.get("source_url")
+
+    if not record_id or not subject_id:
+        return Resolution(
+            False,
+            "payload is missing 'record_id' and/or 'subject_id' -- cannot "
+            "refresh a verification without knowing which record/subject "
+            "it belongs to.",
+        )
+    if not source_url:
+        return Resolution(
+            False,
+            f"payload has no 'source_url' for subject_id={subject_id!r} -- "
+            "the subject carries no 'url' field, so there is nothing for "
+            "this agent to re-check automatically.",
+        )
+
+    result = await refresh_verification(
+        runtime,
+        {
+            "session_id": task["session_id"],
+            "record_id": record_id,
+            "subject_id": subject_id,
+            "source_url": source_url,
+            "auto_resolve": True,
+            "commit": True,
+        },
+    )
+
+    if result.get("error"):
+        return Resolution(False, f"refresh_verification error: {result}")
+
+    commit_result = result.get("commit_result")
+    if isinstance(commit_result, dict) and commit_result.get("error"):
+        return Resolution(False, f"commit failed: {commit_result}")
+
+    return Resolution(True)
+
+
 def _extract_locations(diagnostics: list[Any], code: str) -> list[str]:
     return sorted(
         {
@@ -545,6 +624,7 @@ async def resolve_inference_conflict(runtime: Runtime, task: dict[str, Any]) -> 
 _RESOLVERS = {
     "gossip_conflict": resolve_gossip_conflict,
     "inference_conflict": resolve_inference_conflict,
+    "provenance_conflict": resolve_provenance_conflict,
 }
 
 

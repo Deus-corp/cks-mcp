@@ -565,7 +565,10 @@ async def test_run_once_drains_both_queues(mock_runtime):
     async def _dequeue(task_type=None):
         if task_type == "gossip_conflict":
             return gossip_tasks.pop(0)
-        return inference_tasks.pop(0)
+        if task_type == "inference_conflict":
+            return inference_tasks.pop(0)
+        # provenance_conflict — not used in this test
+        return None
 
     mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=_dequeue)
 
@@ -758,7 +761,8 @@ async def test_metrics_track_completed_and_dead_lettered(mock_runtime):
     async def _dequeue(task_type=None):
         if task_type == "gossip_conflict":
             return gossip_tasks.pop(0)
-        return inference_tasks.pop(0)
+        # other task types — not used in this test
+        return None
 
     mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=_dequeue)
 
