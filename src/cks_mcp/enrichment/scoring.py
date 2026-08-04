@@ -69,10 +69,24 @@ def _relevance_score(url: str, title: str, query: str) -> float:
     )
     candidate_terms = _tokenize(candidate_text)
     if not candidate_terms:
-        return 0.3
+        # A query was given but the candidate carries no text to compare
+        # it against at all -- that's an absence of evidence, not a
+        # neutral "maybe relevant", so it scores the same as zero
+        # overlap below. (Unlike the no-query-terms branch above, which
+        # is genuinely a "nothing to judge by" case rather than a
+        # judged-and-found-wanting one.)
+        return 0.0
 
     overlap = len(query_terms & candidate_terms) / len(query_terms)
-    return _clamp01(0.3 + 0.7 * overlap)
+    # No floor here: previously this was `0.3 + 0.7 * overlap`, which
+    # meant *zero* term overlap still scored 0.3 -- high enough that,
+    # combined with a high-authority domain (wikipedia.org ~0.9,
+    # arxiv.org ~0.92, both DEFAULT_ADAPTERS), score_candidate() cleared
+    # the default CKS_ENRICHMENT_MIN_SCORE=0.5 threshold on authority
+    # alone, regardless of whether the candidate had anything to do
+    # with the query. Relevance should be able to actually veto a
+    # candidate, not just nudge its rank -- so it scales from 0 now.
+    return _clamp01(overlap)
 
 
 def score_candidate(

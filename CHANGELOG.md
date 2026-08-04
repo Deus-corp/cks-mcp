@@ -3,6 +3,15 @@
 
 ---
 
+## [1.32.1] - 2026-08-04
+
+### Fixed
+- **Enrichment Agent scoring: zero‑relevance candidates can now be vetoed.** The relevance component of `score_candidate` previously had a 0.3 floor, meaning a high‑authority domain (wikipedia.org, arxiv.org) could clear `CKS_ENRICHMENT_MIN_SCORE` even when it had nothing to do with the query. The floor is removed; relevance now scales from 0.0, so a candidate with no term overlap can genuinely be filtered out regardless of authority.
+- **Enrichment Agent deduplication: already‑enriched URLs are skipped.** A repeat `enrichment_request` for the same object no longer re‑ingests the same source (which would fail with a duplicate identity), wasting retries and eventually dead‑lettering the task. `_already_enriched_urls` scans the session for existing `enriched_by` relations and filters candidates accordingly.
+- New tests: zero‑overlap relevance regression tests for arXiv and Wikipedia, dedup behaviour when one candidate is already enriched but another is new, and `_already_enriched_urls` ignoring other relation types/objects.
+
+---
+
 ## [1.32.0] - 2026-08-04
 
 ### Added — Critic Agent Hardening

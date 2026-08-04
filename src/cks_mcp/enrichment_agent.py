@@ -175,11 +175,50 @@ def _ops_from_structure(structure_dict: dict[str, Any]) -> list[dict[str, Any]]:
     return ops
 
 
-def _find_object_name(session: Any, object_id: str) -> str | None:
+def _find_object_by_id(session: Any, object_id: str) -> Any | None:
     for obj in session.knowledge_structure.objects:
         if obj.identity.id == object_id:
-            return obj.identity.name
+            return obj
     return None
+
+
+def _find_object_name(session: Any, object_id: str) -> str | None:
+    obj = _find_object_by_id(session, object_id)
+    return obj.identity.name if obj is not None else None
+
+
+def _already_enriched_urls(session: Any, object_id: str) -> set[str]:
+    """
+    URLs already linked to ``object_id`` via a prior ``enriched_by``
+    relation in this session.
+
+    Nothing stops a caller from queuing more than one
+    ``enrichment_request`` for the same object -- ``request_enrichment``
+    does no dedup of its own -- so without this check a repeat task
+    would re-run the whole search -> ingest -> link pipeline on a
+    source it already successfully linked. That's not just wasted work:
+    ``ingest_document``'s Document id is a deterministic hash of the
+    URL (see ``ingest_document.handler``), so re-ingesting the same URL
+    makes ``evolve_knowledge`` reject the resulting ``add_object`` as a
+    duplicate id, turning what should be a no-op into a failure that
+    burns a retry -- and, after ``max_retries`` of them, a dead-lettered
+    task for a source that was actually enriched successfully the first
+    time.
+    """
+    urls: set[str] = set()
+    for rel in session.knowledge_structure.relations():
+        if rel.relation_type != "enriched_by" or object_id not in rel.participants:
+            continue
+        doc_id = next((p for p in rel.participants if p != object_id), None)
+        if doc_id is None:
+            continue
+        doc_obj = _find_object_by_id(session, doc_id)
+        if doc_obj is None:
+            continue
+        url = doc_obj.structure.get("url")
+        if url:
+            urls.add(url)
+    return urls
 
 
 # ---------------------------------------------------------------------------
@@ -229,8 +268,13 @@ async def resolve_enrichment_request(
             return Resolution(False, f"all search adapters failed: {adapter_errors}")
         return Resolution(True, f"no search results for query {query!r}")
 
+    already_urls = _already_enriched_urls(session, object_id)
+    already_enriched = [c.url for c in candidates if c.url in already_urls]
+
     policy = EnrichmentPolicy.from_env()
-    filtered = [c for c in candidates if policy.candidate_allowed(c.url)]
+    filtered = [
+        c for c in candidates if c.url not in already_urls and policy.candidate_allowed(c.url)
+    ]
 
     scored = sorted(
         (
@@ -243,11 +287,14 @@ async def resolve_enrichment_request(
     accepted = [(s, c) for s, c in scored if s >= settings.min_score][: settings.max_ingests]
 
     if not accepted:
-        return Resolution(
-            True,
+        detail = (
             f"no candidate scored >= {settings.min_score} for query {query!r} "
-            f"({len(candidates)} found, {len(filtered)} passed policy filters)",
+            f"({len(candidates)} found, {len(filtered)} passed policy filters "
+            f"and were not already enriched)"
         )
+        if already_enriched:
+            detail += f"; already enriched (skipped): {already_enriched}"
+        return Resolution(True, detail)
 
     linked: list[str] = []
     skipped_robots: list[str] = []
@@ -312,6 +359,8 @@ async def resolve_enrichment_request(
         detail_parts = [f"linked {len(linked)} source(s): {linked}"]
         if skipped_robots:
             detail_parts.append(f"skipped (robots.txt): {skipped_robots}")
+        if already_enriched:
+            detail_parts.append(f"already enriched (skipped): {already_enriched}")
         if failures:
             detail_parts.append(f"failed: {failures}")
         return Resolution(True, "; ".join(detail_parts))
