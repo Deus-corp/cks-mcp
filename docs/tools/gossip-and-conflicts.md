@@ -155,6 +155,31 @@ Session validation (existence and open state) for both `target_session_id`
 and `source_session_id` is enforced the same way `merge_branch` enforces it
 for its `target_session_id`.
 
+## `refresh_verification`
+
+Re‑verifies a provenance source whose `VerificationRecord` is older than
+the TTL (escalated by `ProvenanceStalenessSweeper`, cks‑runtime ADR‑010).
+Calls `verify_source` with the original `record_id`, `subject_id`, and
+`source_url`, and commits the fresh record when `commit: true` is set.
+Fully mechanical — no LLM call.
+
+**Parameters:** `session_id`, `record_id`, `subject_id`, `source_url`,
+`commit` (optional, default `false`).
+
+## `resolve_temporal_conflict`
+
+Resolves a `temporal_conflict` task (escalated by `TemporalStalenessSweeper`,
+cks‑runtime ADR‑011) for an object whose `valid_until` has expired.
+Supports three actions:
+- `bump` — extends `valid_until` by `extend_by_days` days (default 30).
+- `archive` — marks the object as `archived` and clears `valid_until`.
+- `ignore` — acknowledges the conflict without any modification.
+All actions are mechanical (no LLM) and are applied via `evolve_knowledge`
+when `commit: true` is set.
+
+**Parameters:** `session_id`, `object_id`, `action` (`"bump"`/`"archive"`/`"ignore"`),
+`extend_by_days` (for `bump`, default 30), `commit` (optional, default `false`).
+
 ## Critic Agent (autonomous)
 
 `cks-critic-agent` is a separate console process that runs alongside the

@@ -143,7 +143,7 @@ real request/response examples: [`docs/tools/`](docs/tools/index.md).
 | Verification & Integrity | `verify_source`, `detect_contradictions` |
 | AI-Assisted & Ingestion | `construct_knowledge`, `suggest_evolution`, `ingest_document`, `request_enrichment` |
 | Export & Observability | `export_knowledge`, `export_session`, `get_metrics` |
-| Gossip & Conflict Resolution | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` |
+| Gossip & Conflict Resolution | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `refresh_verification`, `resolve_temporal_conflict`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` |
 
 ## Critic Agent (unattended conflict resolution)
 
@@ -154,6 +154,8 @@ only — not the default in-memory backend) for `gossip_conflict` and
 `arbitrate_inference_conflict(auto_resolve=True)`, and dead-letters whatever it
 can't confidently resolve for a human to review via
 `list_dead_lettered_conflicts`.
+- `provenance_conflict` → calls `refresh_verification` to re‑verify the source.
+- `temporal_conflict` → calls `resolve_temporal_conflict(action="bump", extend_by_days=30)` as a safe default.
 
 ```bash
 # Point it at the same database cks-mcp itself uses (defaults to
