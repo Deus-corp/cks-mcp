@@ -79,6 +79,10 @@ from cks_mcp.tools.resolve_gossip_conflict import resolve_gossip_conflict
 from cks_mcp.tools.resolve_gossip_conflict.schema import (
     RESOLVE_GOSSIP_CONFLICT_SCHEMA,
 )
+from cks_mcp.tools.resolve_temporal_conflict import resolve_temporal_conflict
+from cks_mcp.tools.resolve_temporal_conflict.schema import (
+    RESOLVE_TEMPORAL_CONFLICT_SCHEMA,
+)
 from cks_mcp.tools.revert import list_versions, revert_version
 from cks_mcp.tools.revert.schema import LIST_VERSIONS_SCHEMA, REVERT_VERSION_SCHEMA
 from cks_mcp.tools.search_semantic import search_semantic
@@ -308,5 +312,14 @@ TOOLS = {
             "subject_id",
             "source_url",
         )(refresh_verification),
+    },
+    "resolve_temporal_conflict": {
+        **RESOLVE_TEMPORAL_CONFLICT_SCHEMA,
+        "handler": _wrap_open_session_fields(
+            "resolve_temporal_conflict",
+            "session_id",
+            "session_id",
+            "object_id",
+        )(resolve_temporal_conflict),
     },
 }

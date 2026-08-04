@@ -3,6 +3,22 @@
 
 ---
 
+## [1.35.0] - 2026-08-04
+
+### Added
+- **`resolve_temporal_conflict` tool** – resolves `temporal_conflict` tasks escalated by `TemporalStalenessSweeper` (cks‑runtime ADR‑011). Supports three actions on expired facts:
+  * `bump` – extends `valid_until` by a given number of days, anchored at `max(current valid_until, now)`.
+  * `archive` – marks the object as `archived` with a timestamp and clears `valid_until` (object and its relations stay in the graph).
+  * `ignore` – acknowledges the conflict without any modification.
+  All actions are mechanical (no LLM) and are applied via `evolve_knowledge` when `commit: true` is set.
+- **`temporal_validity` extension alias** added to `EXTENSION_ALIASES` in `validate` handler so `evolve_knowledge(extensions=["temporal_validity"])` resolves correctly (constraint already existed in cks‑core ≥ 1.20.0).
+- Tool count increased from 35 to 36. 14 new tests in `tests/tools/resolve_temporal_conflict/test_handler.py`.
+
+### Changed
+- `tests/test_critic_agent.py` – cleaned up unused variable in metrics test; no functional change.
+
+---
+
 ## [1.34.0] - 2026-08-04
 
 ### Added

@@ -36,6 +36,12 @@ EXTENSION_ALIASES: dict[str, str] = {
     "confidence_bounds": "CKS-EXT-CONFIDENCE-BOUNDS",
     "supersession_chain": "CKS-EXT-SUPERSESSION-CHAIN",
     "inference_confidence_conflict": "CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT",
+    # Temporal domain (valid_until expiry, see cks-core ADR-003 /
+    # cks-runtime ADR-011's TemporalStalenessSweeper). Registered in
+    # cks-core's OPTIONAL_CONSTRAINTS_BY_NAME under the same name, but
+    # never added here -- so callers (e.g. resolve_temporal_conflict)
+    # could not opt into it by name at commit time until now.
+    "temporal_validity": "CKS-EXT-TEMPORAL-VALIDITY",
 }
 
 # Trust-bearing types are enforced unconditionally the moment they

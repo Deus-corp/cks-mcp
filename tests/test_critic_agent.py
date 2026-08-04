@@ -756,7 +756,6 @@ async def test_metrics_track_completed_and_dead_lettered(mock_runtime):
         OutboxTask(task_id=1, task_type="gossip_conflict", session_id="s1", payload="{}", retry_count=0),
         None,
     ]
-    inference_tasks = [None]
 
     async def _dequeue(task_type=None):
         if task_type == "gossip_conflict":
