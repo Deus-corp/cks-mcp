@@ -51,6 +51,8 @@ from cks_mcp.tools.explain import explain_knowledge
 from cks_mcp.tools.explain.schema import EXPLAIN_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.explain_diff import explain_diff
 from cks_mcp.tools.explain_diff.schema import EXPLAIN_DIFF_SCHEMA
+from cks_mcp.tools.explain_graph import explain_graph
+from cks_mcp.tools.explain_graph.schema import EXPLAIN_GRAPH_SCHEMA
 from cks_mcp.tools.export_knowledge import export_knowledge
 from cks_mcp.tools.export_knowledge.schema import EXPORT_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.export_session import export_session
@@ -375,6 +377,10 @@ TOOLS = {
     "check_component_versions": {
         **CHECK_COMPONENT_VERSIONS_SCHEMA,
         "handler": _wrap("check_component_versions", "name")(check_component_versions),
+    },
+    "explain_graph": {
+        **EXPLAIN_GRAPH_SCHEMA,
+        "handler": _wrap("explain_graph", "name")(explain_graph),
     },
     "update_registered_graph": {
         **UPDATE_REGISTERED_GRAPH_SCHEMA,

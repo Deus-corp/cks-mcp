@@ -3,6 +3,15 @@
 
 ---
 
+## [1.44.0] - 2026-08-05
+
+### Added
+- **`explain_graph` tool** – generates a human-readable Markdown report for any registered ecosystem graph (Memory Agent v1). Walks the session's `knowledge_structure.objects`, groups entities by `identity.type` (Component, Module, StorageBackend, Sweeper, Agent, Tool, ADR, Plugin, Interface, Task), resolves relations to link modules/ADRs to their parent components, shows sweeper resolutions, agent responsibilities, tool categories, plugin status, and flags dangling relations as anomalies. Purely mechanical — no LLM calls, no network requests. Makes knowledge graphs accessible to any LLM (or person) without parsing raw JSON.
+- Tool count increased from 48 to 49 (`test_server.py` updated).
+- New unit tests in `tests/tools/explain_graph/test_handler.py` covering missing name, graph not found, session unavailable, full report with all sections, empty graph, and unrecognised object types.
+
+---
+
 ## [1.43.0] - 2026-08-05
 
 ### Added
