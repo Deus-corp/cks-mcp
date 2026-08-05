@@ -3,6 +3,19 @@
 
 ---
 
+## [1.40.0] - 2026-08-05
+
+### Added
+- **Backup & migration tools (ADR-012)** – three new MCP tools for exporting, importing, and migrating data between storage backends:
+  - `export_storage` – saves a complete dump of all sessions, versions, graphs, embeddings, and outbox tasks to a JSON file. Returns the file path and a summary.
+  - `import_storage` – restores data from a previously created dump into the current backend (with `clear` or `merge` modes).
+  - `migrate_storage` – transfers data from the current backend to a new one (SQLite or Postgres), creating a new file/database without replacing the active `runtime.storage`.
+- All three tools are mechanical (no LLM). Registered in `registry.py` under the Export & Observability group.
+- Tool count increased from 42 to 45 (`test_server.py` updated).
+- New tests in `tests/tools/export_storage/`, `tests/tools/import_storage/`, `tests/tools/migrate_storage/`.
+
+---
+
 ## [1.39.0] - 2026-08-05
 
 ### Added

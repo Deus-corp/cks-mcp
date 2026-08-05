@@ -51,6 +51,8 @@ from cks_mcp.tools.export_knowledge import export_knowledge
 from cks_mcp.tools.export_knowledge.schema import EXPORT_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.export_session import export_session
 from cks_mcp.tools.export_session.schema import EXPORT_SESSION_SCHEMA
+from cks_mcp.tools.export_storage import export_storage
+from cks_mcp.tools.export_storage.schema import EXPORT_STORAGE_SCHEMA
 from cks_mcp.tools.fail_conflict_task import fail_conflict_task
 from cks_mcp.tools.fail_conflict_task.schema import FAIL_CONFLICT_TASK_SCHEMA
 from cks_mcp.tools.fork_sandbox import fork_sandbox
@@ -59,6 +61,8 @@ from cks_mcp.tools.get_graph import get_graph
 from cks_mcp.tools.get_graph.schema import GET_GRAPH_SCHEMA
 from cks_mcp.tools.get_metrics import get_metrics
 from cks_mcp.tools.get_metrics.schema import GET_METRICS_SCHEMA
+from cks_mcp.tools.import_storage import import_storage
+from cks_mcp.tools.import_storage.schema import IMPORT_STORAGE_SCHEMA
 from cks_mcp.tools.ingest_document import ingest_document
 from cks_mcp.tools.ingest_document.schema import INGEST_DOCUMENT_SCHEMA
 from cks_mcp.tools.list_dead_lettered_conflicts import list_dead_lettered_conflicts
@@ -75,6 +79,8 @@ from cks_mcp.tools.list_inference_conflicts.schema import (
 )
 from cks_mcp.tools.merge import merge_branch, merge_knowledge
 from cks_mcp.tools.merge.schema import MERGE_BRANCH_SCHEMA, MERGE_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.migrate_storage import migrate_storage
+from cks_mcp.tools.migrate_storage.schema import MIGRATE_STORAGE_SCHEMA
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 from cks_mcp.tools.query_subgraph.schema import QUERY_SUBGRAPH_SCHEMA
 from cks_mcp.tools.refresh_verification import refresh_verification
@@ -359,5 +365,17 @@ TOOLS = {
     "search_graphs": {
         **SEARCH_GRAPHS_SCHEMA,
         "handler": _wrap("search_graphs", "query")(search_graphs),
+    },
+    "export_storage": {
+        **EXPORT_STORAGE_SCHEMA,
+        "handler": _wrap("export_storage")(export_storage),
+    },
+    "import_storage": {
+        **IMPORT_STORAGE_SCHEMA,
+        "handler": _wrap("import_storage", "file_path")(import_storage),
+    },
+    "migrate_storage": {
+        **MIGRATE_STORAGE_SCHEMA,
+        "handler": _wrap("migrate_storage", "target_backend", "target_path")(migrate_storage),
     },
 }

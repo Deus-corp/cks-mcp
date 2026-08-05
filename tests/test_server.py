@@ -67,7 +67,7 @@ async def test_tools_list(mock_runtime):
     request = {"jsonrpc": "2.0", "id": 3, "method": "tools/list"}
     response = await handle_request(mock_runtime, request)
     tools = response["result"]["tools"]
-    assert len(tools) == 42
+    assert len(tools) == 45
     assert any(t["name"] == "validate_knowledge" for t in tools)
 
 
