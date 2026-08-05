@@ -17,16 +17,14 @@ import tempfile
 from typing import Any
 
 from cks_runtime.config import RuntimeConfig
-from cks_runtime.embedding.client import (
-    FastEmbedEmbeddingClient,
-    HuggingFaceEmbeddingClient,
-)
 from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
-from cks_mcp.gossip import GossipSettings, setup_gossip
 from cks_mcp.observability import setup_event_subscriptions
+from cks_mcp.plugin import PluginRegistry
+from cks_mcp.plugins import FastEmbedPlugin, GossipPlugin
+from cks_mcp.tools.list_plugins.handler import set_plugin_registry
 from cks_mcp.paths import data_dir
 from cks_mcp.prompts import PROMPTS, get_prompt, list_prompts
 from cks_mcp.registry import TOOLS
@@ -287,50 +285,27 @@ async def main() -> None:
                     key, _, value = line.partition("=")
                     os.environ.setdefault(key.strip(), value.strip())
 
-    # Инициализируем embedding-клиент
-    embedding_provider = os.environ.get("CKS_EMBEDDING_PROVIDER", "fastembed").lower()
-    embedding_client = None
+    # Создаём реестр плагинов и регистрируем встроенные плагины.
+    registry = PluginRegistry()
+    registry.register(FastEmbedPlugin())
+    registry.register(GossipPlugin())
 
-    def _try_huggingface() -> HuggingFaceEmbeddingClient | None:
-        try:
-            return HuggingFaceEmbeddingClient()
-        except Exception as exc:
-            print(f"[CKS-MCP] WARNING: HuggingFace embedding client unavailable: {exc}", file=sys.stderr)
-            return None
+    # Пробрасываем реестр в инструмент list_plugins.
+    set_plugin_registry(registry)
 
-    if embedding_provider == "huggingface":
-        embedding_client = _try_huggingface()
-    elif embedding_provider == "stub":
-        embedding_client = None
-    else:
-        if embedding_provider != "fastembed":
-            print(
-                f"[CKS-MCP] WARNING: Unknown CKS_EMBEDDING_PROVIDER={embedding_provider!r}, "
-                f"defaulting to fastembed.",
-                file=sys.stderr,
-            )
-        try:
-            embedding_client = FastEmbedEmbeddingClient()
-        except Exception as exc:
-            print(f"[CKS-MCP] WARNING: fastembed unavailable ({exc}); trying HuggingFace.", file=sys.stderr)
-            embedding_client = _try_huggingface()
+    available = registry.list_available()
+    print(
+        f"[CKS-MCP] Available plugins: {available if available else '(none)'}",
+        file=sys.stderr,
+    )
 
-    if embedding_client is None:
-        print(
-            "[CKS-MCP] WARNING: No embedding client configured — search_semantic will "
-            "fall back to Runtime's non-semantic StubEmbeddingClient (SHA-256 based). "
-            "Results will look like scores near 0 for everything, not real similarity. "
-            "Install fastembed (`pip install cks-runtime[fastembed]`) or set HF_TOKEN "
-            "and CKS_EMBEDDING_PROVIDER=huggingface to fix this.",
-            file=sys.stderr,
-        )
-
-    # Создаём Runtime (асинхронно, с восстановлением сессий и запуском outbox-worker)
+    # Создаём Runtime без embedding-клиента; плагин FastEmbedPlugin
+    # установит его в runtime.embedding_client после create().
     if storage is None and use_persistent:
         try:
             config = RuntimeConfig(storage_path=db_path)
             runtime = await Runtime.create(
-                core=CksCoreAdapter(), config=config, embedding_client=embedding_client
+                core=CksCoreAdapter(), config=config
             )
         except Exception as e:
             print(
@@ -339,23 +314,21 @@ async def main() -> None:
                 file=sys.stderr,
             )
             storage = InMemoryStorage()
+            config = RuntimeConfig()
             runtime = await Runtime.create(
                 core=CksCoreAdapter(),
                 storage=storage,
-                embedding_client=embedding_client,
             )
     else:
+        config = RuntimeConfig()
         runtime = await Runtime.create(
-            core=CksCoreAdapter(), storage=storage, embedding_client=embedding_client
+            core=CksCoreAdapter(), storage=storage
         )
 
     setup_event_subscriptions(runtime)
 
-    # Gossip (опционально, выключено по умолчанию — включается через
-    # CKS_GOSSIP_ENABLED=true). См. cks_mcp/gossip.py.
-    gossip_handle = setup_gossip(runtime, GossipSettings.from_env())
-    if gossip_handle is not None:
-        await gossip_handle.start()
+    # Инициализируем все доступные плагины (embedding + gossip и любые будущие).
+    plugin_handles = registry.setup_all(runtime, config)
 
     # Неблокирующее чтение stdin через asyncio
     loop = asyncio.get_running_loop()

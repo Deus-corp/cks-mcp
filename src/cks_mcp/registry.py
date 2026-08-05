@@ -79,6 +79,8 @@ from cks_mcp.tools.list_inference_conflicts.schema import (
 )
 from cks_mcp.tools.merge import merge_branch, merge_knowledge
 from cks_mcp.tools.merge.schema import MERGE_BRANCH_SCHEMA, MERGE_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.list_plugins import list_plugins
+from cks_mcp.tools.list_plugins.schema import LIST_PLUGINS_SCHEMA
 from cks_mcp.tools.migrate_storage import migrate_storage
 from cks_mcp.tools.migrate_storage.schema import MIGRATE_STORAGE_SCHEMA
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
@@ -377,5 +379,9 @@ TOOLS = {
     "migrate_storage": {
         **MIGRATE_STORAGE_SCHEMA,
         "handler": _wrap("migrate_storage", "target_backend", "target_path")(migrate_storage),
+    },
+    "list_plugins": {
+        **LIST_PLUGINS_SCHEMA,
+        "handler": _wrap("list_plugins")(list_plugins),
     },
 }
