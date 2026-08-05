@@ -1,7 +1,7 @@
 """
 Critic Agent: an autonomous, unattended process that resolves gossip,
-inference, provenance, and temporal conflicts from the persistent
-outbox.
+inference, provenance, temporal, and contradiction conflicts from the
+persistent outbox.
 
 This is the "Critic Agent runtime loop" item from ROADMAP.md's "Next
 Up" section -- the last missing piece of the Critic-agent design. All
@@ -9,15 +9,17 @@ of the supporting plumbing already shipped before this module:
 
 - Detection: ``InferenceStalenessSweeper`` (cks-runtime, ADR-009),
   ``GossipConflictDetected`` (ADR-008), ``ProvenanceStalenessSweeper``
-  (cks-runtime, ADR-010).
+  (cks-runtime, ADR-010), ``ContradictionSweeper`` (cks-runtime).
 - Queueing: gossip/inference conflicts are dual-written into the
   persistent outbox (``cks_outbox_tasks``, task_type
   ``"gossip_conflict"``/``"inference_conflict"``) by
   ``cks_mcp.gossip``/``cks_mcp.observability`` whenever the storage
   backend supports it (SQLite or Postgres -- never the default
-  in-memory backend). ``ProvenanceStalenessSweeper`` writes
-  ``"provenance_conflict"`` tasks onto the same outbox directly, since
-  detection there already lives in cks-runtime rather than cks-mcp.
+  in-memory backend). ``ProvenanceStalenessSweeper``/
+  ``ContradictionSweeper`` write ``"provenance_conflict"``/
+  ``"contradiction_detected"`` tasks onto the same outbox directly,
+  since detection there already lives in cks-runtime rather than
+  cks-mcp.
 - Claiming: ``claim_conflict_task`` atomically dequeues one task at a
   time from a *separate* Runtime/process, exactly what this module
   needs -- see that tool's own docstring for why a separate process
@@ -25,9 +27,10 @@ of the supporting plumbing already shipped before this module:
   ``list_gossip_conflicts``/``list_inference_conflicts`` tools use.
 - Resolution: ``merge_branch`` (gossip),
   ``arbitrate_inference_conflict`` with ``auto_resolve``+``commit``
-  (inference), and ``refresh_verification`` with ``commit`` (provenance
-  -- see that tool's own docstring for why it has no ``auto_resolve``
-  LLM path).
+  (inference), ``refresh_verification`` with ``commit`` (provenance --
+  see that tool's own docstring for why it has no ``auto_resolve`` LLM
+  path), and ``resolve_contradiction`` with ``commit`` (contradiction
+  -- also no ``auto_resolve`` LLM path, see that tool's own docstring).
 - Outcome: ``complete_conflict_task`` / ``fail_conflict_task`` /
   ``dead_letter_conflict_task``.
 
@@ -86,6 +89,15 @@ policy)"):
   payload, or an object that no longer exists (already resolved/
   removed by an earlier pass), is reported as a failure rather than
   silently dropped.
+- ``contradiction_detected``: a ``MutualExclusionRule``/
+  ``FunctionalRelationRule`` violation found by
+  ``ContradictionSweeper`` (cks-runtime) is resolved mechanically --
+  no LLM involved -- via ``resolve_contradiction(contradiction_ids=...,
+  commit=True)``, which removes the alphabetically-first relation id
+  among each contradiction's conflicting relation set (see that tool's
+  own docstring for the heuristic). A contradiction whose id no longer
+  matches a live one (already resolved by an earlier pass) is treated
+  as already handled, not a failure.
 
 A task is dead-lettered (not retried forever) once its retry_count
 would reach ``max_retries`` (default 5, same cap philosophy as
@@ -121,6 +133,9 @@ from cks_mcp.tools.dead_letter_conflict_task.handler import dead_letter_conflict
 from cks_mcp.tools.fail_conflict_task.handler import fail_conflict_task
 from cks_mcp.tools.merge.handler import merge_branch
 from cks_mcp.tools.refresh_verification.handler import refresh_verification
+from cks_mcp.tools.resolve_contradiction.handler import (
+    resolve_contradiction as _resolve_contradiction_tool,
+)
 from cks_mcp.tools.resolve_temporal_conflict.handler import (
     resolve_temporal_conflict as _resolve_temporal_conflict_tool,
 )
@@ -154,6 +169,7 @@ _TASK_TYPES = (
     "inference_conflict",
     "provenance_conflict",
     "temporal_conflict",
+    "contradiction_detected",
 )
 
 # Default "bump" extension applied by resolve_temporal_conflict below --
@@ -517,6 +533,75 @@ async def resolve_temporal_conflict(runtime: Runtime, task: dict[str, Any]) -> R
     return Resolution(True)
 
 
+async def resolve_contradiction_conflict(runtime: Runtime, task: dict[str, Any]) -> Resolution:
+    """
+    Attempt to resolve a ``contradiction_detected`` task
+    (``ContradictionSweeper`` in cks-runtime) via
+    ``resolve_contradiction(contradiction_ids=[payload['location']],
+    commit=True)``.
+
+    The task's payload is the sweeper's own escalation shape --
+    ``{"code", "severity", "message", "location"}`` (see
+    ``ContradictionSweeper._sweep_session``). ``location`` is exactly
+    the contradiction id ``resolve_contradiction`` expects back (see
+    that tool's own docstring for why the two are the same value).
+
+    Like ``resolve_provenance_conflict``/``resolve_temporal_conflict``,
+    there is no LLM circuit breaker to guard here:
+    ``resolve_contradiction`` never calls an LLM (see that tool's own
+    docstring), so there is no provider outage for a breaker to
+    protect against.
+    """
+    payload = task.get("payload")
+    if not isinstance(payload, dict):
+        return Resolution(False, f"payload was not a JSON object: {payload!r}")
+
+    location = payload.get("location")
+    if not location:
+        return Resolution(
+            False,
+            "payload has no 'location' -- cannot resolve a contradiction "
+            "without knowing which one it refers to.",
+        )
+
+    result = await _resolve_contradiction_tool(
+        runtime,
+        {
+            "session_id": task["session_id"],
+            "contradiction_ids": [location],
+            "commit": True,
+        },
+    )
+
+    if result.get("error"):
+        return Resolution(False, f"resolve_contradiction error: {result}")
+
+    results = result.get("results") or []
+    # 'contradiction_not_found' means the contradiction named by this
+    # task's payload is no longer live -- already resolved by an
+    # earlier pass (e.g. a retry after a prior partial success, or
+    # unrelated concurrent activity) -- not a failure of this attempt.
+    failed = [
+        item
+        for item in results
+        if isinstance(item, dict)
+        and item.get("error") is not None
+        and item.get("error") != "contradiction_not_found"
+    ]
+    if failed:
+        return Resolution(
+            False,
+            f"resolve_contradiction could not resolve contradiction "
+            f"{location!r}: {failed}",
+        )
+
+    commit_result = result.get("commit_result")
+    if isinstance(commit_result, dict) and commit_result.get("error"):
+        return Resolution(False, f"commit failed: {commit_result}")
+
+    return Resolution(True)
+
+
 def _extract_locations(diagnostics: list[Any], code: str) -> list[str]:
     return sorted(
         {
@@ -707,6 +792,7 @@ _RESOLVERS = {
     "inference_conflict": resolve_inference_conflict,
     "provenance_conflict": resolve_provenance_conflict,
     "temporal_conflict": resolve_temporal_conflict,
+    "contradiction_detected": resolve_contradiction_conflict,
 }
 
 

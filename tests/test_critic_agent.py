@@ -17,6 +17,7 @@ from cks_mcp.critic_agent import (
     _run_resolver_with_heartbeat,
     get_critic_metrics,
     reset_critic_agent_state,
+    resolve_contradiction_conflict,
     resolve_gossip_conflict,
     resolve_inference_conflict,
     resolve_provenance_conflict,
@@ -492,6 +493,106 @@ async def test_temporal_conflict_commit_error_is_a_failure(mock_runtime, monkeyp
 
 
 # ---------------------------------------------------------------------------
+# resolve_contradiction_conflict
+# ---------------------------------------------------------------------------
+
+
+async def test_contradiction_conflict_missing_location(mock_runtime):
+    task = {"session_id": "s1", "payload": {}}
+    resolution = await resolve_contradiction_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "location" in resolution.detail
+
+
+async def test_contradiction_conflict_non_dict_payload(mock_runtime):
+    task = {"session_id": "s1", "payload": "not a dict"}
+    resolution = await resolve_contradiction_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+
+
+async def test_contradiction_conflict_resolves_and_commits(mock_runtime, monkeypatch):
+    task = {"session_id": "s1", "payload": {"code": "CKS-EXT-MUTUAL-EXCLUSION", "location": "rel-1"}}
+
+    async def _fake_resolve_contradiction_tool(runtime, arguments):
+        assert arguments == {
+            "session_id": "s1",
+            "contradiction_ids": ["rel-1"],
+            "commit": True,
+        }
+        return {
+            "results": [{"contradiction_id": "rel-1", "removed_relation_id": "rel-1"}],
+            "commit_result": {"evolved": True},
+        }
+
+    monkeypatch.setattr(
+        "cks_mcp.critic_agent._resolve_contradiction_tool",
+        _fake_resolve_contradiction_tool,
+    )
+
+    resolution = await resolve_contradiction_conflict(mock_runtime, task)
+    assert resolution.resolved is True
+
+
+async def test_contradiction_conflict_already_resolved_counts_as_success(
+    mock_runtime, monkeypatch
+):
+    """A 'contradiction_not_found' result means it was already resolved
+    by an earlier pass -- treated as success, not a failure to retry."""
+    task = {"session_id": "s1", "payload": {"location": "rel-1"}}
+
+    async def _fake_resolve_contradiction_tool(runtime, arguments):
+        return {
+            "results": [
+                {"contradiction_id": "rel-1", "error": "contradiction_not_found"}
+            ],
+            "operations": [],
+        }
+
+    monkeypatch.setattr(
+        "cks_mcp.critic_agent._resolve_contradiction_tool",
+        _fake_resolve_contradiction_tool,
+    )
+
+    resolution = await resolve_contradiction_conflict(mock_runtime, task)
+    assert resolution.resolved is True
+
+
+async def test_contradiction_conflict_tool_error_is_a_failure(mock_runtime, monkeypatch):
+    task = {"session_id": "s1", "payload": {"location": "rel-1"}}
+
+    async def _fake_resolve_contradiction_tool(runtime, arguments):
+        return {"error": "invalid_parameter", "message": "bad"}
+
+    monkeypatch.setattr(
+        "cks_mcp.critic_agent._resolve_contradiction_tool",
+        _fake_resolve_contradiction_tool,
+    )
+
+    resolution = await resolve_contradiction_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "resolve_contradiction error" in resolution.detail
+
+
+async def test_contradiction_conflict_commit_error_is_a_failure(mock_runtime, monkeypatch):
+    task = {"session_id": "s1", "payload": {"location": "rel-1"}}
+
+    async def _fake_resolve_contradiction_tool(runtime, arguments):
+        return {
+            "results": [{"contradiction_id": "rel-1", "removed_relation_id": "rel-1"}],
+            "commit_result": {"error": "validation_failed"},
+        }
+
+    monkeypatch.setattr(
+        "cks_mcp.critic_agent._resolve_contradiction_tool",
+        _fake_resolve_contradiction_tool,
+    )
+
+    resolution = await resolve_contradiction_conflict(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "commit failed" in resolution.detail
+
+
+# ---------------------------------------------------------------------------
 # _process_one / run_once: claim -> resolve -> complete/fail/dead-letter
 # ---------------------------------------------------------------------------
 
@@ -698,7 +799,8 @@ async def test_end_to_end_gossip_conflict_resolution_with_real_storage(tmp_path)
 
 
 async def test_run_once_drains_all_queues(mock_runtime):
-    """Two gossip tasks then empty, one inference/provenance/temporal task each."""
+    """Two gossip tasks then empty, one inference/provenance/temporal/
+    contradiction task each."""
     gossip_tasks = [
         OutboxTask(task_id=1, task_type="gossip_conflict", session_id="s1", payload="{}", retry_count=0),
         OutboxTask(task_id=2, task_type="gossip_conflict", session_id="s1", payload="{}", retry_count=0),
@@ -716,6 +818,10 @@ async def test_run_once_drains_all_queues(mock_runtime):
         OutboxTask(task_id=5, task_type="temporal_conflict", session_id="s1", payload="{}", retry_count=0),
         None,
     ]
+    contradiction_tasks = [
+        OutboxTask(task_id=6, task_type="contradiction_detected", session_id="s1", payload="{}", retry_count=0),
+        None,
+    ]
 
     async def _dequeue(task_type=None):
         if task_type == "gossip_conflict":
@@ -726,6 +832,8 @@ async def test_run_once_drains_all_queues(mock_runtime):
             return provenance_tasks.pop(0)
         if task_type == "temporal_conflict":
             return temporal_tasks.pop(0)
+        if task_type == "contradiction_detected":
+            return contradiction_tasks.pop(0)
         return None
 
     mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=_dequeue)
@@ -734,14 +842,15 @@ async def test_run_once_drains_all_queues(mock_runtime):
 
     # Every task fails to resolve (empty payloads carry none of the
     # required keys) and immediately dead-letters at max_retries=1 --
-    # the point of this test is that run_once claims all 5 before
-    # stopping, across all four task types, not the individual
+    # the point of this test is that run_once claims all 6 before
+    # stopping, across all five task types, not the individual
     # outcomes.
-    assert processed == 5
+    assert processed == 6
     assert gossip_tasks == []
     assert inference_tasks == []
     assert provenance_tasks == []
     assert temporal_tasks == []
+    assert contradiction_tasks == []
 
 
 # ---------------------------------------------------------------------------

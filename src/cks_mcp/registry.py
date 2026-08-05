@@ -83,6 +83,8 @@ from cks_mcp.tools.register_graph import register_graph
 from cks_mcp.tools.register_graph.schema import REGISTER_GRAPH_SCHEMA
 from cks_mcp.tools.request_enrichment import request_enrichment
 from cks_mcp.tools.request_enrichment.schema import REQUEST_ENRICHMENT_SCHEMA
+from cks_mcp.tools.resolve_contradiction import resolve_contradiction
+from cks_mcp.tools.resolve_contradiction.schema import RESOLVE_CONTRADICTION_SCHEMA
 from cks_mcp.tools.resolve_gossip_conflict import resolve_gossip_conflict
 from cks_mcp.tools.resolve_gossip_conflict.schema import (
     RESOLVE_GOSSIP_CONFLICT_SCHEMA,
@@ -331,6 +333,12 @@ TOOLS = {
             "session_id",
             "object_id",
         )(resolve_temporal_conflict),
+    },
+    "resolve_contradiction": {
+        **RESOLVE_CONTRADICTION_SCHEMA,
+        "handler": _wrap_open_session(
+            "resolve_contradiction", "session_id"
+        )(resolve_contradiction),
     },
     "register_graph": {
         **REGISTER_GRAPH_SCHEMA,

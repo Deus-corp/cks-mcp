@@ -3,6 +3,20 @@
 
 ---
 
+## [1.39.0] - 2026-08-05
+
+### Added
+- **`resolve_contradiction` tool** – resolves `contradiction_detected` tasks escalated by `ContradictionSweeper` (cks‑runtime v1.40.0). Two modes:
+  * *Read‑only* (no `contradiction_ids`) – returns every currently‑live contradiction in the session, each with a stable `id` and its participating `relation_ids`.
+  * *Resolve* (`contradiction_ids` + `commit: true`) – removes the alphabetically‑first conflicting relation for each contradiction via `evolve_knowledge`. Fully mechanical, no LLM call.
+- **`contradiction_detected` support in `critic_agent.py`** – the Critic Agent now polls for `contradiction_detected` tasks (escalated by `ContradictionSweeper`) alongside the other four task types. Resolution calls `resolve_contradiction(contradiction_ids=[location], commit=True)`. An already‑resolved contradiction is treated as a success, not a retryable failure.
+- Tool count increased from 41 to 42. New tests in `tests/tools/resolve_contradiction/test_handler.py` and `tests/test_critic_agent.py` covering mutual‑exclusion and functional‑relation violations, dry‑run vs commit, unknown ids, and the Critic Agent's dispatch path.
+
+### Changed
+- `critic_agent.py` now manages five task types (gossip, inference, provenance, temporal, contradiction). Docstring and `run_once` test updated accordingly.
+
+---
+
 ## [1.38.0] - 2026-08-04
 
 ### Added
