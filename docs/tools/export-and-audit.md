@@ -135,3 +135,39 @@ a future update agent to act on (cks-runtime enqueues a
 `{"fresh": false, "last_updated": "...", "ttl_days": 7.0}` when
 outdated. `{"found": false}` if no graph is registered under that
 name.
+
+## `export_storage`
+
+Exports a complete dump of all sessions, versions, graph registry entries,
+embeddings, and pending/failed outbox tasks to a JSON file. Returns the file
+path and a summary of what was exported. This is the foundation for backup
+and migration workflows (ADR-012).
+
+**Parameters:** `output_path` (optional — path for the dump file; defaults to
+a temp file).
+
+**Response:** `{"output_path": "...", "summary": {"sessions": N, "versions": N, "graphs": N, "embeddings": N, "outbox": N}}`.
+
+## `import_storage`
+
+Restores data from a previously exported dump file into the current storage
+backend. Supports two modes:
+- `clear` — deletes all existing data before importing.
+- `merge` — adds/updates data alongside existing records (default).
+
+**Parameters:** `file_path` (required), `mode` (optional, `"merge"` by default).
+
+**Response:** `{"imported": true, "mode": "merge", "summary": {...}}`.
+
+## `migrate_storage`
+
+Transfers all data from the current storage backend to a new backend of a
+different type (e.g. SQLite → Postgres). Exports from the current backend,
+creates a new target backend, and imports the data. Returns the path or DSN
+of the new storage. Does **not** replace the active `runtime.storage` — the
+caller must restart the server pointing at the new backend.
+
+**Parameters:** `target_backend` (required, `"sqlite"` or `"postgres"`),
+`target_path` (required — file path for SQLite, connection string for Postgres).
+
+**Response:** `{"migrated": true, "target_backend": "sqlite", "target_path": "...", "summary": {...}}`.

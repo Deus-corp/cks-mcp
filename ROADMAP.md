@@ -63,7 +63,7 @@ a verifiable, persistent knowledge backbone, semantic search, and a full suite o
 ### Security & Hardening
 - **SSRF & DNS Rebinding Protection:** `verify_source` safely performs outbound HTTP checks.
 - **Persistent Provenance Secrets:** The HMAC secret for signing verifications is stored alongside the database.
-- **170+ tests** covering core functionality, security, and integrations.
+- **513+ tests** covering core functionality, security, and integrations.
 
 ## Operational Notes
 
@@ -128,6 +128,7 @@ Design (see project discussion for full rationale):
 
 ## Future Agents (backlog, not yet designed in detail)
 - [x] **Memory Agent v1:** `register_graph`, `get_graph`, `list_graphs` tools (v1.37.0) — LLMs can now save graphs under memorable names and reuse them across conversations.
+- [x] **Backup/DR (ADR-012):** `export_storage`, `import_storage`, `migrate_storage` tools (v1.40.0) — backup, restore, and migration between SQLite and Postgres backends.
 Same outbox-task pattern, lower priority than the Enrichment Agent above:
 - **Contradiction Agent:** `detect_contradictions` exists as an on-demand extension but nothing runs it proactively in the background the way `InferenceStalenessSweeper` does for inference conflicts. A sweeper + `contradiction_conflict` task type would close that gap.
 - **Source Verification Agent:** periodically re-runs `verify_source` against already-committed claims to catch sources that have gone stale, moved, or disappeared since they were first cited.
