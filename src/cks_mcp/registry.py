@@ -115,6 +115,10 @@ from cks_mcp.tools.serialize import serialize_knowledge
 from cks_mcp.tools.serialize.schema import SERIALIZE_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.suggest_evolution import suggest_evolution
 from cks_mcp.tools.suggest_evolution.schema import SUGGEST_EVOLUTION_SCHEMA
+from cks_mcp.tools.update_registered_graph import update_registered_graph
+from cks_mcp.tools.update_registered_graph.schema import (
+    UPDATE_REGISTERED_GRAPH_SCHEMA,
+)
 from cks_mcp.tools.validate import validate_knowledge
 from cks_mcp.tools.validate.schema import VALIDATE_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.verify_source import verify_source
@@ -371,6 +375,10 @@ TOOLS = {
     "check_component_versions": {
         **CHECK_COMPONENT_VERSIONS_SCHEMA,
         "handler": _wrap("check_component_versions", "name")(check_component_versions),
+    },
+    "update_registered_graph": {
+        **UPDATE_REGISTERED_GRAPH_SCHEMA,
+        "handler": _wrap("update_registered_graph", "name")(update_registered_graph),
     },
     "search_graphs": {
         **SEARCH_GRAPHS_SCHEMA,

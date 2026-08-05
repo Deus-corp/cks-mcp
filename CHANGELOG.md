@@ -3,6 +3,14 @@
 
 ---
 
+## [1.43.0] - 2026-08-05
+
+### Added
+- **`update_registered_graph` tool** – brings a registered ecosystem graph back in sync with the real code it describes. Internally calls `check_component_versions`; if every `Component` is already current, this is a no‑op. Otherwise, for each outdated component, it asks `construct_knowledge` to turn the release description into CKS objects, merges them into the graph session via `evolve_knowledge`, patches the stale component's own `version` field, and re‑registers the graph under the same name. Returns `{"updated": false, "reason": "already current"}` when nothing is outdated, and `{"error": "LLM provider required"}` when no LLM backend is configured (the graph is left untouched).
+- New unit tests in `tests/tools/update_registered_graph/test_handler.py` covering missing graph, already‑current, LLM‑provider‑missing, construct_knowledge errors, successful update with object/relation/version‑patch operations, and evolve failures.
+
+---
+
 ## [1.42.0] - 2026-08-05
 
 ### Added
