@@ -1,0 +1,1 @@
+from .handler import check_component_versions as check_component_versions

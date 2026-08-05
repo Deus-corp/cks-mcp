@@ -3,6 +3,14 @@
 
 ---
 
+## [1.42.0] - 2026-08-05
+
+### Added
+- **`check_component_versions` tool** – reads a registered graph (by name), finds every object with `type: "Component"` and a `version` field, fetches the corresponding `_version.py` from GitHub raw, and compares them using proper numeric version comparison. Returns `up_to_date`, `outdated`, `ahead`, `unknown_repo`, or `fetch_failed` per component. Reuses `_safe_request` for SSRF/DNS‑rebinding protection. Foundation for Memory Agent v2 (autonomous graph updates).
+- New unit tests in `tests/tools/check_component_versions/test_handler.py` (26 tests) covering parameter validation, missing graph/session, version comparison helpers, network failures, unsafe URLs, and mixed‑status scenarios.
+
+---
+
 ## [1.41.0] - 2026-08-05
 
 ### Added

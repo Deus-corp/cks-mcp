@@ -25,6 +25,10 @@ from cks_mcp.tools.arbitrate_inference_conflict.schema import (
 )
 from cks_mcp.tools.branch import close_session, create_branch
 from cks_mcp.tools.branch.schema import CLOSE_SESSION_SCHEMA, CREATE_BRANCH_SCHEMA
+from cks_mcp.tools.check_component_versions import check_component_versions
+from cks_mcp.tools.check_component_versions.schema import (
+    CHECK_COMPONENT_VERSIONS_SCHEMA,
+)
 from cks_mcp.tools.check_graph_freshness import check_graph_freshness
 from cks_mcp.tools.check_graph_freshness.schema import CHECK_GRAPH_FRESHNESS_SCHEMA
 from cks_mcp.tools.claim_conflict_task import claim_conflict_task
@@ -363,6 +367,10 @@ TOOLS = {
     "check_graph_freshness": {
         **CHECK_GRAPH_FRESHNESS_SCHEMA,
         "handler": _wrap("check_graph_freshness", "name")(check_graph_freshness),
+    },
+    "check_component_versions": {
+        **CHECK_COMPONENT_VERSIONS_SCHEMA,
+        "handler": _wrap("check_component_versions", "name")(check_component_versions),
     },
     "search_graphs": {
         **SEARCH_GRAPHS_SCHEMA,
