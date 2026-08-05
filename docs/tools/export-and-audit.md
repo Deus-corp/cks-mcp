@@ -82,9 +82,12 @@ Saves a named reference to an existing session's Knowledge Graph,
 allowing it to be found and reused later via `get_graph`.
 
 **Parameters:** `name` (required), `session_id` (required),
-`description` (optional), `tags` (optional, comma-separated).
+`description` (optional), `tags` (optional, comma-separated), `public`
+(optional boolean, default `false` — opts the graph into the gallery,
+discoverable by other callers via `list_graphs(public_only=true)` /
+`search_graphs`, not just by name).
 
-**Response:** `{"registered": true, "name": "my-graph"}`.
+**Response:** `{"registered": true, "name": "my-graph", "public": false}`.
 
 ## `get_graph`
 
@@ -93,13 +96,42 @@ and metadata, or `{"found": false}` if no graph is registered under that name.
 
 **Parameters:** `name` (required).
 
-**Response:** `{"found": true, "name": "my-graph", "session_id": "...", "description": "...", "tags": "...", "created_at": "...", "updated_at": "..."}`.
+**Response:** `{"found": true, "name": "my-graph", "session_id": "...", "description": "...", "tags": "...", "public": false, "created_at": "...", "updated_at": "..."}`.
 
 ## `list_graphs`
 
 Lists every registered graph, most recently updated first.
-Optionally filter to graphs whose tags contain a given substring.
+Optionally filter to graphs whose tags contain a given substring,
+and/or restrict to public graphs only (the gallery).
 
-**Parameters:** `tag` (optional).
+**Parameters:** `tag` (optional), `public_only` (optional boolean, default `false`).
+
+**Response:** `{"graphs": [{"name": "my-graph", "session_id": "...", "public": false, ...}, ...]}`.
+
+## `search_graphs`
+
+Free-text search over registered graphs, matched case-insensitively
+against each graph's `name`, `description`, and `tags`. Use this to
+discover a graph to resume with `get_graph` when you don't already
+know its exact name.
+
+**Parameters:** `query` (required), `tag` (optional, further narrows by
+exact/substring tag), `public_only` (optional boolean, default `false`).
 
 **Response:** `{"graphs": [{"name": "my-graph", "session_id": "...", ...}, ...]}`.
+
+## `check_graph_freshness`
+
+Read-only check of whether a registered graph is still fresh, using
+the same TTL `GraphFreshnessSweeper` (cks-runtime) applies in the
+background (`graph_freshness_ttl_seconds` in `RuntimeConfig`, default
+7 days). Does not refresh the graph itself — a stale graph is left for
+a future update agent to act on (cks-runtime enqueues a
+`graph_outdated` outbox task for it independently, on the same TTL).
+
+**Parameters:** `name` (required).
+
+**Response:** `{"fresh": true}` when within the TTL, or
+`{"fresh": false, "last_updated": "...", "ttl_days": 7.0}` when
+outdated. `{"found": false}` if no graph is registered under that
+name.

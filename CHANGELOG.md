@@ -3,6 +3,22 @@
 
 ---
 
+## [1.38.0] - 2026-08-04
+
+### Added
+- **Memory Agent v2: graph freshness + gallery.** Two new MCP tools building on the `graph_registry` (Memory Agent v1):
+  - `check_graph_freshness(name)` – read-only check of whether a registered graph is still fresh, using the same TTL `GraphFreshnessSweeper` (`cks-runtime` 1.39.0) applies in the background. Returns `{"fresh": true}` or `{"fresh": false, "last_updated": ..., "ttl_days": ...}`; `{"found": false}` if the graph isn't registered.
+  - `search_graphs(query, tag?, public_only?)` – free-text, case-insensitive search over registered graphs' `name`/`description`/`tags`, so a caller can discover a graph to resume with `get_graph` without already knowing its exact name.
+- `register_graph` now accepts an optional `public: bool = false` parameter, opting a graph into the gallery (discoverable by other callers, not just by exact name).
+- `list_graphs` now accepts an optional `public_only: bool = false` parameter to restrict results to public graphs.
+- New unit tests in `tests/tools/check_graph_freshness/` and `tests/tools/search_graphs/`; `tests/tools/register_graph/` and `tests/tools/list_graphs/` updated for the new parameters.
+- Tool count increased from 39 to 41 (`test_server.py` updated).
+
+### Requires
+- `cks-runtime >= 1.39.0` for the `graph_registry.public` column and `RuntimeConfig.graph_freshness_ttl_seconds`.
+
+---
+
 ## [1.37.0] - 2026-08-04
 
 ### Added

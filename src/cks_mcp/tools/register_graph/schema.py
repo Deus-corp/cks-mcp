@@ -30,6 +30,15 @@ REGISTER_GRAPH_SCHEMA = {
                 "type": "string",
                 "description": "Optional comma-separated tags, usable as a filter in list_graphs.",
             },
+            "public": {
+                "type": "boolean",
+                "description": (
+                    "Whether this graph is discoverable in the gallery by other "
+                    "callers, via list_graphs(public_only=true) or search_graphs. "
+                    "Defaults to false (private, discoverable only by name via "
+                    "get_graph)."
+                ),
+            },
         },
         "required": ["name", "session_id"],
     },

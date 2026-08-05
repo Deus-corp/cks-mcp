@@ -4,6 +4,11 @@ in the graph registry, so a previously-built Knowledge Graph can be
 looked up by a memorable name in a later session -- by this LLM or a
 person -- instead of being rebuilt from scratch. Registering an
 already-used ``name`` replaces its existing entry (last write wins).
+
+``public`` (Memory Agent v2) opts the graph into the gallery --
+discoverable by other callers via ``list_graphs(public_only=True)``/
+``search_graphs``, not just by name via ``get_graph``. Defaults to
+``False``.
 """
 
 from __future__ import annotations
@@ -29,12 +34,14 @@ async def register_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
 
     description = arguments.get("description") or ""
     tags = arguments.get("tags") or ""
+    public = bool(arguments.get("public", False))
 
     await runtime.storage.register_graph(
         name=name,
         session_id=session_id,
         description=description,
         tags=tags,
+        public=public,
     )
 
-    return {"registered": True, "name": name}
+    return {"registered": True, "name": name, "public": public}

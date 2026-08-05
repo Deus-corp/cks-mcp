@@ -25,6 +25,8 @@ from cks_mcp.tools.arbitrate_inference_conflict.schema import (
 )
 from cks_mcp.tools.branch import close_session, create_branch
 from cks_mcp.tools.branch.schema import CLOSE_SESSION_SCHEMA, CREATE_BRANCH_SCHEMA
+from cks_mcp.tools.check_graph_freshness import check_graph_freshness
+from cks_mcp.tools.check_graph_freshness.schema import CHECK_GRAPH_FRESHNESS_SCHEMA
 from cks_mcp.tools.claim_conflict_task import claim_conflict_task
 from cks_mcp.tools.claim_conflict_task.schema import CLAIM_CONFLICT_TASK_SCHEMA
 from cks_mcp.tools.compare import compare_versions
@@ -91,6 +93,8 @@ from cks_mcp.tools.resolve_temporal_conflict.schema import (
 )
 from cks_mcp.tools.revert import list_versions, revert_version
 from cks_mcp.tools.revert.schema import LIST_VERSIONS_SCHEMA, REVERT_VERSION_SCHEMA
+from cks_mcp.tools.search_graphs import search_graphs
+from cks_mcp.tools.search_graphs.schema import SEARCH_GRAPHS_SCHEMA
 from cks_mcp.tools.search_semantic import search_semantic
 from cks_mcp.tools.search_semantic.schema import SEARCH_SEMANTIC_SCHEMA
 from cks_mcp.tools.serialize import serialize_knowledge
@@ -339,5 +343,13 @@ TOOLS = {
     "list_graphs": {
         **LIST_GRAPHS_SCHEMA,
         "handler": _wrap("list_graphs")(list_graphs),
+    },
+    "check_graph_freshness": {
+        **CHECK_GRAPH_FRESHNESS_SCHEMA,
+        "handler": _wrap("check_graph_freshness", "name")(check_graph_freshness),
+    },
+    "search_graphs": {
+        **SEARCH_GRAPHS_SCHEMA,
+        "handler": _wrap("search_graphs", "query")(search_graphs),
     },
 }

@@ -21,7 +21,7 @@ def mock_runtime():
 async def test_no_tag(mock_runtime):
     result = await list_graphs(mock_runtime, {})
     assert result == {"graphs": []}
-    mock_runtime.storage.list_graphs.assert_awaited_once_with(None)
+    mock_runtime.storage.list_graphs.assert_awaited_once_with(None, False)
 
 
 async def test_with_tag(mock_runtime):
@@ -33,10 +33,22 @@ async def test_with_tag(mock_runtime):
     result = await list_graphs(mock_runtime, {"tag": "demo"})
 
     assert result == {"graphs": graphs}
-    mock_runtime.storage.list_graphs.assert_awaited_once_with("demo")
+    mock_runtime.storage.list_graphs.assert_awaited_once_with("demo", False)
 
 
 async def test_empty_tag_treated_as_none(mock_runtime):
     result = await list_graphs(mock_runtime, {"tag": ""})
     assert result == {"graphs": []}
-    mock_runtime.storage.list_graphs.assert_awaited_once_with(None)
+    mock_runtime.storage.list_graphs.assert_awaited_once_with(None, False)
+
+
+async def test_public_only(mock_runtime):
+    result = await list_graphs(mock_runtime, {"public_only": True})
+    assert result == {"graphs": []}
+    mock_runtime.storage.list_graphs.assert_awaited_once_with(None, True)
+
+
+async def test_tag_and_public_only_combined(mock_runtime):
+    result = await list_graphs(mock_runtime, {"tag": "demo", "public_only": True})
+    assert result == {"graphs": []}
+    mock_runtime.storage.list_graphs.assert_awaited_once_with("demo", True)

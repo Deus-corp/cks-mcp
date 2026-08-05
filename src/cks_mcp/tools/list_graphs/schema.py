@@ -17,6 +17,14 @@ LIST_GRAPHS_SCHEMA = {
                 "type": "string",
                 "description": "Optional tag (or tag substring) to filter the results by.",
             },
+            "public_only": {
+                "type": "boolean",
+                "description": (
+                    "If true, only return graphs registered with public=true "
+                    "(the gallery). Defaults to false (returns every graph, "
+                    "public and private)."
+                ),
+            },
         },
         "required": [],
     },

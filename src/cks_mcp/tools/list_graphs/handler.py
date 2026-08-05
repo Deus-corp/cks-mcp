@@ -1,6 +1,7 @@
 """
-list_graphs: list every registered graph, optionally filtered by tag,
-so a caller can browse what's available before deciding which one to
+list_graphs: list every registered graph, optionally filtered by tag
+and/or (Memory Agent v2) restricted to public graphs only, so a
+caller can browse what's available before deciding which one to
 resume with get_graph.
 """
 
@@ -13,7 +14,8 @@ from cks_runtime.runtime import Runtime
 
 async def list_graphs(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     tag = arguments.get("tag") or None
+    public_only = bool(arguments.get("public_only", False))
 
-    graphs = await runtime.storage.list_graphs(tag)
+    graphs = await runtime.storage.list_graphs(tag, public_only)
 
     return {"graphs": graphs}
