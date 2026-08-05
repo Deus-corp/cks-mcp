@@ -20,7 +20,7 @@ _plugin_registry: PluginRegistry | None = None
 
 def set_plugin_registry(registry: PluginRegistry) -> None:
     """Called once from server.py after the registry is built."""
-    global _plugin_registry  # noqa: PLW0603
+    global _plugin_registry
     _plugin_registry = registry
 
 

@@ -1,19 +1,19 @@
 """
-GossipPlugin — опциональный gossip-транспорт для p2p синхронизации сессий.
+GossipPlugin — optional gossip transport for p2p session synchronisation.
 
-Требует пакет ``aiohttp`` (устанавливается через ``pip install cks-mcp[gossip]``).
-Включается через ``CKS_GOSSIP_ENABLED=true``.
+Requires the ``aiohttp`` package (install with ``pip install cks-mcp[gossip]``).
+Enabled via ``CKS_GOSSIP_ENABLED=true``.
 
-Обратная совместимость: существующие переменные ``CKS_GOSSIP_*``
-продолжают работать без изменений.
+Backward compatibility: existing ``CKS_GOSSIP_*`` environment variables
+continue to work unchanged.
 
-Жизненный цикл плагина:
+Plugin lifecycle:
 
-    handle = plugin.setup(runtime, config)   # строит компоненты, стартует сервис
-    plugin.teardown(handle)                  # останавливает сервис и сервер
+    handle = plugin.setup(runtime, config)   # builds components, starts the service
+    plugin.teardown(handle)                  # stops the service and server
 
-Метод ``setup`` возвращает ``GossipHandle`` или ``None``, если gossip
-отключён или недоступен (нет ``replica_id``).
+The ``setup`` method returns a ``GossipHandle`` or ``None`` if gossip is
+disabled or unavailable (no ``replica_id``).
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ __all__ = ["GossipPlugin"]
 
 
 class GossipPlugin(CksPlugin):
-    """Плагин gossip-транспорта для p2p синхронизации сессий."""
+    """Gossip transport plugin for peer-to-peer session synchronisation."""
 
     name = "gossip"
     description = (
@@ -42,7 +42,7 @@ class GossipPlugin(CksPlugin):
     )
 
     def is_available(self) -> bool:
-        """Проверить наличие пакета ``aiohttp``."""
+        """Check whether the ``aiohttp`` package is installed."""
         try:
             importlib.import_module("aiohttp")
             return True
@@ -51,24 +51,23 @@ class GossipPlugin(CksPlugin):
 
     def setup(self, runtime: Runtime, config: RuntimeConfig) -> GossipHandle | None:
         """
-        Инициализировать и запустить gossip-подсистему.
+        Initialise and start the gossip subsystem.
 
-        Настройки берутся из env (``CKS_GOSSIP_*``), как и раньше.
-        Возвращает ``GossipHandle`` или ``None`` (если gossip отключён
-        или runtime не имеет ``replica_id``).
+        Settings are read from the environment (``CKS_GOSSIP_*``), exactly as
+        before. Returns a ``GossipHandle`` or ``None`` if gossip is disabled
+        or the runtime has no ``replica_id``.
         """
         settings = GossipSettings.from_env()
         handle = setup_gossip(runtime, settings)
         if handle is not None:
-            # setup_gossip возвращает не запущенный handle;
-            # запускаем его синхронно через asyncio.
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(handle.start())
+            # setup_gossip returns a not-yet-started handle;
+            # start it synchronously via asyncio.run() which is safe here
+            # because we are outside the main event loop during startup.
+            asyncio.run(handle.start())
         return handle
 
     def teardown(self, handle: Any) -> None:
-        """Остановить gossip-сервис и сервер."""
+        """Stop the gossip service and server."""
         if handle is None:
             return
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(handle.stop())
+        asyncio.run(handle.stop())

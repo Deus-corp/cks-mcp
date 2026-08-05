@@ -3,6 +3,19 @@
 
 ---
 
+## [1.41.0] - 2026-08-05
+
+### Added
+- **Plugin framework** (`src/cks_mcp/plugin.py`) – a new `CksPlugin` abstract base class and a `PluginRegistry` for managing optional, dynamically‑loaded functionality. Plugins declare their dependencies via `is_available()`, initialise themselves through `setup(runtime, config)`, and cleanly shut down with `teardown(handle)`.
+- **`FastEmbedPlugin`** (`src/cks_mcp/plugins/fastembed_plugin.py`) – extracts the existing fastembed/HuggingFace embedding initialisation from `server.py` into a proper plugin. Automatically selected when the `fastembed` package is installed.
+- **`GossipPlugin`** (`src/cks_mcp/plugins/gossip_plugin.py`) – extracts the existing gossip transport initialisation from `server.py` into a proper plugin. Requires `aiohttp` (`pip install cks-mcp[gossip]`) and is enabled with `CKS_GOSSIP_ENABLED=true`.
+- **`list_plugins` MCP tool** – returns every registered plugin together with its description and whether it is currently available (`is_available()`).
+- `server.py` now uses `PluginRegistry` instead of manually wiring the embedding and gossip subsystems.
+- New tests in `tests/test_plugin.py`, `tests/plugins/`, and `tests/tools/list_plugins/`.
+- Tool count increased from 45 to 46 (`test_server.py` updated).
+
+---
+
 ## [1.40.0] - 2026-08-05
 
 ### Added

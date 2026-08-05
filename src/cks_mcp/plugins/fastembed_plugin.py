@@ -62,7 +62,7 @@ class FastEmbedPlugin(CksPlugin):
         def _try_huggingface() -> HuggingFaceEmbeddingClient | None:
             try:
                 return HuggingFaceEmbeddingClient()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — best-effort plugin init
                 print(
                     f"[CKS-MCP] WARNING: HuggingFace embedding client unavailable: {exc}",
                     file=sys.stderr,
@@ -85,7 +85,7 @@ class FastEmbedPlugin(CksPlugin):
                 )
             try:
                 embedding_client = FastEmbedEmbeddingClient()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — best-effort plugin init
                 print(
                     f"[CKS-MCP] WARNING: fastembed unavailable ({exc}); "
                     "trying HuggingFace.",

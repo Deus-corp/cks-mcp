@@ -22,13 +22,13 @@ from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.observability import setup_event_subscriptions
+from cks_mcp.paths import data_dir
 from cks_mcp.plugin import PluginRegistry
 from cks_mcp.plugins import FastEmbedPlugin, GossipPlugin
-from cks_mcp.tools.list_plugins.handler import set_plugin_registry
-from cks_mcp.paths import data_dir
 from cks_mcp.prompts import PROMPTS, get_prompt, list_prompts
 from cks_mcp.registry import TOOLS
 from cks_mcp.resources import list_resources, read_resource
+from cks_mcp.tools.list_plugins.handler import set_plugin_registry
 
 # ---------------------------------------------------------------------------
 # Server metadata
@@ -376,8 +376,7 @@ async def main() -> None:
             elif line_stripped:
                 await process_request(runtime, line_stripped, use_content_length=False)
     finally:
-        if gossip_handle is not None:
-            await gossip_handle.stop()
+        registry.teardown_all(plugin_handles)
         await runtime.aclose()
 
 

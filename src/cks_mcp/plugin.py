@@ -1,18 +1,18 @@
 """
-CKS Plugin Framework — базовый класс плагина и реестр плагинов.
+CKS Plugin Framework — abstract base class and plugin registry.
 
-Плагин — это опциональная функциональность, которая:
-  * проверяет наличие своих зависимостей через ``is_available()``;
-  * инициализируется через ``setup(runtime, config)`` и возвращает handle;
-  * корректно останавливается через ``teardown(handle)``.
+A plugin is an optional piece of functionality that:
+  * checks whether its dependencies are available via ``is_available()``;
+  * initialises itself through ``setup(runtime, config)``, returning a handle;
+  * cleanly shuts down through ``teardown(handle)``.
 
-``PluginRegistry`` хранит зарегистрированные плагины и управляет их
-жизненным циклом (``setup_all`` / ``teardown_all``).
+``PluginRegistry`` holds the registered plugins and manages their
+lifecycle (``setup_all`` / ``teardown_all``).
 
-Добавить новый плагин:
-  1. Создать класс ``MyPlugin(CksPlugin)`` в ``cks_mcp/plugins/``.
-  2. Зарегистрировать его в ``server.py``: ``registry.register(MyPlugin())``.
-  Изменять cks-runtime или cks-core не нужно.
+Adding a new plugin:
+  1. Create a class ``MyPlugin(CksPlugin)`` in ``cks_mcp/plugins/``.
+  2. Register it in ``server.py``: ``registry.register(MyPlugin())``.
+  No changes to cks-runtime or cks-core are needed.
 """
 
 from __future__ import annotations
@@ -28,58 +28,58 @@ __all__ = ["CksPlugin", "PluginRegistry"]
 
 
 class CksPlugin(ABC):
-    """Абстрактный базовый класс для плагинов cks-mcp."""
+    """Abstract base class for cks-mcp plugins."""
 
-    #: Уникальное машинное имя плагина (snake_case).
+    #: Unique machine-readable name of the plugin (snake_case).
     name: str
 
-    #: Человекочитаемое описание.
+    #: Human-readable description.
     description: str
 
     @abstractmethod
     def is_available(self) -> bool:
         """
-        Проверить, установлены ли необходимые зависимости.
+        Check whether the plugin's required dependencies are installed.
 
-        Не должен бросать исключений — только возвращать ``True``/``False``.
+        Must not raise exceptions — only return ``True`` or ``False``.
         """
 
     @abstractmethod
     def setup(self, runtime: Runtime, config: RuntimeConfig) -> Any:
         """
-        Инициализировать плагин.
+        Initialise the plugin.
 
-        Вызывается только если ``is_available()`` вернул ``True``.
-        Возвращает handle (любой объект), который передаётся в ``teardown``.
-        Может вернуть ``None``, если плагин решил не запускаться
-        (например, из-за env-флага вроде ``CKS_GOSSIP_ENABLED``).
+        Called only when ``is_available()`` returned ``True``.
+        Returns a handle (any object) that is passed to ``teardown``.
+        May return ``None`` if the plugin decides not to start
+        (e.g. because of an env flag like ``CKS_GOSSIP_ENABLED``).
         """
 
     @abstractmethod
     def teardown(self, handle: Any) -> None:
         """
-        Корректно остановить плагин.
+        Cleanly shut down the plugin.
 
-        ``handle`` — значение, ранее возвращённое ``setup``.
-        Если ``handle`` равен ``None``, плагин не был запущен; реализация
-        должна это учитывать и ничего не делать.
+        ``handle`` is the value previously returned by ``setup``.
+        If ``handle`` is ``None``, the plugin was not started; the
+        implementation should handle this gracefully and do nothing.
         """
 
 
 class PluginRegistry:
     """
-    Реестр плагинов cks-mcp.
+    Registry of cks-mcp plugins.
 
-    Жизненный цикл::
+    Lifecycle::
 
         registry = PluginRegistry()
         registry.register(FastEmbedPlugin())
         registry.register(GossipPlugin())
 
-        # при старте
+        # at startup
         handles = await registry.setup_all(runtime, config)
 
-        # при остановке
+        # at shutdown
         await registry.teardown_all(handles)
     """
 
@@ -87,14 +87,14 @@ class PluginRegistry:
         self._plugins: dict[str, CksPlugin] = {}
 
     def register(self, plugin: CksPlugin) -> None:
-        """Добавить плагин в реестр."""
+        """Add a plugin to the registry."""
         self._plugins[plugin.name] = plugin
 
     def list_all(self) -> list[dict[str, Any]]:
         """
-        Вернуть информацию обо всех зарегистрированных плагинах.
+        Return information about every registered plugin.
 
-        Каждый элемент: ``{"name": ..., "description": ..., "available": bool}``.
+        Each element: ``{"name": ..., "description": ..., "available": bool}``.
         """
         return [
             {
@@ -106,16 +106,16 @@ class PluginRegistry:
         ]
 
     def list_available(self) -> list[str]:
-        """Вернуть имена плагинов, для которых ``is_available()`` == True."""
+        """Return the names of plugins for which ``is_available()`` is True."""
         return [p.name for p in self._plugins.values() if p.is_available()]
 
     def setup_all(self, runtime: Runtime, config: RuntimeConfig) -> dict[str, Any]:
         """
-        Инициализировать все доступные плагины.
+        Initialise every available plugin.
 
-        Возвращает словарь ``{name: handle}`` для всех плагинов, у которых
-        ``is_available()`` == True (handle может быть ``None``, если плагин
-        решил не запускаться).
+        Returns a ``{name: handle}`` dict for every plugin whose
+        ``is_available()`` returned True (handle may be ``None`` if the
+        plugin decided not to start).
         """
         handles: dict[str, Any] = {}
         for plugin in self._plugins.values():
@@ -132,7 +132,7 @@ class PluginRegistry:
         return handles
 
     def teardown_all(self, handles: dict[str, Any]) -> None:
-        """Остановить все плагины, для которых есть handle."""
+        """Tear down every plugin that has a handle."""
         for name, handle in handles.items():
             plugin = self._plugins.get(name)
             if plugin is None:

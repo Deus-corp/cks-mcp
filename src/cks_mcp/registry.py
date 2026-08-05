@@ -77,10 +77,10 @@ from cks_mcp.tools.list_inference_conflicts import list_inference_conflicts
 from cks_mcp.tools.list_inference_conflicts.schema import (
     LIST_INFERENCE_CONFLICTS_SCHEMA,
 )
-from cks_mcp.tools.merge import merge_branch, merge_knowledge
-from cks_mcp.tools.merge.schema import MERGE_BRANCH_SCHEMA, MERGE_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.list_plugins import list_plugins
 from cks_mcp.tools.list_plugins.schema import LIST_PLUGINS_SCHEMA
+from cks_mcp.tools.merge import merge_branch, merge_knowledge
+from cks_mcp.tools.merge.schema import MERGE_BRANCH_SCHEMA, MERGE_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.migrate_storage import migrate_storage
 from cks_mcp.tools.migrate_storage.schema import MIGRATE_STORAGE_SCHEMA
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
