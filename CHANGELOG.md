@@ -3,6 +3,15 @@
 
 ---
 
+## [1.50.0] - 2026-08-06
+
+### Added
+- **LCA Arbiter** (`src/cks_mcp/lca_arbiter.py`) – a topology-aware fork resolution policy that analyses the Knowledge Graph structure before picking a winner. It finds the lowest common ancestor (LCA) of conflicting objects via `query_subgraph`, extracts each branch's delta, and classifies conflicts as `non_overlapping`, `competing_claims`, or `erroneous_branch`. When both branches are valid and disjoint, they are merged automatically; when one branch fails validation, the other wins; otherwise a `Resolution` knowledge object is created with `depends_on` on both branches for a human/Critic Agent to review.
+- **LCA integration in ForkResolutionAgent** – new optional `use_lca` flag in `ForkResolutionAgentSettings` (default `true`). When enabled, the agent attempts LCA arbitration before falling back to the mechanical `VersionVector`/`created_at`/alphabetical tie-break.
+- New unit tests in `tests/test_lca_arbiter.py` covering `find_lca`, `extract_delta`, `classify_conflict`, `_branch_is_valid`, `resolve_with_lca`, and `_build_resolution_object`.
+
+---
+
 ## [1.49.0] - 2026-08-06
 
 ### Added

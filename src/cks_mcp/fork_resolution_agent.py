@@ -78,10 +78,12 @@ from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.agent_loop import Resolution, run_resolver_with_heartbeat
+from cks_mcp.lca_arbiter import resolve_with_lca
 from cks_mcp.paths import data_dir
 from cks_mcp.tools.claim_conflict_task.handler import claim_conflict_task
 from cks_mcp.tools.complete_conflict_task.handler import complete_conflict_task
 from cks_mcp.tools.dead_letter_conflict_task.handler import dead_letter_conflict_task
+from cks_mcp.tools.evolve.handler import evolve_knowledge
 from cks_mcp.tools.fail_conflict_task.handler import fail_conflict_task
 
 # Re-exported under its original name for symmetry with
@@ -107,6 +109,16 @@ class ForkResolutionAgentSettings:
     max_retries: int = _DEFAULT_MAX_RETRIES
     storage_path: str = field(default_factory=lambda: "")
     heartbeat_interval: float = _DEFAULT_HEARTBEAT_INTERVAL_SECONDS
+    # Whether to try the topology-aware LCA arbiter (cks_mcp.lca_arbiter)
+    # before falling back to the mechanical VersionVector/created_at/
+    # alphabetical policy below. Defaults to on -- the LCA path is a
+    # pure best-effort addition: whenever it can't find a common
+    # ancestor for the conflicting objects (e.g. they don't both live
+    # in any currently-registered session's graph, or genuinely share
+    # none), or the conflict is a "competing_claims" one it correctly
+    # declines to auto-pick a winner for, resolution falls straight
+    # through to the exact same mechanical policy as before.
+    use_lca: bool = True
 
     @classmethod
     def from_env(cls) -> ForkResolutionAgentSettings:
@@ -129,6 +141,7 @@ class ForkResolutionAgentSettings:
                     _DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
                 )
             ),
+            use_lca=os.environ.get("CKS_FORK_AGENT_USE_LCA", "1") not in ("0", "false", "False"),
         )
 
 
@@ -230,6 +243,107 @@ def _select_winner(candidates: list[dict[str, Any]]) -> str:
         return max(timestamped, key=lambda oid: (timestamped[oid], oid))
 
     return min(c["object_id"] for c in candidates)
+
+
+# ---------------------------------------------------------------------------
+# LCA arbiter integration (optional, tried before the mechanical policy)
+# ---------------------------------------------------------------------------
+
+
+def _find_owning_session_id(runtime: Runtime, object_id_a: str, object_id_b: str) -> str | None:
+    """
+    Find a currently-registered ``RuntimeSession`` whose Knowledge Graph
+    contains *both* conflicting object ids, so the LCA arbiter has a
+    graph to analyze the topology of.
+
+    CRDT forks (unlike session-scoped conflicts such as
+    ``gossip_conflict``) have no session of their own -- ``fork_event``
+    only carries the MV-Register ``pointer_key`` (see ``resolve_fork``'s
+    docstring) -- so this is a best-effort lookup across every session
+    this process currently has active, not a guaranteed one. Returns
+    ``None`` if no such session is found (a fresh/never-materialized
+    fork, a session closed since the fork occurred, or a process that
+    never registered the relevant session at all), in which case the
+    caller should fall back to the mechanical policy.
+    """
+    for session in runtime.list_sessions():
+        structure = session.knowledge_structure
+        if object_id_a in structure and object_id_b in structure:
+            return session.session_id
+    return None
+
+
+async def _try_lca_resolution(
+    runtime: Runtime, existing_ids: list[str]
+) -> tuple[str | None, str | None]:
+    """
+    Attempt LCA-based arbitration across every pair of ``existing_ids``
+    (almost always exactly two, but the fork payload's
+    ``conflicting_object_ids`` list is not itself bounded to two).
+
+    Returns ``(winner_object_id, detail)``. ``winner_object_id`` is
+    ``None`` whenever the LCA arbiter has nothing conclusive to offer
+    for *any* pair -- no owning session found, no common ancestor, or a
+    genuine "competing_claims" needing human/Critic arbitration -- in
+    which case the caller falls back to the mechanical policy
+    unchanged. Never raises: any failure degrades to
+    ``(None, <reason>)``.
+
+    A resolution object recording the LCA arbiter's decision (see
+    ``lca_arbiter._build_resolution_object``) is committed into the
+    owning session via ``evolve_knowledge`` whenever one is produced,
+    win or not, so the rationale is auditable in the graph regardless
+    of whether this function ends up picking a winner.
+    """
+    if len(existing_ids) < 2:
+        return None, "fewer than two candidates; nothing to arbitrate"
+
+    for i in range(len(existing_ids)):
+        for j in range(i + 1, len(existing_ids)):
+            object_id_a, object_id_b = existing_ids[i], existing_ids[j]
+            session_id = _find_owning_session_id(runtime, object_id_a, object_id_b)
+            if session_id is None:
+                continue
+
+            try:
+                lca_resolution = await resolve_with_lca(
+                    runtime, session_id, object_id_a, object_id_b
+                )
+            except Exception as exc:  # noqa: BLE001 -- LCA path is best-effort
+                print(
+                    f"[cks-fork-agent] LCA arbiter raised for "
+                    f"({object_id_a}, {object_id_b}): {exc}; falling back to "
+                    "mechanical policy",
+                    file=sys.stderr,
+                )
+                continue
+
+            if not lca_resolution.resolved:
+                continue
+
+            if lca_resolution.resolution_object is not None:
+                await evolve_knowledge(
+                    runtime,
+                    {
+                        "session_id": session_id,
+                        "operations": [
+                            {
+                                "type": "add_object",
+                                "identity": lca_resolution.resolution_object["identity"],
+                                "structure": lca_resolution.resolution_object["structure"],
+                            }
+                        ],
+                    },
+                )
+
+            if lca_resolution.winner_object_id is not None:
+                return lca_resolution.winner_object_id, lca_resolution.detail
+
+            # "non_overlapping" (both kept) or "competing_claims" (needs
+            # a human/Critic to act on the recorded Resolution Object)
+            # -- either way, no single mechanical winner to report yet.
+
+    return None, "LCA arbiter found no conclusive winner for any candidate pair"
 
 
 # ---------------------------------------------------------------------------

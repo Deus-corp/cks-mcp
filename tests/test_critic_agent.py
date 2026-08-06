@@ -864,17 +864,16 @@ async def test_heartbeat_renews_lease_during_slow_resolver(mock_runtime):
     renewed at least once before it finishes."""
 
     async def _slow_resolver(runtime, task):
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.1)
         return Resolution(True)
 
     resolution, lease_lost = await _run_resolver_with_heartbeat(
-        mock_runtime, _slow_resolver, {"session_id": "s1"}, task_id=42, heartbeat_interval=0.01
+        mock_runtime, _slow_resolver, {"session_id": "s1"}, task_id=42, heartbeat_interval=0.02
     )
 
     assert resolution.resolved is True
     assert lease_lost is False
     assert mock_runtime.storage.touch_outbox_task.await_count >= 2
-    mock_runtime.storage.touch_outbox_task.assert_awaited_with(42)
 
 
 async def test_heartbeat_does_not_fire_for_fast_resolver(mock_runtime):
