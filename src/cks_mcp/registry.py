@@ -19,6 +19,8 @@ from cks_mcp.middleware import (
     with_middleware,
 )
 from cks_mcp.observability import log_tool_call
+from cks_mcp.tools.approve_resolution import approve_resolution
+from cks_mcp.tools.approve_resolution.schema import APPROVE_RESOLUTION_SCHEMA
 from cks_mcp.tools.arbitrate_inference_conflict import arbitrate_inference_conflict
 from cks_mcp.tools.arbitrate_inference_conflict.schema import (
     ARBITRATE_INFERENCE_CONFLICT_SCHEMA,
@@ -95,6 +97,8 @@ from cks_mcp.tools.refresh_verification import refresh_verification
 from cks_mcp.tools.refresh_verification.schema import REFRESH_VERIFICATION_SCHEMA
 from cks_mcp.tools.register_graph import register_graph
 from cks_mcp.tools.register_graph.schema import REGISTER_GRAPH_SCHEMA
+from cks_mcp.tools.reject_resolution import reject_resolution
+from cks_mcp.tools.reject_resolution.schema import REJECT_RESOLUTION_SCHEMA
 from cks_mcp.tools.request_enrichment import request_enrichment
 from cks_mcp.tools.request_enrichment.schema import REQUEST_ENRICHMENT_SCHEMA
 from cks_mcp.tools.resolve_contradiction import resolve_contradiction
@@ -109,6 +113,8 @@ from cks_mcp.tools.resolve_temporal_conflict.schema import (
 )
 from cks_mcp.tools.revert import list_versions, revert_version
 from cks_mcp.tools.revert.schema import LIST_VERSIONS_SCHEMA, REVERT_VERSION_SCHEMA
+from cks_mcp.tools.review_dead_letter import review_dead_letter
+from cks_mcp.tools.review_dead_letter.schema import REVIEW_DEAD_LETTER_SCHEMA
 from cks_mcp.tools.search_graphs import search_graphs
 from cks_mcp.tools.search_graphs.schema import SEARCH_GRAPHS_SCHEMA
 from cks_mcp.tools.search_semantic import search_semantic
@@ -321,6 +327,20 @@ TOOLS = {
     "list_dead_lettered_conflicts": {
         **LIST_DEAD_LETTERED_CONFLICTS_SCHEMA,
         "handler": _wrap("list_dead_lettered_conflicts")(list_dead_lettered_conflicts),
+    },
+    "review_dead_letter": {
+        **REVIEW_DEAD_LETTER_SCHEMA,
+        "handler": _wrap("review_dead_letter", "task_id")(review_dead_letter),
+    },
+    "approve_resolution": {
+        **APPROVE_RESOLUTION_SCHEMA,
+        "handler": _wrap(
+            "approve_resolution", "task_id", "resolution"
+        )(approve_resolution),
+    },
+    "reject_resolution": {
+        **REJECT_RESOLUTION_SCHEMA,
+        "handler": _wrap("reject_resolution", "task_id")(reject_resolution),
     },
     "request_enrichment": {
         **REQUEST_ENRICHMENT_SCHEMA,

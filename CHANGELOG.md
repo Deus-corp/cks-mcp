@@ -3,6 +3,18 @@
 
 ---
 
+## [1.45.0] - 2026-08-05
+
+### Added
+- **Human-in-the-loop dead-letter recovery** – three new mechanical (no-LLM) MCP tools for reviewing, approving, and rejecting dead-lettered conflict tasks, replacing the previous workflow that required hand-crafting resolution-tool calls with the correct parameters:
+  - `review_dead_letter(task_id)` – looks up a DEAD-lettered task and proposes a ready-to-apply `{tool, arguments}` resolution based on its `task_type`, mirroring the Critic Agent's own per-type resolvers. Read-only, never applies anything.
+  - `approve_resolution(task_id, resolution)` – validates that `resolution.tool` matches the task's `task_type`, calls the resolution tool with the given arguments, and (only on success) marks the task complete via `complete_conflict_task`. On failure the task stays DEAD.
+  - `reject_resolution(task_id, reason?)` – annotates the task's `last_error` with the human's reason and leaves it DEAD for another reviewer.
+- Requires `cks-runtime` ≥ 1.43.0 for `OutboxTask.last_error`.
+- Tool count increased from 49 to 52 (`test_server.py` updated). New tests in `tests/tools/review_dead_letter/`, `tests/tools/approve_resolution/`, and `tests/tools/reject_resolution/`.
+
+---
+
 ## [1.44.0] - 2026-08-05
 
 ### Added
