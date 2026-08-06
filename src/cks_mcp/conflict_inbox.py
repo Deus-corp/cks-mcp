@@ -64,6 +64,7 @@ from typing import Any
 from uuid import uuid4
 
 from cks_runtime.events.runtime_event import (
+    CRDTForkDetected,
     GossipConflictDetected,
     InferenceConflictDetected,
 )
@@ -119,6 +120,34 @@ class _InferenceConflictRecord:
         }
 
 
+@dataclass(slots=True)
+class _CRDTForkRecord:
+    """
+    ADR-013 Stage 2: a buffered ``CRDTForkDetected`` event -- an
+    MV-Register pointer with two or more concurrent (causally
+    unordered) object_ids. ``event_id`` is the
+    ``cks_conflict_events.event_id`` the fork is persisted under (see
+    ``CRDTStore.escalate_fork``), so a Critic agent can resolve it via
+    ``CRDTStore.resolve_pointer`` + ``mark_fork_resolved`` without a
+    separate lookup.
+    """
+
+    record_id: str
+    detected_at: float
+    pointer_key: str
+    event_id: str
+    conflicting_object_ids: list[str] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "record_id": self.record_id,
+            "detected_at": self.detected_at,
+            "pointer_key": self.pointer_key,
+            "event_id": self.event_id,
+            "conflicting_object_ids": list(self.conflicting_object_ids),
+        }
+
+
 # ---------------------------------------------------------------------------
 # Inbox
 # ---------------------------------------------------------------------------
@@ -141,6 +170,7 @@ class ConflictInbox:
     def __init__(self, max_records: int = 1_000) -> None:
         self._records: list[_ConflictRecord] = []
         self._inference_records: list[_InferenceConflictRecord] = []
+        self._crdt_fork_records: list[_CRDTForkRecord] = []
         self._lock: asyncio.Lock | None = None  # created lazily inside event loop
         self._max_records = max_records
 
@@ -181,6 +211,20 @@ class ConflictInbox:
             self._inference_records.append(entry)
             if len(self._inference_records) > self._max_records:
                 self._inference_records = self._inference_records[-self._max_records :]
+
+    async def record_crdt_fork(self, event: CRDTForkDetected) -> None:
+        """Buffer a ``CRDTForkDetected`` event (ADR-013 Stage 2); evict oldest over budget."""
+        entry = _CRDTForkRecord(
+            record_id=str(uuid4()),
+            detected_at=time.time(),
+            pointer_key=event.pointer_key,
+            event_id=event.conflict_event_id,
+            conflicting_object_ids=[str(o) for o in event.conflicting_object_ids],
+        )
+        async with self._get_lock():
+            self._crdt_fork_records.append(entry)
+            if len(self._crdt_fork_records) > self._max_records:
+                self._crdt_fork_records = self._crdt_fork_records[-self._max_records :]
 
     # ------------------------------------------------------------------
     # Read path
@@ -240,11 +284,41 @@ class ConflictInbox:
 
         return [r.as_dict() for r in matched_inf]
 
+    async def list_crdt_forks(
+        self,
+        *,
+        pointer_key: str | None = None,
+        drain: bool = True,
+    ) -> _Records:
+        """
+        Return buffered MV-Register fork records (ADR-013 Stage 2),
+        oldest first. Same ``drain`` semantics as ``list``/
+        ``list_inference`` above, filtered by ``pointer_key`` instead
+        of ``session_id`` -- a CRDT fork has no session, only a
+        pointer.
+        """
+        async with self._get_lock():
+            if pointer_key is None:
+                matched_fork = list(self._crdt_fork_records)
+                if drain:
+                    self._crdt_fork_records.clear()
+            else:
+                matched_fork = [
+                    r for r in self._crdt_fork_records if r.pointer_key == pointer_key
+                ]
+                if drain:
+                    self._crdt_fork_records = [
+                        r for r in self._crdt_fork_records if r.pointer_key != pointer_key
+                    ]
+
+        return [r.as_dict() for r in matched_fork]
+
     async def reset(self) -> None:
-        """Clear all buffered records (both gossip and inference conflicts)."""
+        """Clear all buffered records (gossip, inference, and CRDT-fork conflicts)."""
         async with self._get_lock():
             self._records.clear()
             self._inference_records.clear()
+            self._crdt_fork_records.clear()
 
 
 # ---------------------------------------------------------------------------

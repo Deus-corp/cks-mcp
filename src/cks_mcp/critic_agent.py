@@ -170,6 +170,7 @@ _TASK_TYPES = (
     "provenance_conflict",
     "temporal_conflict",
     "contradiction_detected",
+    "crdt_fork",
 )
 
 # Default "bump" extension applied by resolve_temporal_conflict below --
@@ -787,12 +788,145 @@ async def resolve_inference_conflict(runtime: Runtime, task: dict[str, Any]) -> 
     return Resolution(resolved, "; ".join(details) if details else None)
 
 
+async def resolve_crdt_fork(runtime: Runtime, task: dict[str, Any]) -> Resolution:
+    """
+    Attempt to resolve a ``crdt_fork`` task (ADR-013, Stage 2).
+
+    ``task["session_id"]`` carries the MV-Register ``pointer_key`` that
+    forked (``crdt_fork`` tasks are enqueued with the pointer_key in
+    that slot -- see ``cks_mcp.gossip``'s ``_on_fork`` -- since a CRDT
+    fork has no session of its own to key by). ``task["payload"]``
+    carries ``pointer_key``, ``conflicting_object_ids``, and
+    ``event_id`` (the matching ``cks_conflict_events`` row).
+
+    Resolution policy (deliberately mechanical, no LLM -- matching
+    ``resolve_temporal_conflict``/``resolve_contradiction_conflict``'s
+    own "safe default policy" rather than guessing at semantic intent
+    the way ``resolve_inference_conflict``'s ``auto_resolve`` path
+    does): the two (or more) concurrent object_ids are, by
+    construction, causally unordered -- there is no vector-clock-based
+    way to prefer one over the other, the same reason
+    ``resolve_gossip_conflict`` dead-letters a genuine structural merge
+    conflict for human review rather than guessing a winner. Unlike
+    that path, however, every object_id here is already a content
+    hash (``crdt_store.object_id_for``) that every replica computes
+    identically, so a deterministic, replica-agnostic tie-break is
+    available and safe: the object_id that sorts last
+    (lexicographically) is kept, the rest are discarded via
+    ``resolve_pointer``. This guarantees every replica's Critic Agent
+    converges on the *same* winner independently (no coordination
+    needed) -- unlike, say, "keep the one this replica saw first",
+    which would differ by replica. It is an arbitrary choice, not a
+    semantic one; a future ``construct_knowledge``/
+    ``arbitrate_inference_conflict``-based content-aware arbitration
+    can replace this heuristic without changing the task/payload shape.
+    """
+    payload = task.get("payload")
+    if not isinstance(payload, dict):
+        return Resolution(False, f"payload was not a JSON object: {payload!r}")
+
+    pointer_key = payload.get("pointer_key") or task.get("session_id")
+    conflicting_object_ids = payload.get("conflicting_object_ids")
+    event_id = payload.get("event_id")
+
+    if not pointer_key:
+        return Resolution(False, "payload has no 'pointer_key' to resolve.")
+    if not isinstance(conflicting_object_ids, list) or len(conflicting_object_ids) < 2:
+        return Resolution(
+            False,
+            f"payload's 'conflicting_object_ids' must list 2+ object ids, got: "
+            f"{conflicting_object_ids!r}",
+        )
+
+    crdt_store = _crdt_store_for(runtime)
+    if crdt_store is None:
+        return Resolution(
+            False,
+            "this Runtime's storage backend has no attached CRDTStore "
+            "(InMemoryStorage, or ADR-013 Stage 2 gossip wiring not enabled).",
+        )
+
+    # Re-read the live pointer set rather than trusting the payload's
+    # snapshot verbatim: a later update_pointer call (e.g. a fast
+    # subsequent gossip round) may have already resolved part of the
+    # fork by the time this task is claimed, and resolve_pointer below
+    # must only discard object_ids that are still actually present.
+    current_pointers = crdt_store.get_pointers(pointer_key)
+    if hasattr(current_pointers, "__await__"):
+        current_pointers = await current_pointers
+    current_ids = {p["object_id"] for p in current_pointers}
+
+    if len(current_ids) <= 1:
+        # Already resolved (by a prior task, or converged naturally) --
+        # nothing left to arbitrate.
+        if event_id:
+            mark_result = crdt_store.mark_fork_resolved(event_id)
+            if hasattr(mark_result, "__await__"):
+                await mark_result
+        return Resolution(True, "pointer already had a single live object_id; no-op")
+
+    winner = max(current_ids)
+    resolved = crdt_store.resolve_pointer(pointer_key, winner)
+    if hasattr(resolved, "__await__"):
+        resolved = await resolved
+
+    if not resolved:
+        return Resolution(
+            False, f"resolve_pointer('{pointer_key}', '{winner}') found no such object_id"
+        )
+
+    if event_id:
+        mark_result = crdt_store.mark_fork_resolved(event_id)
+        if hasattr(mark_result, "__await__"):
+            await mark_result
+
+    return Resolution(True)
+
+
+def _crdt_store_for(runtime: Runtime) -> Any | None:
+    """
+    Build (or reuse) a ``CRDTStore`` wrapping ``runtime.storage``'s own
+    connection -- same helper responsibility as
+    ``cks_mcp.gossip._build_crdt_store``, duplicated rather than
+    imported to keep this module import-independent of the optional
+    gossip subsystem (a Critic Agent process must be able to resolve
+    ``crdt_fork`` tasks even when it was started with
+    ``CKS_GOSSIP_ENABLED=false`` and no ``GossipHandle`` was ever
+    built -- the fork tasks it's draining were written by some *other*
+    process's gossip-enabled adapter, sharing the same storage
+    backend).
+    """
+    from cks_runtime.storage.sqlite_storage import SQLiteStorage
+
+    storage = runtime.storage
+    storage = getattr(storage, "wrapped", storage)
+    if isinstance(storage, SQLiteStorage):
+        from cks_runtime.crdt.crdt_store import SQLiteCRDTStore
+
+        conn = getattr(storage, "_conn", None)
+        return SQLiteCRDTStore(conn) if conn is not None else None
+
+    try:
+        from cks_runtime.storage.postgres_storage import PostgresStorage
+    except ImportError:
+        return None
+
+    if isinstance(storage, PostgresStorage):
+        from cks_runtime.crdt.crdt_store import PostgresCRDTStore
+
+        pool = getattr(storage, "_pool", None)
+        return PostgresCRDTStore(pool) if pool is not None else None
+
+    return None
+
+
 _RESOLVERS = {
     "gossip_conflict": resolve_gossip_conflict,
     "inference_conflict": resolve_inference_conflict,
     "provenance_conflict": resolve_provenance_conflict,
     "temporal_conflict": resolve_temporal_conflict,
     "contradiction_detected": resolve_contradiction_conflict,
+    "crdt_fork": resolve_crdt_fork,
 }
 
 

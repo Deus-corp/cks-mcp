@@ -98,6 +98,8 @@ def _fetch_version_sync(repo: str, candidate_paths: tuple[str, ...]) -> tuple[st
         return match.group(1), None
     return None, last_error or f"no candidate paths for {repo}"
 
+def _strip_v_prefix(version: str) -> str:
+    return version.lstrip("v")
 
 def _version_tuple(version: Any) -> tuple[int, ...] | None:
     """
@@ -110,6 +112,7 @@ def _version_tuple(version: Any) -> tuple[int, ...] | None:
     """
     if not isinstance(version, str):
         return None
+    version = _strip_v_prefix(version)
     parts = []
     for chunk in version.split("."):
         try:
@@ -128,6 +131,11 @@ def _compare_versions(graph_version: Any, actual_version: str) -> str:
     doesn't parse as a dotted version, since an exact string match is
     still meaningful even when we can't order two malformed values.
     """
+    if isinstance(graph_version, str):
+        graph_version = _strip_v_prefix(graph_version)
+    if isinstance(actual_version, str):
+        actual_version = _strip_v_prefix(actual_version)
+
     if graph_version == actual_version:
         return "up_to_date"
 

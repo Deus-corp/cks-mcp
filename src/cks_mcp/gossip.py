@@ -38,6 +38,7 @@ import sys
 from dataclasses import dataclass
 
 from cks_runtime.events.runtime_event import (
+    CRDTForkDetected,
     GossipConflictDetected,
     SessionClosed,
     SessionCreated,
@@ -105,6 +106,68 @@ class GossipSettings:
         )
 
 
+def _build_crdt_store(runtime: Runtime):
+    """
+    Construct a ``CRDTStore`` (ADR-013) wrapping the same connection
+    ``runtime.storage`` already holds, so the CRDT G-Set/MV-Register
+    tables live in the exact same SQLite file / Postgres database as
+    the rest of this replica's state -- one backup, one file to ship
+    around, no separate CRDT database to keep in sync by hand.
+
+    Returns ``None`` for storage backends with no durable connection to
+    attach a CRDT store to (``InMemoryStorage``) -- gossip then runs
+    exactly as it did before ADR-013 Stage 1/2 existed, with no G-Set/
+    MV-Register tracking at all. This mirrors ``setup_gossip``'s own
+    ``runtime.replica_id is None`` guard just above, which already
+    rules ``InMemoryStorage`` out of gossip entirely in practice; this
+    function is defensive about it independently since a future
+    storage backend could plausibly have a replica_id without exposing
+    a SQL connection this module knows how to wrap.
+
+    Reaches into ``runtime.storage``'s private ``_conn``/``_pool``
+    attribute rather than a public accessor: neither ``SQLiteStorage``
+    nor ``PostgresStorage`` currently exposes one (ADR-013 Stage 1
+    shipped the store types themselves but never wired a production
+    constructor for them), and adding one is out of scope for the
+    CRDT adapter itself -- see ADR-013 Stage 2's "do not touch
+    SQLiteStorage/PostgresStorage" constraint.
+    """
+    from cks_runtime.storage.sqlite_storage import SQLiteStorage
+
+    storage = runtime.storage
+    # SyncStorageAdapter (adapter.py) wraps a synchronous SQLiteStorage
+    # behind the async RuntimeStorage interface -- unwrap it first so
+    # the isinstance check below sees the real backend instead of the
+    # adapter shell.
+    storage = getattr(storage, "wrapped", storage)
+    if isinstance(storage, SQLiteStorage):
+        from cks_runtime.crdt.crdt_store import SQLiteCRDTStore
+
+        conn = getattr(storage, "_conn", None)
+        if conn is None:
+            return None
+        return SQLiteCRDTStore(conn)
+
+    try:
+        from cks_runtime.storage.postgres_storage import PostgresStorage
+    except ImportError:
+        # `psycopg`/the `gossip`-adjacent Postgres extra isn't
+        # installed in this environment -- this replica can only be
+        # running SQLite or in-memory storage, so `storage` is
+        # definitely not a PostgresStorage either way.
+        return None
+
+    if isinstance(storage, PostgresStorage):
+        from cks_runtime.crdt.crdt_store import PostgresCRDTStore
+
+        pool = getattr(storage, "_pool", None)
+        if pool is None:
+            return None
+        return PostgresCRDTStore(pool)
+
+    return None
+
+
 @dataclass
 class GossipHandle:
     """Owns the running gossip components; started/stopped as a unit."""
@@ -114,6 +177,17 @@ class GossipHandle:
     service: GossipService
 
     async def start(self) -> None:
+        # ADR-013 Stage 2: PostgresCRDTStore's tables are created via
+        # an async `ensure_schema()` (unlike SQLiteCRDTStore, which
+        # creates them synchronously in `__init__`) -- run it here,
+        # before the adapter's first gossip round could possibly touch
+        # the store, rather than lazily on first use.
+        from cks_runtime.crdt.crdt_store import PostgresCRDTStore
+
+        crdt_store = self.adapter._crdt_store
+        if isinstance(crdt_store, PostgresCRDTStore):
+            await crdt_store.ensure_schema()
+
         # Server first: a peer's inbound round arriving between
         # service.start() and server bind-up would otherwise fail for
         # no good reason.
@@ -160,7 +234,8 @@ def setup_gossip(runtime: Runtime, settings: GossipSettings) -> GossipHandle | N
         return None
 
     secret = load_secret()
-    adapter = GossipAdapter(runtime, runtime.replica_id)
+    crdt_store = _build_crdt_store(runtime)
+    adapter = GossipAdapter(runtime, runtime.replica_id, crdt_store=crdt_store)
     scheduler = PeerScheduler(list(settings.peers))
 
     server = GossipServer(
@@ -229,6 +304,35 @@ def setup_gossip(runtime: Runtime, settings: GossipSettings) -> GossipHandle | N
     runtime.events.subscribe(SessionCreated, _on_created)
     runtime.events.subscribe(SessionClosed, _on_closed)
     runtime.events.subscribe(GossipConflictDetected, _on_conflict)
+
+    async def _on_fork(event: CRDTForkDetected) -> None:
+        # ADR-013 Stage 2: mirror _on_conflict above for MV-Register
+        # forks -- buffer into conflict_inbox for a same-process
+        # Critic-agent-style caller, and dual-write into the shared
+        # outbox (task_type "crdt_fork") for an out-of-process Critic
+        # Agent worker. The fork was already persisted into
+        # cks_conflict_events by GossipAdapter._handle_fork (via
+        # CRDTStore.escalate_fork) before this event was published --
+        # this is a notification of that row, not the only record of
+        # it, so a Critic Agent that missed this event (e.g. it wasn't
+        # running yet) can still discover the fork later via
+        # CRDTStore.list_pending_forks / a "crdt_fork" outbox poll.
+        await conflict_inbox.record_crdt_fork(event)
+        if runtime.storage.supports_outbox:
+            await runtime.storage.enqueue_task(
+                task_type="crdt_fork",
+                session_id=event.pointer_key,
+                payload=json.dumps(
+                    {
+                        "pointer_key": event.pointer_key,
+                        "conflicting_object_ids": [str(o) for o in event.conflicting_object_ids],
+                        "event_id": event.conflict_event_id,
+                    }
+                ),
+            )
+
+    if crdt_store is not None:
+        runtime.events.subscribe(CRDTForkDetected, _on_fork)
 
     print(
         f"[CKS-MCP] Gossip enabled: listening on {settings.host}:{settings.port}, "

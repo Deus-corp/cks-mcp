@@ -18,6 +18,7 @@ from cks_mcp.critic_agent import (
     get_critic_metrics,
     reset_critic_agent_state,
     resolve_contradiction_conflict,
+    resolve_crdt_fork,
     resolve_gossip_conflict,
     resolve_inference_conflict,
     resolve_provenance_conflict,
@@ -1052,3 +1053,110 @@ async def test_get_critic_metrics_starts_at_zero():
     assert metrics["lease_lost"] == {}
     assert metrics["llm_breaker_open"] is False
     assert metrics["llm_breaker_trips"] == 0
+
+# ---------------------------------------------------------------------------
+# resolve_crdt_fork (ADR-013 Stage 2)
+# ---------------------------------------------------------------------------
+
+
+async def test_resolve_crdt_fork_rejects_non_dict_payload(mock_runtime):
+    task = {"session_id": "head", "payload": "not-a-dict", "retry_count": 0}
+    resolution = await resolve_crdt_fork(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "payload" in (resolution.detail or "")
+
+
+async def test_resolve_crdt_fork_rejects_missing_pointer_key(mock_runtime):
+    task = {"session_id": "", "payload": {"conflicting_object_ids": ["a", "b"]}, "retry_count": 0}
+    resolution = await resolve_crdt_fork(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "pointer_key" in (resolution.detail or "")
+
+
+async def test_resolve_crdt_fork_rejects_insufficient_object_ids(mock_runtime):
+    task = {
+        "session_id": "head",
+        "payload": {"pointer_key": "head", "conflicting_object_ids": ["only-one"]},
+        "retry_count": 0,
+    }
+    resolution = await resolve_crdt_fork(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "conflicting_object_ids" in (resolution.detail or "")
+
+
+async def test_resolve_crdt_fork_no_attached_crdt_store(mock_runtime):
+    # mock_runtime.storage is a MagicMock, not a real SQLiteStorage/
+    # PostgresStorage instance, so _crdt_store_for(...) returns None.
+    task = {
+        "session_id": "head",
+        "payload": {
+            "pointer_key": "head",
+            "conflicting_object_ids": ["obj-a", "obj-b"],
+            "event_id": "evt-1",
+        },
+        "retry_count": 0,
+    }
+    resolution = await resolve_crdt_fork(mock_runtime, task)
+    assert resolution.resolved is False
+    assert "CRDTStore" in (resolution.detail or "")
+
+
+async def test_end_to_end_crdt_fork_resolution_with_real_storage(tmp_path):
+    """
+    No mocks: a real SQLite-backed Runtime/CRDTStore, a real MV-Register
+    fork seeded via update_pointer, a real enqueued 'crdt_fork' outbox
+    task, and the full claim -> resolve -> complete path via run_once.
+    """
+    import json
+
+    from cks_runtime.config import RuntimeConfig
+    from cks_runtime.crdt.crdt_store import SQLiteCRDTStore
+    from cks_runtime.crdt.version_vector import VersionVector
+    from cks_runtime.runtime import Runtime
+    from cks_runtime_plugins.cks_core import CksCoreAdapter
+
+    db_path = str(tmp_path / "critic_agent_crdt_fork_test.db")
+    runtime = await Runtime.create(core=CksCoreAdapter(), config=RuntimeConfig(storage_path=db_path))
+    if hasattr(runtime, "_outbox_worker") and runtime._outbox_worker is not None:
+        await runtime._outbox_worker.stop()
+    if hasattr(runtime, "_inference_sweeper") and runtime._inference_sweeper is not None:
+        await runtime._inference_sweeper.stop()
+    try:
+        # Seed a genuine fork directly on the same connection the
+        # Runtime's own SQLiteStorage holds, mirroring how
+        # GossipAdapter._handle_fork/CRDTStore.escalate_fork would
+        # have produced this state via _build_crdt_store in gossip.py.
+        conn = runtime.storage.wrapped._conn
+        crdt_store = SQLiteCRDTStore(conn)
+        crdt_store.update_pointer("concept-1", "obj-aaa", VersionVector(clocks={"n1": 1}), "n1")
+        crdt_store.update_pointer("concept-1", "obj-bbb", VersionVector(clocks={"n2": 1}), "n2")
+        assert len(crdt_store.get_pointers("concept-1")) == 2
+        event_id = crdt_store.escalate_fork(
+            "concept-1", ["obj-aaa", "obj-bbb"], [{"n1": 1}, {"n2": 1}]
+        )
+
+        await runtime.storage.enqueue_task(
+            task_type="crdt_fork",
+            session_id="concept-1",
+            payload=json.dumps(
+                {
+                    "pointer_key": "concept-1",
+                    "conflicting_object_ids": ["obj-aaa", "obj-bbb"],
+                    "event_id": event_id,
+                }
+            ),
+        )
+
+        settings = CriticAgentSettings(poll_interval=0.01, max_retries=3, storage_path=db_path)
+        processed = await run_once(runtime, settings)
+        assert processed == 1
+
+        dead = await runtime.storage.list_dead_letter_tasks(task_type="crdt_fork")
+        assert dead == []
+
+        # "obj-bbb" sorts last lexicographically -> deterministic winner.
+        remaining_pointers = crdt_store.get_pointers("concept-1")
+        assert [p["object_id"] for p in remaining_pointers] == ["obj-bbb"]
+        assert crdt_store.list_pending_forks() == []
+    finally:
+        await runtime.aclose()

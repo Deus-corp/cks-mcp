@@ -3,6 +3,20 @@
 
 ---
 
+## [1.48.0] - 2026-08-06
+
+### Added
+- **CRDT fork resolution in Critic Agent** – `critic_agent.py` now handles `crdt_fork` tasks (escalated by `CRDTForkDetected` events, cks‑runtime ADR‑013 Stage 2). The resolver fetches the conflicting object ids from the event payload, uses `resolve_contradiction`-style mechanical logic to select a winner, and commits the resolution through `CRDTStore.resolve_pointer`.
+- **CRDT fork subscriptions** – `gossip.py` now constructs a `CRDTStore` instance (when the storage backend supports it) and subscribes to `CRDTForkDetected` events, routing them into the `ConflictInbox` alongside gossip and inference conflicts.
+- **`ConflictInbox` extended** – new `_CRDTForkRecord` and `record_crdt_fork`/`list_crdt_forks` methods for buffering and draining CRDT fork events, mirroring the existing gossip/inference conflict queues.
+- New tests in `tests/test_critic_agent.py` for `resolve_crdt_fork`.
+- Requires `cks‑runtime` ≥ 1.46.0 for `CRDTForkDetected.conflict_event_id`.
+
+### Changed
+- `ConflictInbox` and `gossip.py` updated to handle the new event type.
+
+---
+
 ## [1.47.0] - 2026-08-06
 
 ### Added
