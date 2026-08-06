@@ -136,6 +136,17 @@ a future update agent to act on (cks-runtime enqueues a
 outdated. `{"found": false}` if no graph is registered under that
 name.
 
+## `explain_graph`
+
+Generates a human-readable Markdown report for any registered graph,
+grouping entities by type (Component, Module, Sweeper, Agent, Tool,
+ADR, Plugin) and showing their relations. Makes knowledge graphs
+accessible to any LLM or person without parsing raw JSON.
+
+**Parameters:** `name` (required — registered graph name).
+
+**Response:** `{"found": true, "name": "cks-ecosystem", "session_id": "...", "report": "<markdown text>"}`.
+
 ## `export_storage`
 
 Exports a complete dump of all sessions, versions, graph registry entries,

@@ -1,6 +1,6 @@
 # Tools Reference
 
-`cks-mcp` exposes **36 tools** over the Model Context Protocol. Every tool
+`cks-mcp` exposes **52 tools** over the Model Context Protocol. Every tool
 call is a canonical operation: it runs inside a `RuntimeSession`, and any
 call that mutates state does so through a `Transaction`, producing an
 immutable `Version` (see [Architecture](../architecture/ARCHITECTURE.md)).
@@ -17,8 +17,8 @@ used together rather than their declaration order in the registry:
 | [Verification & Integrity](verification.md) | `verify_source`, `detect_contradictions` | Anti-hallucination: provenance and logical consistency |
 | [AI-Assisted & Ingestion](ai-assisted.md) | `construct_knowledge`, `suggest_evolution`, `ingest_document`, `request_enrichment` | From free text, a URL, or an external search query to a validated structure |
 | [Export & Observability](export-and-audit.md) | `export_knowledge`, `export_session`, `get_metrics`, `export_storage`, `import_storage`, `migrate_storage`, `list_plugins` | Get data out, back up, migrate between backends, list installed plugins, and see how the server is performing |
-| [Memory & Persistence](export-and-audit.md) | `register_graph`, `get_graph`, `list_graphs`, `search_graphs`, `check_graph_freshness`, `check_component_versions`, `update_registered_graph` | Save and reuse Knowledge Graphs across conversations, check component freshness, update outdated graphs |
-| [Gossip & Conflict Resolution](gossip-and-conflicts.md) | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `refresh_verification`, `resolve_temporal_conflict`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` | Drain and resolve conflicts escalated by gossip, inference, provenance, or temporal staleness, plus the critic‑agent task lifecycle |
+| [Memory & Persistence](export-and-audit.md) | `register_graph`, `get_graph`, `list_graphs`, `search_graphs`, `check_graph_freshness`, `check_component_versions`, `update_registered_graph`, `explain_graph` | Save and reuse Knowledge Graphs, check component freshness, update outdated graphs, generate human-readable reports |
+| [Gossip & Conflict Resolution](gossip-and-conflicts.md) | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `refresh_verification`, `resolve_temporal_conflict`, `resolve_contradiction`, `review_dead_letter`, `approve_resolution`, `reject_resolution`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` | Drain and resolve conflicts escalated by gossip, inference, provenance, temporal, or contradiction staleness, plus the critic‑agent task lifecycle and human-in-the-loop dead-letter review |
 
 ## Conventions used across every tool
 

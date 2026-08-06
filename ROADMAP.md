@@ -8,7 +8,7 @@ towards a stable, production-ready platform and beyond.
 
 # Current Status (v1.41.x — August 2026)
 
-CKS has matured into a **46‑tool, 1 650+ test autonomous knowledge platform**
+CKS has matured into a **52‑tool, 1 700+ test autonomous knowledge platform**
 with three persistent agents, five background sweepers, and a plugin framework.
 It provides LLMs with a verifiable, self‑maintaining knowledge backbone that
 runs entirely on local infrastructure (SQLite/Postgres, fastembed, optional
@@ -94,14 +94,9 @@ with a public gallery of reusable graphs and cross‑graph analysis.
 
 ## Memory Agent v2 — Autonomous Graph Updates (🔴 P0)
 
-- [ ] **Auto‑refresh registered graphs:** compare versions of components in
-  a saved graph (e.g., `"cks-ecosystem"`) with real `_version.py` files from
-  the source repositories.
-- [ ] **Scheduled or on‑demand updates:** when a registered graph is outdated,
-  automatically trigger a rebuild (via `construct_knowledge` or
-  `evolve_knowledge`).
-- [ ] **Changelog per graph:** record what changed and when for every
-  auto‑update.
+- [x] **Memory Agent v2:** `check_component_versions` (v1.42.0), `update_registered_graph` (v1.43.0), `GraphAutoUpdateSweeper` (cks‑runtime v1.42.0) — graphs can now detect outdated components, update them automatically, and run the check on a schedule.
+- [x] **`explain_graph` tool** (v1.44.0) — generates a human-readable Markdown report for any registered graph.
+- [x] **Human-in-the-loop:** `review_dead_letter`, `approve_resolution`, `reject_resolution` tools (v1.45.0) — manual dead-letter recovery with a simple review/approve/reject workflow.
 
 ## Graph Gallery (🟡 P1)
 

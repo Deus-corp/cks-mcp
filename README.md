@@ -143,8 +143,8 @@ real request/response examples: [`docs/tools/`](docs/tools/index.md).
 | Verification & Integrity | `verify_source`, `detect_contradictions` |
 | AI-Assisted & Ingestion | `construct_knowledge`, `suggest_evolution`, `ingest_document`, `request_enrichment` |
 | Export & Observability | `export_knowledge`, `export_session`, `get_metrics`, `export_storage`, `import_storage`, `migrate_storage`, `list_plugins` |
-| Memory & Persistence | `register_graph`, `get_graph`, `list_graphs`, `search_graphs`, `check_graph_freshness`, `check_component_versions`, `update_registered_graph` |
-| Gossip & Conflict Resolution | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `refresh_verification`, `resolve_temporal_conflict`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` |
+| Memory & Persistence | `register_graph`, `get_graph`, `list_graphs`, `search_graphs`, `check_graph_freshness`, `check_component_versions`, `update_registered_graph`, `explain_graph` |
+| Gossip & Conflict Resolution | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `refresh_verification`, `resolve_temporal_conflict`, `resolve_contradiction`, `review_dead_letter`, `approve_resolution`, `reject_resolution`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` |
 
 ## Critic Agent (unattended conflict resolution)
 
