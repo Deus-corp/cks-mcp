@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-657%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-670%20passed-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
@@ -185,6 +185,41 @@ Env vars: `CKS_MCP_DB_PATH` (shared storage), `CKS_ENRICHMENT_POLL_INTERVAL`
 (default 5s), `CKS_ENRICHMENT_MAX_RETRIES` (default 5), `CKS_ENRICHMENT_MIN_SCORE`
 (default 0.5), and adapter‑specific tuning (see `cks_mcp/enrichment_agent.py`).
 
+## Fork Resolution Agent (autonomous CRDT fork resolution)
+
+`cks-fork-agent` is a companion process, following the same outbox‑polling
+architecture as the Critic Agent and Enrichment Agent, dedicated to resolving
+`crdt_fork` tasks (MV‑Register forks detected by `CRDTForkDetected`,
+cks‑runtime ADR‑013 Stage 2) without human involvement. It is purely
+mechanical — no LLM is involved:
+
+1. Prefers the causally‑newest conflicting object, when `VersionVector`
+   comparison (`causality_check`) shows one candidate strictly dominates the
+   others.
+2. Otherwise falls back to whichever candidate has the most recent
+   `created_at` on the live MV‑Register pointer row.
+3. Otherwise falls back to a deterministic, replica‑agnostic tie‑break: the
+   alphabetically‑first `object_id` — every replica computes object ids
+   identically (content hashes), so every replica's agent converges on the
+   same winner independently.
+
+```bash
+CKS_MCP_DB_PATH=~/.cks-mcp/cks_mcp.db cks-fork-agent
+```
+
+Env vars: `CKS_MCP_DB_PATH` (shared storage path), `CKS_FORK_AGENT_POLL_INTERVAL`
+(seconds between polls, default 30), `CKS_FORK_AGENT_MAX_RETRIES` (attempts
+before dead‑lettering, default 3), `CKS_FORK_AGENT_HEARTBEAT_INTERVAL` (lease
+renewal interval, default 60). See `cks_mcp/fork_resolution_agent.py` for the
+resolution policy in full.
+
+> **Note:** `critic_agent.py` also claims `crdt_fork` tasks from the same
+> outbox queue, with a different (simpler, lexicographically‑last) tie‑break
+> policy. Both agents compete for the same queue if run together — whichever
+> claims a fork first decides its outcome. Run `cks-fork-agent` as the
+> intended owner of `crdt_fork` resolution; avoid running both against the
+> same database at once.
+
 ---
 
 # Usage Examples
@@ -283,7 +318,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-657+ tests, all passing.
+670+ tests, all passing.
 
 ---
 

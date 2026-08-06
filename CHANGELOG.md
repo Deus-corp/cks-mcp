@@ -3,6 +3,19 @@
 
 ---
 
+## [1.49.0] - 2026-08-06
+
+### Added
+- **`ForkResolutionAgent` (Stage 3)** – new `src/cks_mcp/fork_resolution_agent.py`, a standalone autonomous process (console script `cks-fork-agent`) that claims and resolves `crdt_fork` outbox tasks on its own, following the same claim → resolve → complete/fail/dead-letter pattern as `critic_agent.py`/`enrichment_agent.py` (`cks_mcp.agent_loop`). Resolution policy: (1) prefer the causally-newest object per `VersionVector`/`causality_check` when one candidate strictly dominates the others; (2) otherwise fall back to the most recent `created_at` on the live MV-Register pointer row; (3) otherwise a deterministic alphabetically-first `object_id` tie-break. Purely mechanical — no LLM involved.
+- `ForkResolutionAgentSettings.from_env()` reads `CKS_FORK_AGENT_POLL_INTERVAL` (default 30s), `CKS_FORK_AGENT_MAX_RETRIES` (default 3), `CKS_FORK_AGENT_HEARTBEAT_INTERVAL` (default 60s), and shares `CKS_MCP_DB_PATH` with the other agents.
+- New tests in `tests/test_fork_resolution_agent.py`.
+- `cks-fork-agent = "cks_mcp.fork_resolution_agent:main_sync"` entry point in `pyproject.toml`.
+
+### Note
+- `critic_agent.py`'s own `resolve_crdt_fork` (added in 1.48.0) still claims from the same `crdt_fork` outbox queue with a different (simpler, lexicographically-last) policy. Running both `cks-critic-agent` and `cks-fork-agent` at once means whichever claims a given fork first decides its outcome. Treat `cks-fork-agent` as the intended replacement for crdt_fork handling going forward — see README.md's "Fork Resolution Agent" section.
+
+---
+
 ## [1.48.0] - 2026-08-06
 
 ### Added
