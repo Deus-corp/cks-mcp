@@ -33,6 +33,8 @@ from cks_mcp.tools.check_component_versions.schema import (
 )
 from cks_mcp.tools.check_graph_freshness import check_graph_freshness
 from cks_mcp.tools.check_graph_freshness.schema import CHECK_GRAPH_FRESHNESS_SCHEMA
+from cks_mcp.tools.check_graph_health import check_graph_health
+from cks_mcp.tools.check_graph_health.schema import CHECK_GRAPH_HEALTH_SCHEMA
 from cks_mcp.tools.claim_conflict_task import claim_conflict_task
 from cks_mcp.tools.claim_conflict_task.schema import CLAIM_CONFLICT_TASK_SCHEMA
 from cks_mcp.tools.compare import compare_versions
@@ -397,6 +399,10 @@ TOOLS = {
     "check_component_versions": {
         **CHECK_COMPONENT_VERSIONS_SCHEMA,
         "handler": _wrap("check_component_versions", "name")(check_component_versions),
+    },
+    "check_graph_health": {
+        **CHECK_GRAPH_HEALTH_SCHEMA,
+        "handler": _wrap("check_graph_health", "name")(check_graph_health),
     },
     "explain_graph": {
         **EXPLAIN_GRAPH_SCHEMA,

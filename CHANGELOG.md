@@ -3,6 +3,14 @@
 
 ---
 
+## [1.47.0] - 2026-08-06
+
+### Added
+- **`check_graph_health` tool** – computes an aggregate health score (0.0–1.0) for a registered graph by combining five existing read-only checks into one weighted metric: version freshness (`check_component_versions`, weight 0.3), TTL freshness (`check_graph_freshness`, weight 0.1), contradictions (`detect_contradictions`, weight 0.3), verification coverage (share of `VerificationRecord` objects checked within the last 30 days, weight 0.2), and dead‑lettered conflict tasks for the graph's session (`list_dead_lettered_conflicts`, weight 0.1). Read‑only — does not modify the graph or apply any fixes. Pairs with `GraphHealthSweeper` (cks‑runtime ≥ 1.44.0) which runs the same scoring on a schedule and escalates unhealthy graphs.
+- Tool count increased from 52 to 53 (`test_server.py` updated). New unit tests in `tests/tools/check_graph_health/test_handler.py` covering perfect health, degraded health with weighted‑average verification, dead‑letter filtering by session, unsupported storage fallback, and malformed `checked_at` timestamps.
+
+---
+
 ## [1.46.0] - 2026-08-06
 
 ### Added
