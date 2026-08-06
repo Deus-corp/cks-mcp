@@ -136,6 +136,18 @@ a future update agent to act on (cks-runtime enqueues a
 outdated. `{"found": false}` if no graph is registered under that
 name.
 
+## `check_graph_health`
+
+Computes an aggregate health score (0.0–1.0) for a registered graph by
+combining five read-only checks into one weighted metric: version freshness
+(weight 0.3), TTL freshness (weight 0.1), contradictions (weight 0.3),
+verification coverage (weight 0.2), and dead‑lettered conflict tasks
+(weight 0.1). Read-only — does not modify the graph.
+
+**Parameters:** `name` (required — registered graph name).
+
+**Response:** `{"name": "cks-ecosystem", "session_id": "...", "health_score": 0.85, "metrics": {...}, "timestamp": "..."}`.
+
 ## `explain_graph`
 
 Generates a human-readable Markdown report for any registered graph,

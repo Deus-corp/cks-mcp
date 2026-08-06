@@ -91,6 +91,8 @@ Ollama). See [README](README.md#available-tools) for the full tool list.
 
 **Goal:** Make CKS the default knowledge layer for LLM applications,
 with a public gallery of reusable graphs and cross‑graph analysis.
+- [x] **Cost & Token Tracking:** `LLMTelemetry` + `get_metrics` integration (v1.46.0) — token usage, cost estimates, and call statistics for all LLM‑facing tools.
+- [x] **Graph Health Score:** `check_graph_health` tool (v1.47.0) + `GraphHealthSweeper` in cks‑runtime (v1.44.0) — automated health scoring with escalation.
 
 ## Memory Agent v2 — Autonomous Graph Updates (🔴 P0)
 
