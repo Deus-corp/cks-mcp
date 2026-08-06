@@ -105,9 +105,13 @@ def _ollama_available(host: str | None = None) -> bool:
     return llm_providers.ollama_available(host)
 
 
-def _call_ollama(prompt: str, model: str, max_tokens: int) -> str:
+def _call_ollama(prompt: str, model: str, max_tokens: int, tool_name: str) -> str:
     return llm_providers.call_ollama(
-        prompt, system_prompt=_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
+        prompt,
+        system_prompt=_SYSTEM_PROMPT,
+        model=model,
+        max_tokens=max_tokens,
+        tool_name=tool_name,
     )
 
 
@@ -116,7 +120,9 @@ def _call_ollama(prompt: str, model: str, max_tokens: int) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _call_llm(prompt: str, *, model: str | None, max_tokens: int) -> tuple[str, str]:
+def _call_llm(
+    prompt: str, *, model: str | None, max_tokens: int, tool_name: str = "construct_knowledge"
+) -> tuple[str, str]:
     """
     Route the extraction prompt to whichever LLM provider is configured or
     available. Returns (raw_text, model_used). Raises RuntimeError with a
@@ -126,11 +132,11 @@ def _call_llm(prompt: str, *, model: str | None, max_tokens: int) -> tuple[str, 
 
     if provider == "ollama":
         m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
-        return _call_ollama(prompt, model=m, max_tokens=max_tokens), m
+        return _call_ollama(prompt, model=m, max_tokens=max_tokens, tool_name=tool_name), m
 
     if provider == "anthropic":
         m = model or os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
-        return _call_anthropic(prompt, model=m, max_tokens=max_tokens), m
+        return _call_anthropic(prompt, model=m, max_tokens=max_tokens, tool_name=tool_name), m
 
     if provider != "auto":
         raise RuntimeError(
@@ -143,11 +149,11 @@ def _call_llm(prompt: str, *, model: str | None, max_tokens: int) -> tuple[str, 
     # full list of options).
     if _ollama_available():
         m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
-        return _call_ollama(prompt, model=m, max_tokens=max_tokens), m
+        return _call_ollama(prompt, model=m, max_tokens=max_tokens, tool_name=tool_name), m
 
     m = model or os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
     try:
-        return _call_anthropic(prompt, model=m, max_tokens=max_tokens), m
+        return _call_anthropic(prompt, model=m, max_tokens=max_tokens, tool_name=tool_name), m
     except RuntimeError as exc:
         if "ANTHROPIC_API_KEY" not in str(exc):
             raise
@@ -162,9 +168,13 @@ def _call_llm(prompt: str, *, model: str | None, max_tokens: int) -> tuple[str, 
         ) from exc
 
 
-def _call_anthropic(prompt: str, model: str, max_tokens: int) -> str:
+def _call_anthropic(prompt: str, model: str, max_tokens: int, tool_name: str) -> str:
     return llm_providers.call_anthropic(
-        prompt, system_prompt=_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
+        prompt,
+        system_prompt=_SYSTEM_PROMPT,
+        model=model,
+        max_tokens=max_tokens,
+        tool_name=tool_name,
     )
 
 
@@ -203,6 +213,13 @@ async def construct_knowledge(
         arguments.get("max_tokens")
         or os.environ.get("CKS_LLM_MAX_TOKENS", "4096")
     )
+    # Internal-only override: other tools that build knowledge by calling
+    # this handler as a plain Python function (update_registered_graph)
+    # pass their own name here so LLM telemetry attributes the call to the
+    # tool a human actually invoked, not construct_knowledge itself. Never
+    # part of the public schema -- absent (defaulting to "construct_knowledge")
+    # for every call that comes in through the registered MCP tool.
+    tool_name = arguments.get("_tool_name") or "construct_knowledge"
 
     # Build the user prompt
     user_prompt_parts = [f"Extract a Canonical Knowledge Structure from the following text:\n\n{text}"]
@@ -212,7 +229,9 @@ async def construct_knowledge(
 
     # 1. Call LLM (provider auto-selected or forced via CKS_LLM_PROVIDER)
     try:
-        raw_output, model = _call_llm(user_prompt, model=model, max_tokens=max_tokens)
+        raw_output, model = _call_llm(
+            user_prompt, model=model, max_tokens=max_tokens, tool_name=tool_name
+        )
     except RuntimeError as exc:
         return internal_error(f"LLM call failed: {exc}")
 

@@ -162,6 +162,12 @@ def _build_llm_structure(
     max_tokens = int(
         arguments.get("max_tokens") or os.environ.get("CKS_LLM_MAX_TOKENS", "4096")
     )
+    # Internal-only override, same convention as construct_knowledge's
+    # "_tool_name": the Enrichment Agent calls this handler as a plain
+    # Python function and passes its own name here so LLM telemetry
+    # attributes the call to the agent, not to ingest_document itself.
+    # Never part of the public schema.
+    tool_name = arguments.get("_tool_name") or "ingest_document"
 
     # Provider dispatch: mirrors construct_knowledge.handler._call_llm, but
     # bound to our own system prompt. Only the low-level HTTP primitives
@@ -173,12 +179,20 @@ def _build_llm_structure(
 
     def call_ollama(prompt: str, model: str, max_tokens: int) -> str:
         return llm_providers.call_ollama(
-            prompt, system_prompt=_SYSTEM_PROMPT_INGEST, model=model, max_tokens=max_tokens
+            prompt,
+            system_prompt=_SYSTEM_PROMPT_INGEST,
+            model=model,
+            max_tokens=max_tokens,
+            tool_name=tool_name,
         )
 
     def call_anthropic(prompt: str, model: str, max_tokens: int) -> str:
         return llm_providers.call_anthropic(
-            prompt, system_prompt=_SYSTEM_PROMPT_INGEST, model=model, max_tokens=max_tokens
+            prompt,
+            system_prompt=_SYSTEM_PROMPT_INGEST,
+            model=model,
+            max_tokens=max_tokens,
+            tool_name=tool_name,
         )
 
     if provider == "ollama":

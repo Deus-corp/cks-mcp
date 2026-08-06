@@ -199,27 +199,43 @@ _ARBITER_BATCH_SYSTEM_PROMPT = _ARBITER_BATCH_POLICY
 
 def _call_ollama(prompt: str, model: str, max_tokens: int) -> str:
     return llm_providers.call_ollama(
-        prompt, system_prompt=_ARBITER_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
+        prompt,
+        system_prompt=_ARBITER_SYSTEM_PROMPT,
+        model=model,
+        max_tokens=max_tokens,
+        tool_name="arbitrate_inference_conflict",
     )
 
 
 def _call_anthropic(prompt: str, model: str, max_tokens: int) -> str:
     return llm_providers.call_anthropic(
-        prompt, system_prompt=_ARBITER_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
+        prompt,
+        system_prompt=_ARBITER_SYSTEM_PROMPT,
+        model=model,
+        max_tokens=max_tokens,
+        tool_name="arbitrate_inference_conflict",
     )
 
 
 def _call_ollama_batch(prompt: str, model: str, max_tokens: int) -> str:
     """Batch counterpart of _call_ollama, bound to _ARBITER_BATCH_SYSTEM_PROMPT."""
     return llm_providers.call_ollama(
-        prompt, system_prompt=_ARBITER_BATCH_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
+        prompt,
+        system_prompt=_ARBITER_BATCH_SYSTEM_PROMPT,
+        model=model,
+        max_tokens=max_tokens,
+        tool_name="arbitrate_inference_conflict",
     )
 
 
 def _call_anthropic_batch(prompt: str, model: str, max_tokens: int) -> str:
     """Batch counterpart of _call_anthropic, bound to _ARBITER_BATCH_SYSTEM_PROMPT."""
     return llm_providers.call_anthropic(
-        prompt, system_prompt=_ARBITER_BATCH_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
+        prompt,
+        system_prompt=_ARBITER_BATCH_SYSTEM_PROMPT,
+        model=model,
+        max_tokens=max_tokens,
+        tool_name="arbitrate_inference_conflict",
     )
 
 

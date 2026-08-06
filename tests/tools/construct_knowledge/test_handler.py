@@ -133,7 +133,7 @@ class TestConstructKnowledge:
         runtime = _make_construct_runtime()
         captured = {}
 
-        def fake_call(prompt, model, max_tokens):
+        def fake_call(prompt, model, max_tokens, tool_name=None):
             captured["prompt"] = prompt
             return _VALID_CKS_JSON
 
@@ -151,7 +151,7 @@ class TestConstructKnowledge:
         runtime = _make_construct_runtime()
         captured = {}
 
-        def fake_call(prompt, model, max_tokens):
+        def fake_call(prompt, model, max_tokens, tool_name=None):
             captured["model"] = model
             return _VALID_CKS_JSON
 

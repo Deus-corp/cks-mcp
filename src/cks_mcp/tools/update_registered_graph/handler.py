@@ -143,6 +143,7 @@ async def update_registered_graph(
             {
                 "text": _describe_update(component),
                 "hint": f"new release of component '{component_name}'",
+                "_tool_name": "update_registered_graph",
             },
         )
         if constructed.get("error") == "internal_error" and _NO_PROVIDER_MARKER in constructed.get(

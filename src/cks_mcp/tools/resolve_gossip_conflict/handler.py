@@ -53,13 +53,21 @@ def _default_model() -> str:
 
 def _call_ollama(prompt: str, model: str, max_tokens: int) -> str:
     return llm_providers.call_ollama(
-        prompt, system_prompt=_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
+        prompt,
+        system_prompt=_SYSTEM_PROMPT,
+        model=model,
+        max_tokens=max_tokens,
+        tool_name="resolve_gossip_conflict",
     )
 
 
 def _call_anthropic(prompt: str, model: str, max_tokens: int) -> str:
     return llm_providers.call_anthropic(
-        prompt, system_prompt=_SYSTEM_PROMPT, model=model, max_tokens=max_tokens
+        prompt,
+        system_prompt=_SYSTEM_PROMPT,
+        model=model,
+        max_tokens=max_tokens,
+        tool_name="resolve_gossip_conflict",
     )
 
 

@@ -3,6 +3,16 @@
 
 ---
 
+## [1.46.0] - 2026-08-06
+
+### Added
+- **LLM cost & token tracking** (`src/cks_mcp/llm_telemetry.py`) – new process‑level `LLMTelemetry` aggregator that records every LLM provider call made through `llm_providers` (Ollama/Anthropic). Tracks total calls, calls by provider/model/tool, total tokens, estimated cost (USD, Anthropic only – standard Sonnet $3/$15 and Opus $15/$75 per 1M input/output tokens; Ollama always $0), average duration, success rate, and top error types. Wired into `get_metrics` as a new `llm_telemetry` field alongside `runtime_metrics`, `tool_telemetry`, and `critic_agent_metrics`.
+- **`tool_name` parameter on `call_ollama`/`call_anthropic`** – optional (default `None` preserves the old signature). When a caller passes its own name (e.g. `construct_knowledge`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `update_registered_graph`, `enrichment_agent`), every outcome is recorded: for Anthropic, real `usage.input_tokens`/`usage.output_tokens` and their exact cost; for Ollama, a character‑based estimate (chars/4). Recording is best‑effort and never raises.
+- Internal‑only `_tool_name` override in `construct_knowledge` and `ingest_document` so callers that invoke those handlers as plain Python functions (`update_registered_graph`, `enrichment_agent`) attribute their LLM calls correctly.
+- New tests in `tests/test_llm_telemetry.py` (aggregation, cost estimation, ring‑buffer eviction), `tests/test_llm_providers.py` (tool‑name integration for every success/failure branch), and `tests/tools/get_metrics/test_handler.py` (verifies the new `llm_telemetry` field).
+
+---
+
 ## [1.45.0] - 2026-08-05
 
 ### Added

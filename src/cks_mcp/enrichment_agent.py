@@ -305,7 +305,9 @@ async def resolve_enrichment_request(
             skipped_robots.append(candidate.url)
             continue
 
-        ingest_result = await ingest_document(runtime, {"url": candidate.url})
+        ingest_result = await ingest_document(
+            runtime, {"url": candidate.url, "_tool_name": "enrichment_agent"}
+        )
         if ingest_result.get("error"):
             failures.append(f"{candidate.url}: ingest_document failed: {ingest_result}")
             continue
