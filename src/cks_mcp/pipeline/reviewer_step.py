@@ -22,7 +22,6 @@ skips straight to reporting that prior outcome if found.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from dataclasses import dataclass, field
@@ -30,9 +29,10 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 
-from cks_mcp import llm_providers
 from cks_mcp.agent_loop import Resolution
 from cks_mcp.paths import data_dir
+from cks_mcp.pipeline.common import call_llm, find_object
+from cks_mcp.pipeline.common import content_hash as compute_content_hash
 from cks_mcp.pipeline.schema import (
     PipelineStatus,
     append_transition,
@@ -69,60 +69,6 @@ class ReviewerStepSettings:
         )
 
 
-def _find_object(session: Any, object_id: str) -> Any | None:
-    for obj in session.knowledge_structure.objects:
-        if obj.identity.id == object_id:
-            return obj
-    return None
-
-
-def _content_hash(obj: Any) -> str:
-    """See ``pipeline.researcher_step._content_hash`` -- same exclusion
-    of ``current_status``/``transition_log`` from the hash."""
-    structure = dict(obj.structure or {})
-    structure.pop("current_status", None)
-    structure.pop("transition_log", None)
-    payload = json.dumps(structure, sort_keys=True, default=str)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def _call_llm(prompt: str, *, model: str | None, max_tokens: int) -> tuple[str, str]:
-    """Same provider dispatch as ``pipeline.researcher_step._call_llm``,
-    bound to the Reviewer's own system prompt."""
-    provider = os.environ.get("CKS_LLM_PROVIDER", "auto").lower()
-    default_model = os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
-
-    if provider == "ollama" or (provider == "auto" and llm_providers.ollama_available()):
-        m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
-        return (
-            llm_providers.call_ollama(
-                prompt,
-                system_prompt=_REVIEWER_SYSTEM_PROMPT,
-                model=m,
-                max_tokens=max_tokens,
-                tool_name="pipeline_reviewer_step",
-            ),
-            m,
-        )
-
-    if provider not in ("auto", "anthropic"):
-        raise RuntimeError(
-            f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', or 'anthropic'."
-        )
-
-    m = model or default_model
-    return (
-        llm_providers.call_anthropic(
-            prompt,
-            system_prompt=_REVIEWER_SYSTEM_PROMPT,
-            model=m,
-            max_tokens=max_tokens,
-            tool_name="pipeline_reviewer_step",
-        ),
-        m,
-    )
-
-
 def _parse_verdict(raw: str) -> tuple[bool, str]:
     text = raw.strip()
     if text.upper().startswith("APPROVE"):
@@ -147,11 +93,11 @@ async def resolve_pipeline_review_request(
     if session is None:
         return Resolution(False, f"session '{session_id}' not found")
 
-    obj = _find_object(session, object_id)
+    obj = find_object(session, object_id)
     if obj is None:
         return Resolution(False, f"object '{object_id}' not found in session '{session_id}'")
 
-    content_hash = _content_hash(obj)
+    content_hash = compute_content_hash(obj)
     current_log = read_transition_log(obj)
     if has_agent_transitioned(obj, AGENT_NAME, content_hash=content_hash):
         # Idempotency guard, same rationale as researcher_step's: this
@@ -169,7 +115,7 @@ async def resolve_pipeline_review_request(
         return Resolution(True, PipelineStatus.RESOLVED)
 
     finding_node_id = payload.get("reasoning_node_id")
-    finding = _find_object(session, finding_node_id) if finding_node_id else None
+    finding = find_object(session, finding_node_id) if finding_node_id else None
     finding_text = (finding.structure or {}).get("content", "") if finding is not None else ""
 
     prompt = (
@@ -181,7 +127,13 @@ async def resolve_pipeline_review_request(
     )
 
     try:
-        raw_verdict, model_used = _call_llm(prompt, model=None, max_tokens=settings.max_tokens)
+        raw_verdict, model_used = call_llm(
+            prompt,
+            system_prompt=_REVIEWER_SYSTEM_PROMPT,
+            tool_name="pipeline_reviewer_step",
+            model=None,
+            max_tokens=settings.max_tokens,
+        )
     except RuntimeError as exc:
         return Resolution(False, f"LLM call failed: {exc}")
 

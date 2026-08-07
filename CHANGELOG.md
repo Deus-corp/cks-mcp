@@ -3,6 +3,20 @@
 
 ---
 
+## [1.52.2] - 2026-08-07
+
+### Changed
+- **Refactored pipeline step code** – extracted shared helpers (`find_object`, `content_hash`, `call_llm`) from `researcher_step.py` and `reviewer_step.py` into `pipeline/common.py` to eliminate code duplication. Both step modules now import from the common module.
+- **`reviewer_step.py`** – re-enqueues rejected objects onto the Researcher's queue, preventing stranded objects. Idempotent skip paths now correctly resume pipeline routing instead of silently dropping tasks.
+- **`orchestrator.py`** – removed dead `session_id` field from `PipelineContext` and constructor. `run_concurrent` now isolates per‑step infrastructure failures so one step's crash doesn't cancel sibling drain cycles.
+- **`StepResult`** now reports `abandoned` and `error` fields, separating lease‑lost tasks from successfully processed ones.
+- **Linear scan replaced with indexed lookup** in `find_object` (O(1) via `KnowledgeStructure.get()` when available).
+
+### Fixed
+- Monkeypatch targets in tests updated to match new function names and signatures.
+
+---
+
 ## [1.52.1] - 2026-08-07
 
 ### Fixed

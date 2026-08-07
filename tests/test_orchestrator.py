@@ -56,7 +56,7 @@ async def test_run_sequential_drains_each_step_and_completes(mock_runtime):
     mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=[task, None])
 
     step = _StubStep("ResearcherAgent", "awaiting_research", "pipeline_research_request", Resolution(True, "awaiting_review"))
-    orchestrator = CKSAgentOrchestrator(mock_runtime, [step], session_id="s1")
+    orchestrator = CKSAgentOrchestrator(mock_runtime, [step])
 
     result = await orchestrator.run_sequential()
 
@@ -72,7 +72,7 @@ async def test_run_sequential_fails_and_retries(mock_runtime):
     mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=[task, None])
 
     step = _StubStep("ReviewerAgent", "awaiting_review", "pipeline_review_request", Resolution(False, "boom"))
-    orchestrator = CKSAgentOrchestrator(mock_runtime, [step], session_id="s1", max_retries=5)
+    orchestrator = CKSAgentOrchestrator(mock_runtime, [step], max_retries=5)
 
     await orchestrator.run_sequential()
 
@@ -87,7 +87,7 @@ async def test_run_sequential_dead_letters_after_max_retries(mock_runtime):
     mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=[task, None])
 
     step = _StubStep("ReviewerAgent", "awaiting_review", "pipeline_review_request", Resolution(False, "boom"))
-    orchestrator = CKSAgentOrchestrator(mock_runtime, [step], session_id="s1", max_retries=5)
+    orchestrator = CKSAgentOrchestrator(mock_runtime, [step], max_retries=5)
 
     await orchestrator.run_sequential()
 
@@ -103,7 +103,7 @@ async def test_run_sequential_publishes_started_and_completed_events(mock_runtim
 
     step = _StubStep("ResearcherAgent", "awaiting_research", "pipeline_research_request", Resolution(True, "awaiting_review"))
     bus = EventBus()
-    orchestrator = CKSAgentOrchestrator(mock_runtime, [step], session_id="s1", event_bus=bus)
+    orchestrator = CKSAgentOrchestrator(mock_runtime, [step], event_bus=bus)
 
     await orchestrator.run_sequential()
 
@@ -120,7 +120,7 @@ async def test_run_sequential_publishes_started_and_completed_events(mock_runtim
 async def test_run_sequential_unsupported_storage_returns_zero(mock_runtime):
     mock_runtime.storage.supports_outbox = False
     step = _StubStep("ResearcherAgent", "awaiting_research", "pipeline_research_request", Resolution(True, ""))
-    orchestrator = CKSAgentOrchestrator(mock_runtime, [step], session_id="s1")
+    orchestrator = CKSAgentOrchestrator(mock_runtime, [step])
 
     result = await orchestrator.run_sequential()
 
@@ -149,10 +149,79 @@ async def test_run_concurrent_runs_independent_steps(mock_runtime):
 
     step1 = _StubStep("ResearcherAgent", "awaiting_research", "pipeline_research_request", Resolution(True, "awaiting_review"))
     step2 = _StubStep("ReviewerAgent", "awaiting_review", "pipeline_review_request", Resolution(True, "resolved"))
-    orchestrator = CKSAgentOrchestrator(mock_runtime, [step1, step2], session_id="s1")
+    orchestrator = CKSAgentOrchestrator(mock_runtime, [step1, step2])
 
     result = await orchestrator.run_concurrent()
 
     assert result.total_processed == 2
     assert len(step1.calls) == 1
+    assert len(step2.calls) == 1
+
+
+async def test_lease_lost_is_counted_as_abandoned_not_processed(mock_runtime):
+    import asyncio
+    import json
+
+    task = _FakeTask(7, "pipeline_research_request", "s1", json.dumps({"object_id": "o1"}))
+    mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=[task, None])
+    mock_runtime.storage.touch_outbox_task = AsyncMock(return_value=False)
+
+    class _SlowStep(_StubStep):
+        async def run(self, ctx, task):
+            # Yield control so the heartbeat task actually gets a tick
+            # in before this resolver returns -- a resolver with no
+            # internal await point never gives asyncio.create_task's
+            # heartbeat coroutine a chance to run before it's cancelled.
+            await asyncio.sleep(0.02)
+            return await super().run(ctx, task)
+
+    step = _SlowStep("ResearcherAgent", "awaiting_research", "pipeline_research_request", Resolution(True, "awaiting_review"))
+    orchestrator = CKSAgentOrchestrator(mock_runtime, [step], heartbeat_interval=0.005)
+
+    result = await orchestrator.run_sequential()
+
+    assert result.steps[0].processed == 0
+    assert result.steps[0].abandoned == 1
+    mock_runtime.storage.complete_outbox_task.assert_not_awaited()
+    mock_runtime.storage.fail_outbox_task.assert_not_awaited()
+    mock_runtime.storage.dead_letter_outbox_task.assert_not_awaited()
+
+
+async def test_run_concurrent_isolates_one_steps_infra_failure_from_the_other(mock_runtime):
+    """
+    Regression test: an infrastructure failure in one step's drain loop
+    (claim/complete/fail/dead-letter/event-bus raising, as opposed to
+    an individual task's resolver failing normally) must not crash
+    ``asyncio.gather`` and must not prevent the other step's drain from
+    completing its own work.
+    """
+    import json
+
+    task2 = _FakeTask(9, "pipeline_review_request", "s1", json.dumps({"object_id": "o2"}))
+
+    async def _dequeue(task_type):
+        if task_type == "pipeline_research_request":
+            raise ConnectionError("storage backend unreachable")
+        if task_type == "pipeline_review_request" and not getattr(_dequeue, "_done", False):
+            _dequeue._done = True
+            return task2
+        return None
+
+    mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=_dequeue)
+
+    step1 = _StubStep("ResearcherAgent", "awaiting_research", "pipeline_research_request", Resolution(True, "awaiting_review"))
+    step2 = _StubStep("ReviewerAgent", "awaiting_review", "pipeline_review_request", Resolution(True, "resolved"))
+    orchestrator = CKSAgentOrchestrator(mock_runtime, [step1, step2])
+
+    result = await orchestrator.run_concurrent()
+
+    by_name = {s.step_name: s for s in result.steps}
+    assert by_name["ResearcherAgent"].error is not None
+    assert by_name["ResearcherAgent"].processed == 0
+    assert len(step1.calls) == 0
+
+    # The Reviewer's own drain must have completed normally despite
+    # the Researcher's drain having blown up.
+    assert by_name["ReviewerAgent"].error is None
+    assert by_name["ReviewerAgent"].processed == 1
     assert len(step2.calls) == 1

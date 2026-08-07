@@ -78,8 +78,8 @@ async def test_successful_research_evolves_and_enqueues_review(mock_runtime, mon
         "cks_mcp.pipeline.researcher_step.evolve_knowledge", _fake_evolve
     )
     monkeypatch.setattr(
-        "cks_mcp.pipeline.researcher_step._call_llm",
-        lambda prompt, *, model, max_tokens: ("Some finding text", "test-model"),
+        "cks_mcp.pipeline.researcher_step.call_llm",
+        lambda prompt, *, system_prompt=None, tool_name=None, model, max_tokens: ("Some finding text", "test-model"),
     )
 
     task = {"session_id": "s1", "payload": {"object_id": "obj-1"}}
@@ -103,7 +103,11 @@ async def test_idempotent_skips_llm_when_already_researched(mock_runtime, monkey
     ).hexdigest()
     structure = {
         "transition_log": [
-            {"agent": "ResearcherAgent", "content_hash": content_hash, "transitioned_to": "awaiting_review"}
+            {
+                "agent": "ResearcherAgent",
+                "content_hash": content_hash,
+                "transitioned_to": "awaiting_review",
+            }
         ]
     }
     obj = _make_obj(structure=structure)
@@ -112,7 +116,7 @@ async def test_idempotent_skips_llm_when_already_researched(mock_runtime, monkey
     def _boom(*args, **kwargs):
         raise AssertionError("LLM should not be called when already researched")
 
-    monkeypatch.setattr("cks_mcp.pipeline.researcher_step._call_llm", _boom)
+    monkeypatch.setattr("cks_mcp.pipeline.researcher_step.call_llm", _boom)
 
     task = {"session_id": "s1", "payload": {"object_id": "obj-1"}}
     resolution = await resolve_pipeline_research_request(
@@ -137,7 +141,7 @@ async def test_llm_failure_returns_unresolved(mock_runtime, monkeypatch):
     def _raise(*args, **kwargs):
         raise RuntimeError("no provider available")
 
-    monkeypatch.setattr("cks_mcp.pipeline.researcher_step._call_llm", _raise)
+    monkeypatch.setattr("cks_mcp.pipeline.researcher_step.call_llm", _raise)
 
     task = {"session_id": "s1", "payload": {"object_id": "obj-1"}}
     resolution = await resolve_pipeline_research_request(
