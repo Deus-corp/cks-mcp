@@ -199,7 +199,7 @@ class GossipHandle:
         await self.server.stop()
 
 
-def setup_gossip(runtime: Runtime, settings: GossipSettings) -> GossipHandle | None:
+def setup_gossip(runtime: Runtime, settings: GossipSettings, crdt_store=None) -> GossipHandle | None:
     """
     Build (but do not start -- see ``GossipHandle.start``) the gossip
     components for ``runtime``, if ``settings.enabled``.
@@ -221,6 +221,8 @@ def setup_gossip(runtime: Runtime, settings: GossipSettings) -> GossipHandle | N
     to here rather than ``observability.py``'s always-on lifecycle
     logging.
     """
+    adapter = GossipAdapter(runtime, runtime.replica_id, crdt_store=crdt_store)
+
     if not settings.enabled:
         return None
 

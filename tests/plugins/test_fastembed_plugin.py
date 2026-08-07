@@ -55,12 +55,12 @@ def test_is_available_does_not_raise(plugin: FastEmbedPlugin) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_setup_stub_provider_returns_none(
+async def test_setup_stub_provider_returns_none(
     plugin: FastEmbedPlugin, mock_runtime: MagicMock, mock_config: MagicMock
 ) -> None:
     """CKS_EMBEDDING_PROVIDER=stub → setup returns None, no client set."""
     with patch.dict("os.environ", {"CKS_EMBEDDING_PROVIDER": "stub"}):
-        handle = plugin.setup(mock_runtime, mock_config)
+        handle = await plugin.setup(mock_runtime, mock_config)
     assert handle is None
     # runtime.embedding_client must not have been overwritten
     assert mock_runtime.embedding_client is None
@@ -110,18 +110,18 @@ def test_setup_sets_embedding_client_on_runtime(
 # ---------------------------------------------------------------------------
 
 
-def test_teardown_with_none_handle_does_not_raise(
+async def test_teardown_with_none_handle_does_not_raise(
     plugin: FastEmbedPlugin, mock_runtime: MagicMock
 ) -> None:
     """teardown(None) must be a no-op."""
-    plugin.teardown(None)  # should not raise
+    await plugin.teardown(None)  # should not raise
 
 
-def test_teardown_with_true_handle_does_not_raise(
+async def test_teardown_with_true_handle_does_not_raise(
     plugin: FastEmbedPlugin,
 ) -> None:
     """teardown(True) must also be a no-op (handle is truthy but no cleanup needed)."""
-    plugin.teardown(True)  # should not raise
+    await plugin.teardown(True)  # should not raise
 
 
 # ---------------------------------------------------------------------------

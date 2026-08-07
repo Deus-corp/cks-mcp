@@ -45,7 +45,7 @@ class CksPlugin(ABC):
         """
 
     @abstractmethod
-    def setup(self, runtime: Runtime, config: RuntimeConfig) -> Any:
+    async def setup(self, runtime: Runtime, config: RuntimeConfig) -> Any:
         """
         Initialise the plugin.
 
@@ -53,16 +53,26 @@ class CksPlugin(ABC):
         Returns a handle (any object) that is passed to ``teardown``.
         May return ``None`` if the plugin decides not to start
         (e.g. because of an env flag like ``CKS_GOSSIP_ENABLED``).
+
+        ``async`` because plugin initialisation may itself need to
+        await asynchronous work (e.g. ``GossipPlugin`` starting a
+        ``GossipService``/``GossipServer``) -- see ``PluginRegistry``'s
+        own docstring for why this must never reach for ``asyncio.run()``
+        to bridge that: ``setup_all`` already runs inside ``server.py``'s
+        ``main()`` event loop, so a plugin here is always free to
+        ``await`` directly.
         """
 
     @abstractmethod
-    def teardown(self, handle: Any) -> None:
+    async def teardown(self, handle: Any) -> None:
         """
         Cleanly shut down the plugin.
 
         ``handle`` is the value previously returned by ``setup``.
         If ``handle`` is ``None``, the plugin was not started; the
         implementation should handle this gracefully and do nothing.
+
+        ``async`` for the same reason as ``setup`` above.
         """
 
 
@@ -109,20 +119,30 @@ class PluginRegistry:
         """Return the names of plugins for which ``is_available()`` is True."""
         return [p.name for p in self._plugins.values() if p.is_available()]
 
-    def setup_all(self, runtime: Runtime, config: RuntimeConfig) -> dict[str, Any]:
+    async def setup_all(self, runtime: Runtime, config: RuntimeConfig) -> dict[str, Any]:
         """
         Initialise every available plugin.
 
         Returns a ``{name: handle}`` dict for every plugin whose
         ``is_available()`` returned True (handle may be ``None`` if the
         plugin decided not to start).
+
+        Must be awaited from inside a running event loop (``server.py``'s
+        ``main()`` already is one) -- this is what lets a plugin's
+        ``setup()`` do genuinely async work (start a background
+        service, open a network listener, ...) via a plain ``await``,
+        without ever needing to spin up a *second* event loop of its
+        own (``asyncio.run()`` raises ``RuntimeError`` if called from
+        inside a loop that's already running -- see ``GossipPlugin``'s
+        history for why that used to be a real, silently-swallowed
+        failure mode here).
         """
         handles: dict[str, Any] = {}
         for plugin in self._plugins.values():
             if not plugin.is_available():
                 continue
             try:
-                handle = plugin.setup(runtime, config)
+                handle = await plugin.setup(runtime, config)
                 handles[plugin.name] = handle
             except Exception as exc:  # noqa: BLE001
                 print(
@@ -131,14 +151,14 @@ class PluginRegistry:
                 )
         return handles
 
-    def teardown_all(self, handles: dict[str, Any]) -> None:
+    async def teardown_all(self, handles: dict[str, Any]) -> None:
         """Tear down every plugin that has a handle."""
         for name, handle in handles.items():
             plugin = self._plugins.get(name)
             if plugin is None:
                 continue
             try:
-                plugin.teardown(handle)
+                await plugin.teardown(handle)
             except Exception as exc:  # noqa: BLE001
                 print(
                     f"[CKS-MCP] ERROR: Plugin '{name}' failed to tear down: {exc}",

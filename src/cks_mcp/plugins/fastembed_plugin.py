@@ -43,7 +43,7 @@ class FastEmbedPlugin(CksPlugin):
         except ImportError:
             return False
 
-    def setup(self, runtime: Runtime, config: RuntimeConfig) -> Any:
+    async def setup(self, runtime: Runtime, config: RuntimeConfig) -> Any:
         """
         Инициализировать embedding-клиент и установить его в runtime.
 
@@ -108,7 +108,7 @@ class FastEmbedPlugin(CksPlugin):
         runtime.embedding_client = embedding_client
         return True
 
-    def teardown(self, handle: Any) -> None:
+    async def teardown(self, handle: Any) -> None:
         """Сбросить embedding_client — runtime перейдёт на StubEmbeddingClient."""
         # handle == None означает, что setup не устанавливал клиент.
         # Ничего не делаем: runtime сам использует заглушку при отсутствии клиента.

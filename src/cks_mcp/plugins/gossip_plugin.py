@@ -9,8 +9,8 @@ continue to work unchanged.
 
 Plugin lifecycle:
 
-    handle = plugin.setup(runtime, config)   # builds components, starts the service
-    plugin.teardown(handle)                  # stops the service and server
+    handle = await plugin.setup(runtime, config)   # builds components, starts the service
+    await plugin.teardown(handle)                  # stops the service and server
 
 The ``setup`` method returns a ``GossipHandle`` or ``None`` if gossip is
 disabled or unavailable (no ``replica_id``).
@@ -18,7 +18,6 @@ disabled or unavailable (no ``replica_id``).
 
 from __future__ import annotations
 
-import asyncio
 import importlib
 from typing import Any
 
@@ -49,7 +48,7 @@ class GossipPlugin(CksPlugin):
         except ImportError:
             return False
 
-    def setup(self, runtime: Runtime, config: RuntimeConfig) -> GossipHandle | None:
+    async def setup(self, runtime: Runtime, config: RuntimeConfig) -> GossipHandle | None:
         """
         Initialise and start the gossip subsystem.
 
@@ -60,14 +59,11 @@ class GossipPlugin(CksPlugin):
         settings = GossipSettings.from_env()
         handle = setup_gossip(runtime, settings)
         if handle is not None:
-            # setup_gossip returns a not-yet-started handle;
-            # start it synchronously via asyncio.run() which is safe here
-            # because we are outside the main event loop during startup.
-            asyncio.run(handle.start())
+            await handle.start()
         return handle
 
-    def teardown(self, handle: Any) -> None:
+    async def teardown(self, handle: Any) -> None:
         """Stop the gossip service and server."""
         if handle is None:
             return
-        asyncio.run(handle.stop())
+        await handle.stop()

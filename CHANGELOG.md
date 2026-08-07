@@ -1,6 +1,19 @@
 # Changelog
 
 
+
+---
+
+## [1.51.0] - 2026-08-07
+
+### Fixed
+- **Plugin lifecycle is now fully async** — `CksPlugin.setup()` / `teardown()` and `PluginRegistry.setup_all()` / `teardown_all()` are now `async def`, fixing a subtle bug where `GossipPlugin` called `asyncio.run(handle.start())` from inside `server.py`'s already-running event loop. This raised a swallowed `RuntimeError`, so gossip never actually started whenever `CKS_GOSSIP_ENABLED=true` was set. All plugins now use `await` directly — no second event loop, no silent failures.
+
+### Changed
+- `FastEmbedPlugin` and `GossipPlugin` updated to the new async signatures.
+- `server.py` now awaits `registry.setup_all()` / `registry.teardown_all()`.
+- All plugin tests updated to `async` and a new regression test verifies that `GossipPlugin.setup()` works from inside a running event loop.
+
 ---
 
 ## [1.50.0] - 2026-08-06

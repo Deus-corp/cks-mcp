@@ -328,7 +328,7 @@ async def main() -> None:
     setup_event_subscriptions(runtime)
 
     # Инициализируем все доступные плагины (embedding + gossip и любые будущие).
-    plugin_handles = registry.setup_all(runtime, config)
+    plugin_handles = await registry.setup_all(runtime, config)
 
     # Неблокирующее чтение stdin через asyncio
     loop = asyncio.get_running_loop()
@@ -376,7 +376,7 @@ async def main() -> None:
             elif line_stripped:
                 await process_request(runtime, line_stripped, use_content_length=False)
     finally:
-        registry.teardown_all(plugin_handles)
+        await registry.teardown_all(plugin_handles)
         await runtime.aclose()
 
 

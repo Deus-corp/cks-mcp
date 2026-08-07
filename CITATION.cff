@@ -18,9 +18,9 @@ url: "https://github.com/Deus-corp/cks-mcp"
 
 license: "MIT"
 
-version: "1.50.0"
+version: "1.51.0"
 
-date-released: "2026-08-06"
+date-released: "2026-08-07"
 
 abstract: >
   CKS MCP Server is a fully asynchronous Model Context Protocol server
