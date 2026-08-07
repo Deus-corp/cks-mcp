@@ -1,6 +1,14 @@
 import json
 import os
 import subprocess
+import sys
+
+if len(sys.argv) < 2:
+    print("usage: python create_fork.py <session_id> [db_path]", file=sys.stderr)
+    sys.exit(1)
+
+session_id = sys.argv[1]
+db_path = sys.argv[2] if len(sys.argv) > 2 else "/tmp/cks-b.db"
 
 request = {
     "jsonrpc": "2.0",
@@ -9,7 +17,7 @@ request = {
     "params": {
         "name": "evolve_knowledge",
         "arguments": {
-            "session_id": "d963accd-d287-4b5d-b355-0996dc52c274",
+            "session_id": session_id,
             "operations": [
                 {
                     "type": "update_object",
@@ -27,7 +35,7 @@ proc = subprocess.Popen(
     text=True,
     env={
         **os.environ,
-        "CKS_MCP_DB_PATH": "/tmp/cks-b.db",
+        "CKS_MCP_DB_PATH": db_path,
         "CKS_GOSSIP_ENABLED": "true",
         "CKS_GOSSIP_PORT": "8766",
         "CKS_GOSSIP_PEERS": "localhost:8765",

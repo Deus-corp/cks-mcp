@@ -3,6 +3,14 @@
 
 ---
 
+## [1.51.3] - 2026-08-07
+
+### Fixed
+- **Race condition on `.write_test` in `server.py`** – when two `cks-mcp` instances shared the same parent directory (e.g. `/tmp/cks-a.db` and `/tmp/cks-b.db` both under `/tmp`), they used a single hardcoded `.write_test` file. One process could delete the file before the other finished its test, causing a spurious "not writable" fallback to a temporary database. Now each process uses a unique filename (`.write_test_<pid>`) to avoid the race.
+- **`create_fork.py` now accepts `session_id` and `db_path` as command-line arguments** instead of hardcoding outdated values, eliminating the `session_not_found` error when running the script after a fresh session creation.
+
+---
+
 ## [1.51.2] - 2026-08-07
 
 ### Fixed

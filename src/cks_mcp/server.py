@@ -282,7 +282,16 @@ async def main() -> None:
 
     try:
         await asyncio.to_thread(os.makedirs, db_dir, exist_ok=True)
-        test_file = os.path.join(db_dir, ".write_test")
+        # Unique per-process test filename: two cks-mcp processes whose
+        # CKS_MCP_DB_PATH values share the same directory (e.g.
+        # /tmp/cks-a.db and /tmp/cks-b.db both under /tmp) previously
+        # raced on a single hardcoded ".write_test" file -- whichever
+        # process's os.remove() ran second could hit FileNotFoundError
+        # (a fork of OSError) because the *other* process had already
+        # deleted the file, making a perfectly writable directory look
+        # "not writable" and silently falling back to a temp/in-memory
+        # database.
+        test_file = os.path.join(db_dir, f".write_test_{os.getpid()}")
         async def _write_test():
             def _write():
                 with open(test_file, "w") as f:
