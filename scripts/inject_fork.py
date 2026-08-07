@@ -1,10 +1,10 @@
-import sqlite3
 import json
+import sqlite3
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 DB = "/tmp/cks-a/cks.db"
-now = datetime.now(timezone.utc).isoformat()
+now = datetime.now(UTC).isoformat()
 
 conn = sqlite3.connect(DB)
 

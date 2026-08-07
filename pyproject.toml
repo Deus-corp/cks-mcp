@@ -11,7 +11,7 @@ authors = [{name = "Vladyslav Hruznov"}]
 license = {text = "MIT"}
 requires-python = ">=3.12"
 dependencies = [
-    "cks-runtime>=1.48.3",
+    "cks-runtime>=1.48.5",
     "cks-core>=1.21.0",
     "requests>=2.0",
 ]
@@ -59,6 +59,7 @@ cks-mcp = "cks_mcp.server:main_sync"
 cks-critic-agent = "cks_mcp.critic_agent:main_sync"
 cks-enrichment-agent = "cks_mcp.enrichment_agent:main_sync"
 cks-fork-agent = "cks_mcp.fork_resolution_agent:main_sync"
+cks-pipeline-agent = "cks_mcp.pipeline_agent:main_sync"
 
 [tool.ruff.lint.per-file-ignores]
 "src/cks_mcp/server.py" = ["BLE001"]

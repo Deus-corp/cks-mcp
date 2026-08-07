@@ -269,3 +269,34 @@ single atomic `evolve_knowledge` call.
 **Environment variables:** `CKS_MCP_DB_PATH`, `CKS_ENRICHMENT_POLL_INTERVAL`,
 `CKS_ENRICHMENT_MAX_RETRIES`, `CKS_ENRICHMENT_MIN_SCORE`, `CKS_ENRICHMENT_MAX_INGESTS`,
 and adapter‑specific overrides (see `cks_mcp/enrichment_agent.py`).
+
+## Fork Resolution Agent (autonomous CRDT fork resolution)
+
+`cks-fork-agent` resolves `crdt_fork` tasks produced by the CRDT adapter
+(ADR-013 Stage 2) when two replicas concurrently write the same pointer
+key. It works out‑of‑the‑box against the same SQLite/Postgres database as
+the main server, requiring no LLM access — it's purely mechanical.
+
+**Resolution policy**
+1. **Causal ordering** — if one object's `VersionVector` strictly dominates
+   the others, it wins.
+2. **Most‑recent pointer** — otherwise, the object with the most recent
+   `created_at` on the live MV‑Register pointer row wins.
+3. **Deterministic tie‑break** — otherwise, the alphabetically‑first
+   `object_id` wins. Every replica computes object ids identically
+   (content hashes), so all replicas converge on the same winner
+   independently.
+
+**Start:**
+```bash
+CKS_MCP_DB_PATH=~/.cks-mcp/cks_mcp.db cks-fork-agent
+```
+
+**Environment variables:**
+- `CKS_MCP_DB_PATH` — shared storage path
+- `CKS_FORK_AGENT_POLL_INTERVAL` — seconds between outbox polls (default 30)
+- `CKS_FORK_AGENT_MAX_RETRIES` — attempts before dead‑lettering (default 3)
+- `CKS_FORK_AGENT_HEARTBEAT_INTERVAL` — lease renewal interval (default 60)
+
+See [CRDT Fork Resolution Case Study](../case-studies/crdt-fork-resolution.md)
+for a walk‑through.

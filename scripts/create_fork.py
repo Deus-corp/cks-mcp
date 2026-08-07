@@ -1,7 +1,7 @@
 import json
 import os
-import sys
 import subprocess
+import sys
 
 if len(sys.argv) < 2:
     print("usage: python create_fork.py <session_id> [db_path]", file=sys.stderr)
@@ -58,7 +58,6 @@ if not response_line:
 
 response = json.loads(response_line)
 print(json.dumps(response, indent=2))
-if "error" in response or "error" in response.get("result", {}).get("content", [{}])[0].get("text", ""):
-    if stderr_output.strip():
-        print("--- subprocess stderr ---", file=sys.stderr)
-        print(stderr_output, file=sys.stderr)
+if ("error" in response or "error" in response.get("result", {}).get("content", [{}])[0].get("text", "")) and stderr_output.strip():
+    print("--- subprocess stderr ---", file=sys.stderr)
+    print(stderr_output, file=sys.stderr)

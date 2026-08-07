@@ -3,6 +3,23 @@
 
 ---
 
+## [1.52.0] - 2026-08-07
+
+### Added
+- **CKSAgentOrchestrator (ADR-007 Milestone 1)** – new `src/cks_mcp/orchestrator.py` with `PipelineContext`, `AgentStep` protocol, and `CKSAgentOrchestrator.run_sequential`/`run_concurrent`. Agents communicate through the persistent outbox and CRDT registers, reusing the existing claim/complete/fail/dead-letter machinery. Publishes `AgentStepStarted`/`AgentStepCompleted` events (requires `cks-runtime >= 1.48.5`).
+- **Pipeline schema** (`src/cks_mcp/pipeline/schema.py`) – `PipelineStatus` constants, `append_transition`, `read_status`, `read_transition_log`, and `has_agent_transitioned` helpers that use `evolve_knowledge` to write structured transition records as knowledge objects.
+- **ResearcherStep** and **ReviewerStep** (`src/cks_mcp/pipeline/researcher_step.py`, `reviewer_step.py`) – first concrete `AgentStep` implementations with idempotency-by-content-hash, LLM calls via the existing provider dispatch, and atomic `evolve_knowledge` commits.
+- **`cks-pipeline-agent` console script** – entry point for running a pipeline of agents, registered in `pyproject.toml`.
+- **Regression tests** – 27 new tests covering orchestrator, pipeline schema, and step implementations.
+
+### Changed
+- **`create_fork.py`** – simplified nested `if` statement for ruff compliance.
+
+### Fixed
+- **ruff warnings** in `create_fork.py`, `orchestrator.py`, `researcher_step.py`, and `reviewer_step.py`.
+
+---
+
 ## [1.51.3] - 2026-08-07
 
 ### Fixed

@@ -1,0 +1,105 @@
+"""
+Pipeline Agent: the console-script entry point for ADR-007's
+``CKSAgentOrchestrator``, Milestone 1 (Researcher + Reviewer).
+
+Same process shape as ``cks_mcp.critic_agent``/``cks_mcp.enrichment_agent``:
+its own OS process, its own ``Runtime`` sharing storage with the main
+``cks-mcp`` server (same SQLite file or Postgres DSN), looping
+``CKSAgentOrchestrator.run_sequential()`` -- drain Researcher's queue,
+then Reviewer's, sleep ``poll_interval`` if nothing was processed,
+repeat.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import signal
+import sys
+from dataclasses import dataclass, field
+from typing import Any
+
+from cks_runtime.config import RuntimeConfig
+from cks_runtime.runtime import Runtime
+from cks_runtime_plugins.cks_core import CksCoreAdapter
+
+from cks_mcp.orchestrator import CKSAgentOrchestrator
+from cks_mcp.paths import data_dir
+from cks_mcp.pipeline.researcher_step import ResearcherStep, ResearcherStepSettings
+from cks_mcp.pipeline.reviewer_step import ReviewerStep, ReviewerStepSettings
+
+_DEFAULT_POLL_INTERVAL_SECONDS = 5.0
+
+
+@dataclass(slots=True)
+class PipelineAgentSettings:
+    poll_interval: float = _DEFAULT_POLL_INTERVAL_SECONDS
+    storage_path: str = field(default_factory=lambda: "")
+
+    @classmethod
+    def from_env(cls) -> PipelineAgentSettings:
+        return cls(
+            poll_interval=float(
+                os.environ.get("CKS_PIPELINE_POLL_INTERVAL", _DEFAULT_POLL_INTERVAL_SECONDS)
+            ),
+            storage_path=os.environ.get("CKS_MCP_DB_PATH") or str(data_dir() / "cks_mcp.db"),
+        )
+
+
+async def run_pipeline_agent(
+    *,
+    settings: PipelineAgentSettings | None = None,
+    max_iterations: int | None = None,
+) -> None:
+    settings = settings or PipelineAgentSettings.from_env()
+
+    config = RuntimeConfig(storage_path=settings.storage_path)
+    runtime = await Runtime.create(core=CksCoreAdapter(), config=config)
+
+    orchestrator = CKSAgentOrchestrator(
+        runtime,
+        [ResearcherStep(ResearcherStepSettings.from_env()), ReviewerStep(ReviewerStepSettings.from_env())],
+    )
+
+    stop = asyncio.Event()
+
+    def _handle_signal(*_: Any) -> None:
+        stop.set()
+
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, _handle_signal)
+        except (NotImplementedError, RuntimeError):
+            pass
+
+    print(
+        f"[cks-pipeline-agent] started (storage_path={settings.storage_path!r}, "
+        f"poll_interval={settings.poll_interval}s, steps=Researcher,Reviewer)",
+        file=sys.stderr,
+    )
+
+    try:
+        iterations = 0
+        while not stop.is_set():
+            result = await orchestrator.run_sequential()
+            if result.total_processed == 0:
+                try:
+                    await asyncio.wait_for(stop.wait(), timeout=settings.poll_interval)
+                except TimeoutError:
+                    pass
+            iterations += 1
+            if max_iterations is not None and iterations >= max_iterations:
+                break
+    finally:
+        await runtime.aclose()
+        print("[cks-pipeline-agent] stopped", file=sys.stderr)
+
+
+def main_sync() -> None:
+    """Console-script entry point (see pyproject.toml's [project.scripts])."""
+    asyncio.run(run_pipeline_agent())
+
+
+if __name__ == "__main__":
+    main_sync()

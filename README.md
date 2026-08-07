@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-694%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-721%20passed-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
@@ -82,6 +82,12 @@ traceable to its origin.
 - **LLM-assisted knowledge construction** — `construct_knowledge` converts free-form text into a validated Knowledge Structure using a local Ollama model (no API key needed) or the Anthropic API, auto-selected via `CKS_LLM_PROVIDER`.
 - **Session portability** — `export_session` packages a full session bundle (structure + version history) for migration or archival.
 - **Telemetry dashboard** — `get_metrics` now returns per‑tool latency percentiles (p50/p95/p99), success rates, and top error types since server start.
+- **Multi‑agent pipelines** — the `CKSAgentOrchestrator` (ADR‑007) chains
+  specialised agents (Researcher → Critic → Synthesizer → Arbiter) that
+  communicate through the persistent outbox and CRDT registers. Agents
+  run autonomously as a pipeline, with each step's findings committed as
+  immutable knowledge objects. Start a pipeline via the
+  `cks-pipeline-agent` console script.
 
 ---
 
@@ -220,6 +226,24 @@ resolution policy in full.
 > intended owner of `crdt_fork` resolution; avoid running both against the
 > same database at once.
 
+## Pipeline Agent (multi‑agent orchestration)
+
+`cks-pipeline-agent` is a console script that runs a configurable pipeline of
+`AgentStep` implementations coordinated by `CKSAgentOrchestrator`. Each step
+writes its result as a knowledge object (with provenance and a semantic edge
+from the previous step), and the orchestrator publishes `AgentStepStarted` /
+`AgentStepCompleted` events. Built on the same outbox‑polling architecture as
+the other autonomous agents.
+
+```bash
+CKS_MCP_DB_PATH=~/.cks-mcp/cks_mcp.db cks-pipeline-agent
+```
+
+Env vars: `CKS_MCP_DB_PATH` (shared storage path), `CKS_PIPELINE_POLL_INTERVAL`
+(default 5s), `CKS_PIPELINE_MAX_RETRIES` (default 5). See
+`cks_mcp/orchestrator.py` and `cks_mcp/pipeline/researcher_step.py` /
+`reviewer_step.py` for the pipeline and step implementations.
+
 ---
 
 # Usage Examples
@@ -318,7 +342,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-694+ tests, all passing.
+721+ tests, all passing.
 
 ---
 
