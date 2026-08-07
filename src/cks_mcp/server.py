@@ -237,10 +237,46 @@ async def handle_request(
     )
 
 
+def _resolve_db_path() -> tuple[str, str, str | None]:
+    """
+    Resolve the SQLite database path/directory for this process.
+
+    Honors ``CKS_MCP_DB_PATH`` first, falling back to
+    ``data_dir()/cks_mcp.db`` -- the exact same order
+    ``fork_resolution_agent.py``, ``critic_agent.py``, and
+    ``enrichment_agent.py`` already use, so all four processes agree
+    on which SQLite file to share when ``CKS_MCP_DB_PATH`` is set.
+
+    Returns ``(db_dir, db_path, explicit_db_path)``, where
+    ``explicit_db_path`` is the raw (pre-``expanduser``)
+    ``CKS_MCP_DB_PATH`` value, or ``None`` if it wasn't set.
+    """
+    explicit_db_path = os.environ.get("CKS_MCP_DB_PATH")
+    if explicit_db_path:
+        db_path = os.path.expanduser(explicit_db_path)
+        db_dir = os.path.dirname(db_path) or "."
+    else:
+        db_dir = str(data_dir())
+        db_path = os.path.join(db_dir, "cks_mcp.db")
+    return db_dir, db_path, explicit_db_path
+
+
 async def main() -> None:
     """Entry point for the MCP server. Async."""
-    db_dir = str(data_dir())
-    db_path = os.path.join(db_dir, "cks_mcp.db")
+    # Honor CKS_MCP_DB_PATH the same way fork_resolution_agent.py,
+    # critic_agent.py, and enrichment_agent.py already do (env var
+    # first, data_dir()/cks_mcp.db as the fallback) -- these companion
+    # agent processes are meant to share the exact same SQLite file as
+    # this server. Before this, an operator following the documented
+    # `CKS_MCP_DB_PATH=/path/to.db cks-fork-agent` pattern (see
+    # README.md / PKG-INFO) ended up with the main server silently
+    # still writing to its own data_dir()-derived default path while
+    # the companion agent read/wrote a *different* file -- new
+    # objects, CRDT G-Set entries, and outbox tasks the server created
+    # were invisible to the agent (and vice versa), with no error on
+    # either side to indicate the two processes had split apart onto
+    # separate databases.
+    db_dir, db_path, explicit_db_path = _resolve_db_path()
     storage = None
     use_persistent = True
 
@@ -256,6 +292,15 @@ async def main() -> None:
         await asyncio.to_thread(os.remove, test_file)
     except (OSError, PermissionError):
         use_persistent = False
+        if explicit_db_path:
+            print(
+                f"[CKS-MCP] WARNING: CKS_MCP_DB_PATH={explicit_db_path!r} is not "
+                "writable; falling back to a temporary database. Any companion "
+                "agent process (cks-fork-agent, cks-critic-agent, "
+                "cks-enrichment-agent) configured with the same CKS_MCP_DB_PATH "
+                "will not see this server's data until the path is fixed.",
+                file=sys.stderr,
+            )
         try:
             db_path = os.path.join(tempfile.gettempdir(), "cks_mcp.db")
             async def _touch():
@@ -271,6 +316,18 @@ async def main() -> None:
                 "[CKS-MCP] WARNING: No writable database file. Using in-memory storage.",
                 file=sys.stderr,
             )
+
+    print(
+        f"[CKS-MCP] Database path: {db_path!r} "
+        f"({'persistent' if use_persistent else 'in-memory'}"
+        + (
+            f", from CKS_MCP_DB_PATH={explicit_db_path!r}"
+            if explicit_db_path and use_persistent
+            else ""
+        )
+        + ")",
+        file=sys.stderr,
+    )
 
     # Загружаем переменные окружения из ~/.cks-mcp/.env
     env_file = data_dir() / ".env"

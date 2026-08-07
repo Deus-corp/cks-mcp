@@ -128,3 +128,89 @@ async def test_setup_event_subscriptions_does_not_raise():
     runtime = Runtime(core=CksCoreAdapter())
     setup_event_subscriptions(runtime)
     await runtime.aclose()
+
+class TestResolveDbPath:
+    """
+    Regression tests for CKS_MCP_DB_PATH resolution.
+
+    Before this, ``main()`` computed its db path purely from
+    ``data_dir()`` and never looked at ``CKS_MCP_DB_PATH`` at all,
+    while ``fork_resolution_agent.py``/``critic_agent.py``/
+    ``enrichment_agent.py`` all read it -- so a server and a companion
+    agent started with the same ``CKS_MCP_DB_PATH`` (the documented
+    way to point them at a shared database) silently ended up on two
+    different SQLite files.
+    """
+
+    def test_honors_explicit_ckms_mcp_db_path(self, monkeypatch, tmp_path):
+        from cks_mcp.server import _resolve_db_path
+
+        target = tmp_path / "shared" / "cks_mcp.db"
+        monkeypatch.setenv("CKS_MCP_DB_PATH", str(target))
+
+        db_dir, db_path, explicit_db_path = _resolve_db_path()
+
+        assert db_path == str(target)
+        assert db_dir == str(target.parent)
+        assert explicit_db_path == str(target)
+
+    def test_expands_user_in_explicit_path(self, monkeypatch, tmp_path):
+        from cks_mcp.server import _resolve_db_path
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("CKS_MCP_DB_PATH", "~/cks_mcp.db")
+
+        _db_dir, db_path, explicit_db_path = _resolve_db_path()
+
+        assert db_path == str(tmp_path / "cks_mcp.db")
+        assert explicit_db_path == "~/cks_mcp.db"  # raw value, pre-expansion
+
+    def test_falls_back_to_data_dir_when_unset(self, monkeypatch, tmp_path):
+
+        monkeypatch.delenv("CKS_MCP_DB_PATH", raising=False)
+        monkeypatch.setenv("CKS_MCP_DATA_DIR", str(tmp_path))
+        # cks_mcp.paths.data_dir() resolves CKS_MCP_DATA_DIR once at
+        # import time, so re-resolve it fresh here rather than relying
+        # on the already-imported module-level singleton.
+        import importlib
+
+        import cks_mcp.paths as paths_module
+
+        importlib.reload(paths_module)
+        import cks_mcp.server as server_module
+
+        importlib.reload(server_module)
+        try:
+            db_dir, db_path, explicit_db_path = server_module._resolve_db_path()
+            assert explicit_db_path is None
+            assert db_path == str(tmp_path / "cks_mcp.db")
+            assert db_dir == str(tmp_path)
+        finally:
+            # Restore both modules to their normal (unpatched) state
+            # for any other test relying on them.
+            monkeypatch.delenv("CKS_MCP_DATA_DIR", raising=False)
+            importlib.reload(paths_module)
+            importlib.reload(server_module)
+
+    def test_matches_fork_agent_and_critic_agent_resolution_order(
+        self, monkeypatch, tmp_path
+    ):
+        """
+        The exact same CKS_MCP_DB_PATH must resolve to the exact same
+        path for the main server and for each companion agent -- this
+        is the actual invariant the whole fix exists to guarantee.
+        """
+        from cks_mcp.critic_agent import CriticAgentSettings
+        from cks_mcp.fork_resolution_agent import ForkResolutionAgentSettings
+        from cks_mcp.server import _resolve_db_path
+
+        target = tmp_path / "shared.db"
+        monkeypatch.setenv("CKS_MCP_DB_PATH", str(target))
+
+        _, server_db_path, _ = _resolve_db_path()
+        fork_agent_path = ForkResolutionAgentSettings.from_env().storage_path
+        critic_agent_path = CriticAgentSettings.from_env().storage_path
+
+        assert server_db_path == str(target)
+        assert fork_agent_path == str(target)
+        assert critic_agent_path == str(target)

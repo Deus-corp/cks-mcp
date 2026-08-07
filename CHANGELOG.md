@@ -3,6 +3,16 @@
 
 ---
 
+## [1.51.1] - 2026-08-07
+
+### Fixed
+- **Main server now respects `CKS_MCP_DB_PATH`** – `server.py` previously ignored the environment variable `CKS_MCP_DB_PATH` and always used `~/.cks-mcp/cks_mcp.db`. Companion agents (`cks-fork-agent`, `cks-critic-agent`, `cks-enrichment-agent`) followed the documented env-var override, causing the server and agents to silently operate on different databases when `CKS_MCP_DB_PATH` was set. Now `server.py` reads `CKS_MCP_DB_PATH` first (with `data_dir()/cks_mcp.db` fallback), matching the agents' behavior. A warning is logged when an explicit `CKS_MCP_DB_PATH` is unwritable, and the startup log always reports the resolved database path.
+- **Plugin lifecycle is fully async** – `CksPlugin.setup()` / `teardown()` and `PluginRegistry.setup_all()` / `teardown_all()` are now awaited in `server.py`, preventing a bug where `GossipPlugin.setup()` could silently fail due to an `asyncio.run()` call inside a running event loop (already fixed in v1.51.0, but the await was missing in `main()`).
+- **Regression tests** added for `CKS_MCP_DB_PATH` resolution consistency across server, fork agent, and critic agent.
+EOF
+
+---
+
 ## [1.51.0] - 2026-08-07
 
 ### Fixed
