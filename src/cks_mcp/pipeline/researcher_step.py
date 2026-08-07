@@ -143,7 +143,21 @@ async def resolve_pipeline_research_request(
         # Idempotency guard (ADR-007 Decision 4 / AgentStep.run
         # docstring): already researched this exact content -- nothing
         # to redo, and re-running would just spend another LLM call
-        # producing a near-duplicate finding.
+        # producing a near-duplicate finding. The next-stage enqueue
+        # must still happen on this path: it's what makes a retry
+        # after "evolve_knowledge committed but enqueue_task crashed"
+        # (or a Reviewer sending the object back with unchanged
+        # content) actually resume the pipeline instead of silently
+        # completing the task with nothing left in any queue.
+        existing_finding_id = next(
+            (
+                entry.get("reasoning_node_id")
+                for entry in reversed(current_log)
+                if entry.get("agent") == AGENT_NAME and entry.get("content_hash") == content_hash
+            ),
+            None,
+        )
+        await _enqueue_review(runtime, session_id, object_id, existing_finding_id)
         return Resolution(True, PipelineStatus.AWAITING_REVIEW)
 
     prompt = (
@@ -201,13 +215,23 @@ async def resolve_pipeline_research_request(
     if evolve_result.get("error"):
         return Resolution(False, f"evolve_knowledge failed: {evolve_result}")
 
+    await _enqueue_review(runtime, session_id, object_id, finding_id)
+
+    return Resolution(True, PipelineStatus.AWAITING_REVIEW)
+
+
+async def _enqueue_review(
+    runtime: Runtime, session_id: str, object_id: str, reasoning_node_id: str | None
+) -> None:
+    """Enqueue the ``pipeline_review_request`` task that hands ``object_id``
+    to the Reviewer step. Called from both the "did fresh work" path and
+    the idempotent-skip path above -- see the comment there for why the
+    skip path must not be allowed to drop this."""
     await runtime.storage.enqueue_task(
         task_type=_NEXT_TASK_TYPE,
         session_id=session_id,
-        payload=json.dumps({"object_id": object_id, "reasoning_node_id": finding_id}),
+        payload=json.dumps({"object_id": object_id, "reasoning_node_id": reasoning_node_id}),
     )
-
-    return Resolution(True, PipelineStatus.AWAITING_REVIEW)
 
 
 class ResearcherStep:

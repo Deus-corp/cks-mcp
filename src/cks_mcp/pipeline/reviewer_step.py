@@ -43,6 +43,7 @@ from cks_mcp.tools.evolve.handler import evolve_knowledge
 
 AGENT_NAME = "ReviewerAgent"
 TASK_TYPE = "pipeline_review_request"
+_RESEARCH_TASK_TYPE = "pipeline_research_request"
 
 _REVIEWER_SYSTEM_PROMPT = (
     "You are the Reviewer agent in a Knowledge Structure pipeline. "
@@ -153,9 +154,18 @@ async def resolve_pipeline_review_request(
     content_hash = _content_hash(obj)
     current_log = read_transition_log(obj)
     if has_agent_transitioned(obj, AGENT_NAME, content_hash=content_hash):
+        # Idempotency guard, same rationale as researcher_step's: this
+        # path is what runs on a retry (e.g. evolve_knowledge committed
+        # last time but the process died before this function
+        # returned). It must still push the object to wherever its
+        # last recorded verdict says it belongs -- otherwise a retried
+        # rejection permanently strands the object with no task in any
+        # queue (see _route_next_stage).
         for entry in reversed(current_log):
             if entry.get("agent") == AGENT_NAME and entry.get("content_hash") == content_hash:
-                return Resolution(True, entry.get("transitioned_to", PipelineStatus.RESOLVED))
+                prior_status = entry.get("transitioned_to", PipelineStatus.RESOLVED)
+                await _route_next_stage(runtime, session_id, object_id, prior_status)
+                return Resolution(True, prior_status)
         return Resolution(True, PipelineStatus.RESOLVED)
 
     finding_node_id = payload.get("reasoning_node_id")
@@ -223,7 +233,29 @@ async def resolve_pipeline_review_request(
     if evolve_result.get("error"):
         return Resolution(False, f"evolve_knowledge failed: {evolve_result}")
 
+    await _route_next_stage(runtime, session_id, object_id, new_status)
+
     return Resolution(True, new_status)
+
+
+async def _route_next_stage(
+    runtime: Runtime, session_id: str, object_id: str, new_status: str
+) -> None:
+    """Put ``object_id`` back on a queue matching its post-review status.
+
+    ``RESOLVED`` has no Milestone-1 next step (Synthesizer/Arbiter are
+    Milestone 2) so nothing is enqueued. ``NEEDS_RESEARCH`` must be
+    re-enqueued onto the Researcher's own queue -- without this call an
+    object rejected by the Reviewer changes ``current_status`` but has
+    no outbox task anywhere, so ``ResearcherStep`` (which only ever
+    claims from its ``task_type`` queue, never scans by status) never
+    sees it again."""
+    if new_status == PipelineStatus.NEEDS_RESEARCH:
+        await runtime.storage.enqueue_task(
+            task_type=_RESEARCH_TASK_TYPE,
+            session_id=session_id,
+            payload=json.dumps({"object_id": object_id}),
+        )
 
 
 class ReviewerStep:

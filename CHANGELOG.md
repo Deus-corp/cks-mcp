@@ -3,6 +3,14 @@
 
 ---
 
+## [1.52.1] - 2026-08-07
+
+### Fixed
+- **Stuck pipeline after idempotent retry** – `ResearcherStep` and `ReviewerStep` now correctly enqueue the next stage's outbox task even when the step itself is skipped due to idempotency (content hash already present). Previously, a retry after a crash (or a Reviewer sending an object back for re‑research) would leave the pipeline with no task in any queue, permanently stranding the object. The reviewer also now re‑enqueues rejected objects onto the Researcher's queue, so a `NEEDS_RESEARCH` verdict actually triggers a new research cycle.
+- **Updated regression tests** – tests now assert the correct enqueue behavior for idempotent and rejection paths.
+
+---
+
 ## [1.52.0] - 2026-08-07
 
 ### Added

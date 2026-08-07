@@ -120,7 +120,14 @@ async def test_idempotent_skips_llm_when_already_researched(mock_runtime, monkey
     )
 
     assert resolution.resolved is True
-    mock_runtime.storage.enqueue_task.assert_not_awaited()
+    # Regression: the idempotent-skip path must still enqueue the
+    # review task -- otherwise a retry after "evolve_knowledge
+    # committed but enqueue_task crashed" strands the object with no
+    # task in any outbox queue.
+    mock_runtime.storage.enqueue_task.assert_awaited_once()
+    _, kwargs = mock_runtime.storage.enqueue_task.call_args
+    assert kwargs["task_type"] == "pipeline_review_request"
+    assert json.loads(kwargs["payload"])["object_id"] == "obj-1"
 
 
 async def test_llm_failure_returns_unresolved(mock_runtime, monkeypatch):
