@@ -221,7 +221,6 @@ def setup_gossip(runtime: Runtime, settings: GossipSettings, crdt_store=None) ->
     to here rather than ``observability.py``'s always-on lifecycle
     logging.
     """
-    adapter = GossipAdapter(runtime, runtime.replica_id, crdt_store=crdt_store)
 
     if not settings.enabled:
         return None
@@ -237,6 +236,7 @@ def setup_gossip(runtime: Runtime, settings: GossipSettings, crdt_store=None) ->
 
     secret = load_secret()
     crdt_store = _build_crdt_store(runtime)
+    print(f"[CKS-MCP DEBUG] CRDT store: {crdt_store}", file=sys.stderr)
     adapter = GossipAdapter(runtime, runtime.replica_id, crdt_store=crdt_store)
     scheduler = PeerScheduler(list(settings.peers))
 
