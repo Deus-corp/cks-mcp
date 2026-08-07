@@ -45,7 +45,7 @@ class GossipPlugin(CksPlugin):
         try:
             importlib.import_module("aiohttp")
             return True
-        except ImportError:
+        except Exception:  # noqa: BLE001 — best-effort check, never crash
             return False
 
     async def setup(self, runtime: Runtime, config: RuntimeConfig) -> GossipHandle | None:
