@@ -25,17 +25,21 @@ request = {
     }
 }
 
+db_path = os.environ.get("CKS_MCP_DB_PATH", "/tmp/cks-a/cks.db")
+
 proc = subprocess.Popen(
     ["cks-mcp"],
     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     text=True,
     env={
         **os.environ,
-        "CKS_MCP_DB_PATH": "/tmp/cks-a.db",
-        "CKS_GOSSIP_ENABLED": "true",
-        "CKS_GOSSIP_PORT": "8765",
-        "CKS_GOSSIP_PEERS": "localhost:8766",
-        "CKS_GOSSIP_HOST": "127.0.0.1",
+        "CKS_MCP_DB_PATH": db_path,
+        # Gossip deliberately left disabled here: this is a one-shot
+        # subprocess that just needs to write a session into db_path.
+        # Hardcoding CKS_GOSSIP_PORT=8765 previously collided with the
+        # already-running long-lived server A listening on that same
+        # port, causing a silent bind failure (stderr wasn't printed).
+        "CKS_GOSSIP_ENABLED": "false",
     }
 )
 
@@ -44,6 +48,12 @@ proc.stdin.flush()
 
 response_line = proc.stdout.readline()
 proc.terminate()
+stderr_output = proc.stderr.read()
+
+if not response_line:
+    print("No response from cks-mcp subprocess. stderr:")
+    print(stderr_output)
+    raise SystemExit(1)
 
 response = json.loads(response_line)
 print("Full response:", json.dumps(response, indent=2))

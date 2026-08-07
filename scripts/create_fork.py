@@ -1,14 +1,14 @@
 import json
 import os
-import subprocess
 import sys
+import subprocess
 
 if len(sys.argv) < 2:
     print("usage: python create_fork.py <session_id> [db_path]", file=sys.stderr)
     sys.exit(1)
 
 session_id = sys.argv[1]
-db_path = sys.argv[2] if len(sys.argv) > 2 else "/tmp/cks-b.db"
+db_path = sys.argv[2] if len(sys.argv) > 2 else "/tmp/cks-b/cks.db"
 
 request = {
     "jsonrpc": "2.0",
@@ -36,10 +36,11 @@ proc = subprocess.Popen(
     env={
         **os.environ,
         "CKS_MCP_DB_PATH": db_path,
-        "CKS_GOSSIP_ENABLED": "true",
-        "CKS_GOSSIP_PORT": "8766",
-        "CKS_GOSSIP_PEERS": "localhost:8765",
-        "CKS_GOSSIP_HOST": "127.0.0.1",
+        # Gossip disabled for the same reason as in create_session.py:
+        # this one-shot subprocess only needs to write into db_path, and
+        # hardcoding CKS_GOSSIP_PORT=8766 collided with the long-lived
+        # server B already listening on that port.
+        "CKS_GOSSIP_ENABLED": "false",
     }
 )
 
@@ -48,6 +49,16 @@ proc.stdin.flush()
 
 response_line = proc.stdout.readline()
 proc.terminate()
+stderr_output = proc.stderr.read()
+
+if not response_line:
+    print("No response from cks-mcp subprocess. stderr:", file=sys.stderr)
+    print(stderr_output, file=sys.stderr)
+    sys.exit(1)
 
 response = json.loads(response_line)
 print(json.dumps(response, indent=2))
+if "error" in response or "error" in response.get("result", {}).get("content", [{}])[0].get("text", ""):
+    if stderr_output.strip():
+        print("--- subprocess stderr ---", file=sys.stderr)
+        print(stderr_output, file=sys.stderr)
