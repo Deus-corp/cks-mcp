@@ -904,7 +904,15 @@ def _crdt_store_for(runtime: Runtime) -> Any | None:
         from cks_runtime.crdt.crdt_store import SQLiteCRDTStore
 
         conn = getattr(storage, "_conn", None)
-        return SQLiteCRDTStore(conn) if conn is not None else None
+        if conn is None:
+            return None
+        # Share storage's own RLock, not just its connection -- see
+        # `cks_mcp.gossip._build_crdt_store`'s comment on the same
+        # line and `SQLiteCRDTStore._synchronized`'s docstring for why
+        # an independent lock wouldn't actually serialize access to
+        # the shared connection.
+        lock = getattr(storage, "_lock", None)
+        return SQLiteCRDTStore(conn, lock=lock)
 
     try:
         from cks_runtime.storage.postgres_storage import PostgresStorage

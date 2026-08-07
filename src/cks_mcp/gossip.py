@@ -146,7 +146,15 @@ def _build_crdt_store(runtime: Runtime):
         conn = getattr(storage, "_conn", None)
         if conn is None:
             return None
-        return SQLiteCRDTStore(conn)
+        # Pass storage's own RLock through, not just its connection --
+        # SQLiteCRDTStore/SQLiteMerkleTree touch the same
+        # sqlite3.Connection SQLiteStorage does, and only sharing the
+        # literal same lock object (not an independent one) actually
+        # serializes access between the two. See SQLiteCRDTStore's
+        # `_synchronized` docstring for the confirmed corruption repro
+        # this prevents.
+        lock = getattr(storage, "_lock", None)
+        return SQLiteCRDTStore(conn, lock=lock)
 
     try:
         from cks_runtime.storage.postgres_storage import PostgresStorage
