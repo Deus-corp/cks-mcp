@@ -35,7 +35,10 @@ def _mock_query_subgraph_response(nodes: list[dict], edges=None, total_found=Non
 
 
 def _node(id: str, otype: str = "Concept", name: str = "", props: dict | None = None) -> dict:
-    return {"id": id, "type": otype, "name": name or id, "props": props or {}}
+    return {
+        "identity": {"id": id, "type": otype, "name": name or id},
+        "structure": props or {},
+    }
 
 
 def _edge(source: str, target: str, etype: str = "related_to") -> dict:
@@ -182,7 +185,7 @@ class TestExtractDelta:
             delta = await extract_delta(runtime, "s1", "obj-1", "obj-1")
 
         assert len(delta["nodes"]) == 1
-        assert delta["nodes"][0]["id"] == "obj-1"
+        assert delta["nodes"][0]["identity"]["id"] == "obj-1"
         assert delta["relations"] == []
 
     async def test_extracts_branch_delta(self):
@@ -209,7 +212,7 @@ class TestExtractDelta:
             delta = await extract_delta(runtime, "s1", "lca", "tip")
 
         assert len(delta["nodes"]) >= 1
-        assert any(n["id"] == "tip" for n in delta["nodes"])
+        assert any(n["identity"]["id"] == "tip" for n in delta["nodes"])
 
     async def test_unreachable_tip_falls_back_to_single_node(self):
         runtime = MagicMock()
@@ -228,7 +231,7 @@ class TestExtractDelta:
 
         # Should fall back to just the tip node
         assert len(delta["nodes"]) == 1
-        assert delta["nodes"][0]["id"] == "tip"
+        assert delta["nodes"][0]["identity"]["id"] == "tip"
 
 
 # ---------------------------------------------------------------------------

@@ -108,12 +108,13 @@ async def _visualize_structure(
     # colons, brackets, or hyphens don't break Mermaid syntax.
     safe_alias: dict[str, str] = {}
     for i, node in enumerate(nodes):
-        safe_alias[node["id"]] = f"n{i}"
+        safe_alias[node["identity"]["id"]] = f"n{i}"
 
     lines = ["graph TD"]
     for node in nodes:
-        alias = safe_alias[node["id"]]
-        label = f"{node['name']} ({node['type']})".replace('"', "#quot;")
+        identity = node["identity"]
+        alias = safe_alias[identity["id"]]
+        label = f"{identity['name']} ({identity['type']})".replace('"', "#quot;")
         lines.append(f'    {alias}["{label}"]')
 
     for edge in edges:

@@ -9,7 +9,8 @@ from __future__ import annotations
 QUERY_SUBGRAPH_SCHEMA = {
     "name": "query_subgraph",
     "description": "Extract the local k‑hop neighbourhood around one or more seed ids "
-    "from a session's current Knowledge Structure. Returns a self‑contained "
+    "from a session's current Knowledge Structure, or the whole graph if seed_ids "
+    "is omitted. Returns a self‑contained "
     "subgraph (serialized) and metadata: total_found_nodes, returned_nodes, "
     "is_truncated, truncation_reason, suggested_next_seed. "
     "Use filters (include_relation_types, include_object_types) to narrow "
@@ -26,7 +27,9 @@ QUERY_SUBGRAPH_SCHEMA = {
             "seed_ids": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "List of object ids to start traversal from.",
+                "description": "List of object ids to start traversal from. "
+                "Optional — if omitted or empty, returns the whole graph "
+                "(no traversal/depth/budget truncation applied).",
             },
             "depth": {
                 "type": "integer",

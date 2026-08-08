@@ -22,11 +22,40 @@ from __future__ import annotations
 
 from typing import Any
 
-from cks.core import CanonicalRelation, KnowledgeStructure
+from cks.core import CanonicalRelation, KnowledgeStructure, SubgraphResult
 from cks_runtime.operations.operation_types import QuerySubgraphOperation
 from cks_runtime.runtime import Runtime
 
 from cks_mcp.errors import missing_parameter, session_not_found
+
+
+def _make_full_subgraph_result(structure: KnowledgeStructure) -> SubgraphResult:
+    """
+    Build a ``SubgraphResult`` covering *every* object currently in the
+    session, for the ``seed_ids``-omitted ("give me the whole graph") case.
+
+    This intentionally never calls into :class:`QuerySubgraphOperation` /
+    ``cks-core``'s BFS traversal, which hard-requires ``seed_ids`` (see
+    ``QuerySubgraphOperation.execute``). Rather than loosen that
+    requirement in cks-core -- the most regression-sensitive layer in the
+    stack -- we just take the session's full object list directly, the same
+    data ``serialize_knowledge`` already reads, and wrap it in a
+    ``SubgraphResult``-shaped object so the rest of this handler (structure
+    filters, compact_mode, budget-reporting fields) can treat it exactly
+    like a normal traversal result. No node is truncated here, so the
+    budget fields are all "nothing was cut."
+    """
+    node_count = sum(
+        1 for obj in structure.objects if not isinstance(obj, CanonicalRelation)
+    )
+    return SubgraphResult(
+        structure=structure,
+        total_found_nodes=node_count,
+        returned_nodes=node_count,
+        is_truncated=False,
+        truncation_reason=None,
+        suggested_next_seed=None,
+    )
 
 
 def _apply_structure_filter(
@@ -109,8 +138,6 @@ async def query_subgraph_tool(runtime: Runtime, arguments: dict[str, Any]) -> di
         return session_not_found(session_id)
 
     seed_ids = arguments.get("seed_ids")
-    if not seed_ids:
-        return missing_parameter("seed_ids")
 
     depth = int(arguments.get("depth", 1))
     compact_mode = arguments.get("compact_mode", False)
@@ -125,31 +152,39 @@ async def query_subgraph_tool(runtime: Runtime, arguments: dict[str, Any]) -> di
     # Structure-field post-filter (applied after core extraction)
     structure_filters: dict[str, Any] = arguments.get("structure_filters") or {}
 
-    # Read‑only execution
-    op = QuerySubgraphOperation(
-        "query_subgraph",
-        knowledge_structure=session.knowledge_structure,
-        seed_ids=seed_ids,
-        depth=depth,
-        include_relation_types=include_relation_types,
-        include_object_types=include_object_types,
-        max_tokens=max_tokens,
-        max_objects=max_objects,
-        type_weights=type_weights,
-        compact_mode=compact_mode,
-    )
+    if not seed_ids:
+        # No seeds = "give me the whole graph". cks-core's
+        # QuerySubgraphOperation requires seed_ids (it's a BFS traversal
+        # primitive), so we deliberately bypass it here and build the
+        # result straight from the session's current structure instead of
+        # loosening that requirement inside cks-core itself.
+        subgraph_result = _make_full_subgraph_result(session.knowledge_structure)
+    else:
+        # Read‑only execution
+        op = QuerySubgraphOperation(
+            "query_subgraph",
+            knowledge_structure=session.knowledge_structure,
+            seed_ids=seed_ids,
+            depth=depth,
+            include_relation_types=include_relation_types,
+            include_object_types=include_object_types,
+            max_tokens=max_tokens,
+            max_objects=max_objects,
+            type_weights=type_weights,
+            compact_mode=compact_mode,
+        )
 
-    result = await runtime.executor.execute(op, session)
+        result = await runtime.executor.execute(op, session)
 
-    if result.status.value == "failed":
-        return {"error": f"query_subgraph failed: {result.error}"}
+        if result.status.value == "failed":
+            return {"error": f"query_subgraph failed: {result.error}"}
 
-    subgraph_result = result.payload  # cks-core SubgraphResult
+        subgraph_result = result.payload  # cks-core SubgraphResult
 
     # Apply structure-field post-filter when requested
     if structure_filters:
         subgraph_result = _apply_structure_filter(
-            subgraph_result, seed_ids, structure_filters
+            subgraph_result, seed_ids or [], structure_filters
         )
 
     if compact_mode:
@@ -173,10 +208,12 @@ async def query_subgraph_tool(runtime: Runtime, arguments: dict[str, Any]) -> di
             else:
                 nodes.append(
                     {
-                        "id": obj.identity.id,
-                        "type": obj.identity.type,
-                        "name": obj.identity.name,
-                        "props": dict(obj.structure),
+                        "identity": {
+                            "id": obj.identity.id,
+                            "type": obj.identity.type,
+                            "name": obj.identity.name,
+                        },
+                        "structure": dict(obj.structure),
                     }
                 )
 

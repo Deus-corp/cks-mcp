@@ -134,8 +134,8 @@ async def find_lca(
                 "reason": result_a.get("error") or result_b.get("error"),
             }
 
-        ids_a = {n["id"] for n in result_a["subgraph"]["nodes"]}
-        ids_b = {n["id"] for n in result_b["subgraph"]["nodes"]}
+        ids_a = {n["identity"]["id"] for n in result_a["subgraph"]["nodes"]}
+        ids_b = {n["identity"]["id"] for n in result_b["subgraph"]["nodes"]}
 
         for new_id in ids_a - prev_ids_a:
             first_seen_a.setdefault(new_id, depth)
@@ -236,7 +236,7 @@ async def extract_delta(
         )
         if "error" in probe:
             return {"nodes": [], "relations": [], "error": probe["error"]}
-        ids = {n["id"] for n in probe["subgraph"]["nodes"]}
+        ids = {n["identity"]["id"] for n in probe["subgraph"]["nodes"]}
         if object_id in ids:
             distance = depth
             break
@@ -302,8 +302,8 @@ def classify_conflict(delta_a: dict[str, Any], delta_b: dict[str, Any]) -> str:
       node id: both branches touched the same object(s), so a genuine
       arbitration decision is needed.
     """
-    ids_a = {n["id"] for n in delta_a.get("nodes", [])}
-    ids_b = {n["id"] for n in delta_b.get("nodes", [])}
+    ids_a = {n["identity"]["id"] for n in delta_a.get("nodes", [])}
+    ids_b = {n["identity"]["id"] for n in delta_b.get("nodes", [])}
 
     if ids_a & ids_b:
         return "competing_claims"
@@ -512,8 +512,8 @@ async def _branch_is_valid(
     """
     objects = [
         {
-            "identity": {"id": n["id"], "type": n["type"], "name": n["name"]},
-            "structure": n.get("props", {}),
+            "identity": dict(n["identity"]),
+            "structure": n.get("structure", {}),
         }
         for n in delta.get("nodes", [])
     ]

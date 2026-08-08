@@ -3,6 +3,21 @@
 
 ---
 
+## [1.53.0] - 2026-08-08
+
+### Added
+- **`query_subgraph` now supports empty `seed_ids`** — returns the full knowledge graph when no seeds are provided, allowing `cks-studio` and other clients to load an entire session without resorting to `serialize_knowledge`. This is a separate code path that builds the result directly from the session's structure rather than loosening `cks-core`'s BFS requirement.
+- **New tests** for `query_subgraph` without `seed_ids` covering both default and `compact_mode` output shapes.
+
+### Changed
+- **Canonical node shape in `compact_mode`** — `query_subgraph`, `visualize_graph`, and `lca_arbiter` now always use the canonical `{"identity": {...}, "structure": {...}}` shape for compact nodes, replacing the legacy `{"id": ..., "type": ..., "name": ..., "props": {...}}` format. This unifies the output with `serialize_knowledge` and eliminates the need for frontend adapters.
+
+### Fixed
+- **`lca_arbiter` tests** updated to reflect the canonical node shape.
+- **`visualize_graph`** correctly reads node identity and label from the new shape.
+
+---
+
 ## [1.52.3] - 2026-08-08
 
 ### Added
