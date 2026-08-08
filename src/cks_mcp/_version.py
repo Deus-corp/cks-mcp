@@ -1,2 +1,2 @@
 """Single source of truth for the cks-mcp package version."""
-__version__ = "1.52.2"
+__version__ = "1.52.3"

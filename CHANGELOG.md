@@ -3,6 +3,17 @@
 
 ---
 
+## [1.52.3] - 2026-08-08
+
+### Added
+- **Optional HTTP transport** – `cks-mcp` can now serve MCP requests over HTTP when `CKS_MCP_HTTP_PORT` is set. Starts an `aiohttp` server on the given port alongside the existing stdio transport, with CORS support for local development. Enables direct integration with web-based frontends like `cks-studio`.
+- **`aiohttp-cors` dependency** added to `pyproject.toml` (required for HTTP transport CORS middleware).
+
+### Changed
+- Imports in `server.py` refactored to avoid `ruff` warnings and `aiohttp` namespace issues.
+
+---
+
 ## [1.52.2] - 2026-08-07
 
 ### Changed

@@ -1,9 +1,5 @@
 """
-CKS MCP Server – Model Context Protocol over stdio.
-
-A lightweight MCP server that exposes canonical CKS operations
-(validate, serialize, explain, evolve, verify_source) to LLMs
-via the Model Context Protocol. Now fully async.
+CKS MCP Server – Model Context Protocol over stdio and optionally HTTP.
 """
 
 from __future__ import annotations
@@ -16,6 +12,9 @@ import sys
 import tempfile
 from typing import Any
 
+import aiohttp_cors
+from aiohttp import web
+from aiohttp.web import Request, Response
 from cks_runtime.config import RuntimeConfig
 from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
@@ -46,7 +45,7 @@ SERVER_VERSION = _server_version()
 PROTOCOL_VERSION = "2025-11-25"
 
 # ---------------------------------------------------------------------------
-# Request handler (синхронный — только формирует ответ, не делает I/O)
+# Request handler
 # ---------------------------------------------------------------------------
 
 def _make_response(
@@ -237,20 +236,42 @@ async def handle_request(
     )
 
 
+async def _http_handler(request: Request) -> Response:
+    """Handle incoming JSON-RPC request over HTTP."""
+    try:
+        body = await request.text()
+    except Exception:
+        return web.json_response(
+            {"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None},
+            status=400,
+        )
+
+    runtime = request.app['runtime']
+    try:
+        raw = json.loads(body)
+    except json.JSONDecodeError:
+        return web.json_response(
+            {"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": None},
+            status=400,
+        )
+
+    if isinstance(raw, list):
+        responses = []
+        for req in raw:
+            resp = await handle_request(runtime, req)
+            if resp:
+                responses.append(resp)
+        if responses:
+            return web.json_response(responses)
+        return web.json_response({})
+    else:
+        resp = await handle_request(runtime, raw)
+        if resp:
+            return web.json_response(resp)
+        return web.json_response({})
+
+
 def _resolve_db_path() -> tuple[str, str, str | None]:
-    """
-    Resolve the SQLite database path/directory for this process.
-
-    Honors ``CKS_MCP_DB_PATH`` first, falling back to
-    ``data_dir()/cks_mcp.db`` -- the exact same order
-    ``fork_resolution_agent.py``, ``critic_agent.py``, and
-    ``enrichment_agent.py`` already use, so all four processes agree
-    on which SQLite file to share when ``CKS_MCP_DB_PATH`` is set.
-
-    Returns ``(db_dir, db_path, explicit_db_path)``, where
-    ``explicit_db_path`` is the raw (pre-``expanduser``)
-    ``CKS_MCP_DB_PATH`` value, or ``None`` if it wasn't set.
-    """
     explicit_db_path = os.environ.get("CKS_MCP_DB_PATH")
     if explicit_db_path:
         db_path = os.path.expanduser(explicit_db_path)
@@ -262,35 +283,23 @@ def _resolve_db_path() -> tuple[str, str, str | None]:
 
 
 async def main() -> None:
-    """Entry point for the MCP server. Async."""
-    # Honor CKS_MCP_DB_PATH the same way fork_resolution_agent.py,
-    # critic_agent.py, and enrichment_agent.py already do (env var
-    # first, data_dir()/cks_mcp.db as the fallback) -- these companion
-    # agent processes are meant to share the exact same SQLite file as
-    # this server. Before this, an operator following the documented
-    # `CKS_MCP_DB_PATH=/path/to.db cks-fork-agent` pattern (see
-    # README.md / PKG-INFO) ended up with the main server silently
-    # still writing to its own data_dir()-derived default path while
-    # the companion agent read/wrote a *different* file -- new
-    # objects, CRDT G-Set entries, and outbox tasks the server created
-    # were invisible to the agent (and vice versa), with no error on
-    # either side to indicate the two processes had split apart onto
-    # separate databases.
     db_dir, db_path, explicit_db_path = _resolve_db_path()
+    http_port_str = os.environ.get("CKS_MCP_HTTP_PORT", "")
+    http_port: int | None = None
+    if http_port_str:
+        try:
+            http_port = int(http_port_str)
+        except ValueError:
+            print(
+                f"[CKS-MCP] WARNING: Invalid CKS_MCP_HTTP_PORT={http_port_str!r}, ignoring HTTP server.",
+                file=sys.stderr,
+            )
+
     storage = None
     use_persistent = True
 
     try:
         await asyncio.to_thread(os.makedirs, db_dir, exist_ok=True)
-        # Unique per-process test filename: two cks-mcp processes whose
-        # CKS_MCP_DB_PATH values share the same directory (e.g.
-        # /tmp/cks-a.db and /tmp/cks-b.db both under /tmp) previously
-        # raced on a single hardcoded ".write_test" file -- whichever
-        # process's os.remove() ran second could hit FileNotFoundError
-        # (a fork of OSError) because the *other* process had already
-        # deleted the file, making a perfectly writable directory look
-        # "not writable" and silently falling back to a temp/in-memory
-        # database.
         test_file = os.path.join(db_dir, f".write_test_{os.getpid()}")
         async def _write_test():
             def _write():
@@ -338,7 +347,6 @@ async def main() -> None:
         file=sys.stderr,
     )
 
-    # Загружаем переменные окружения из ~/.cks-mcp/.env
     env_file = data_dir() / ".env"
     if env_file.exists():
         def _read_env():
@@ -351,12 +359,9 @@ async def main() -> None:
                     key, _, value = line.partition("=")
                     os.environ.setdefault(key.strip(), value.strip())
 
-    # Создаём реестр плагинов и регистрируем встроенные плагины.
     registry = PluginRegistry()
     registry.register(FastEmbedPlugin())
     registry.register(GossipPlugin())
-
-    # Пробрасываем реестр в инструмент list_plugins.
     set_plugin_registry(registry)
 
     available = registry.list_available()
@@ -365,8 +370,6 @@ async def main() -> None:
         file=sys.stderr,
     )
 
-    # Создаём Runtime без embedding-клиента; плагин FastEmbedPlugin
-    # установит его в runtime.embedding_client после create().
     if storage is None and use_persistent:
         try:
             config = RuntimeConfig(storage_path=db_path)
@@ -393,10 +396,36 @@ async def main() -> None:
 
     setup_event_subscriptions(runtime)
 
-    # Инициализируем все доступные плагины (embedding + gossip и любые будущие).
     plugin_handles = await registry.setup_all(runtime, config)
 
-    # Неблокирующее чтение stdin через asyncio
+    # --- HTTP transport (optional) ---
+    http_runner = None
+    if http_port is not None:
+        try:
+            app = web.Application()
+            app['runtime'] = runtime
+            app.router.add_post('/mcp', _http_handler)
+
+            # CORS: разрешаем все источники для локальной разработки
+            cors = aiohttp_cors.setup(app, defaults={
+                "*": aiohttp_cors.ResourceOptions(
+                    allow_credentials=False,
+                    expose_headers="*",
+                    allow_headers="*",
+                )
+            })
+            for route in list(app.router.routes()):
+                cors.add(route)
+
+            runner = web.AppRunner(app)
+            await runner.setup()
+            site = web.TCPSite(runner, '127.0.0.1', http_port)
+            await site.start()
+            http_runner = runner
+            print(f"[CKS-MCP] HTTP server listening on 127.0.0.1:{http_port}", file=sys.stderr)
+        except Exception as e:
+            print(f"[CKS-MCP] ERROR: Failed to start HTTP server: {e}", file=sys.stderr)
+
     loop = asyncio.get_running_loop()
     reader = asyncio.StreamReader()
     protocol = asyncio.StreamReaderProtocol(reader)
@@ -406,7 +435,7 @@ async def main() -> None:
         while True:
             line = await reader.readline()
             if not line:
-                break  # EOF
+                break
 
             line_stripped = line.decode().strip()
             if line_stripped.lower().startswith("content-length:"):
@@ -424,7 +453,6 @@ async def main() -> None:
                     sys.stdout.flush()
                     continue
 
-                # Читаем заголовки до пустой строки
                 while True:
                     header_line = (await reader.readline()).decode().strip()
                     if not header_line:
@@ -435,24 +463,24 @@ async def main() -> None:
                 try:
                     body = await reader.readexactly(content_length)
                 except asyncio.IncompleteReadError as e:
-                    body = e.partial  # обработали частичные данные
+                    body = e.partial
                 if not body:
                     break
                 await process_request(runtime, body.decode(), use_content_length=True)
             elif line_stripped:
                 await process_request(runtime, line_stripped, use_content_length=False)
     finally:
+        if http_runner:
+            await http_runner.cleanup()
         await registry.teardown_all(plugin_handles)
         await runtime.aclose()
 
 
 def main_sync() -> None:
-    """Синхронная точка входа для консольного скрипта."""
     asyncio.run(main())
 
 
 async def process_request(runtime: Runtime, body: str, *, use_content_length: bool) -> None:
-    """Process a single JSON-RPC request body and write the response."""
     try:
         raw = json.loads(body)
     except json.JSONDecodeError:
@@ -489,7 +517,6 @@ async def process_request(runtime: Runtime, body: str, *, use_content_length: bo
 def _send_response(
     response_obj: dict | list, *, use_content_length: bool = False
 ) -> None:
-    """Helper to send a response, optionally with Content-Length header."""
     body = json.dumps(response_obj, ensure_ascii=False)
     if use_content_length:
         sys.stdout.write(f"Content-Length: {len(body.encode('utf-8'))}\r\n\r\n{body}")

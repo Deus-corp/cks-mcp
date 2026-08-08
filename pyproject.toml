@@ -35,6 +35,7 @@ fastembed = [
 ]
 gossip = [
     "aiohttp>=3.9",
+    "aiohttp-cors>=0.7",
 ]
 
 [tool.setuptools.dynamic]
