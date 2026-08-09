@@ -3,6 +3,13 @@
 
 ---
 
+## [1.54.1] - 2026-08-09
+
+### Fixed
+- **Closed leaked gossip HTTP transport** – `GossipHandle.stop()` now explicitly closes the `HTTPGossipTransport`, preventing "Unclosed client session" warnings on shutdown. This is the production-side fix matching the same leak already fixed in `cks-runtime` demo scripts.
+
+---
+
 ## [1.54.0] - 2026-08-09
 
 ### Added

@@ -183,6 +183,15 @@ class GossipHandle:
     adapter: GossipAdapter
     server: GossipServer
     service: GossipService
+    # Kept alongside `service` so `stop()` can close the pooled
+    # aiohttp.ClientSession this handle opened. GossipService treats
+    # its `transport` constructor argument as caller-owned (it may be
+    # shared across several GossipService instances) and never closes
+    # it itself -- without this, every gossip-enabled cks-mcp process
+    # leaked an "Unclosed client session" / "Unclosed connector" on
+    # shutdown, exactly as seen in the original gossip audit against
+    # cks-runtime's own demo scripts.
+    transport: HTTPGossipTransport
 
     async def start(self) -> None:
         # ADR-013 Stage 2: PostgresCRDTStore's tables are created via
@@ -205,6 +214,7 @@ class GossipHandle:
     async def stop(self) -> None:
         await self.service.stop()
         await self.server.stop()
+        await self.transport.close()
 
 
 def setup_gossip(runtime: Runtime, settings: GossipSettings, crdt_store=None) -> GossipHandle | None:
@@ -259,9 +269,10 @@ def setup_gossip(runtime: Runtime, settings: GossipSettings, crdt_store=None) ->
 
     discovery: PeerDiscovery | None = HTTPPeerDiscovery() if settings.discovery else None
 
+    transport = HTTPGossipTransport()
     service = GossipService(
         adapter,
-        transport=HTTPGossipTransport(),
+        transport=transport,
         scheduler=scheduler,
         secret=secret,
         interval_s=settings.interval_s,
@@ -351,4 +362,4 @@ def setup_gossip(runtime: Runtime, settings: GossipSettings, crdt_store=None) ->
         file=sys.stderr,
     )
 
-    return GossipHandle(adapter=adapter, server=server, service=service)
+    return GossipHandle(adapter=adapter, server=server, service=service, transport=transport)
