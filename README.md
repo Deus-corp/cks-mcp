@@ -154,6 +154,7 @@ real request/response examples: [`docs/tools/`](docs/tools/index.md).
 | Gossip & Conflict Resolution | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `refresh_verification`, `resolve_temporal_conflict`, `resolve_contradiction`, `review_dead_letter`, `approve_resolution`, `reject_resolution`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` |
 | Agent Observability | `list_agents`, `agent_status`, `list_processes`, `process_status` |
 | Agent Control | `start_agent`, `stop_agent`, `request_process_stop` |
+| AI Chat | `ai_chat` |
 
 ## Critic Agent (unattended conflict resolution)
 

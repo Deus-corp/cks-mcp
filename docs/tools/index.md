@@ -1,6 +1,6 @@
 # Tools Reference
 
-`cks-mcp` exposes **55 tools** over the Model Context Protocol. Every tool
+`cks-mcp` exposes **61 tools** over the Model Context Protocol. Every tool
 call is a canonical operation: it runs inside a `RuntimeSession`, and any
 call that mutates state does so through a `Transaction`, producing an
 immutable `Version` (see [Architecture](../architecture/ARCHITECTURE.md)).
@@ -21,6 +21,7 @@ used together rather than their declaration order in the registry:
 | [Gossip & Conflict Resolution](gossip-and-conflicts.md) | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `refresh_verification`, `resolve_temporal_conflict`, `resolve_contradiction`, `review_dead_letter`, `approve_resolution`, `reject_resolution`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` | Drain and resolve conflicts escalated by gossip, inference, provenance, temporal, or contradiction staleness, plus the critic‑agent task lifecycle and human-in-the-loop dead-letter review |
 | Agent Observability | `list_agents`, `agent_status`, `list_processes`, `process_status` | Monitor background sweepers and standalone agent processes |
 | Agent Control | `start_agent`, `stop_agent`, `request_process_stop` | Start/stop in‑process sweepers and request graceful shutdown of standalone agents |
+| AI Chat | `ai_chat` | Send a chat turn to an LLM that can call MCP tools [AI Chat](ai-chat.md) |
 
 ## Conventions used across every tool
 
