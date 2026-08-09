@@ -8,7 +8,7 @@
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
-that gives LLMs a **canonical knowledge backbone**. It exposes **53
+that gives LLMs a **canonical knowledge backbone**. It exposes **55
 tools** (listed under *Available Tools* below) for validation, evolution,
 branching, merging, semantic search, contradiction detection, sandboxing,
 and more, backed by the deterministic, immutable semantics of `cks-core`
@@ -45,7 +45,7 @@ Other projects build upon it:
    models instead, set `CKS_EMBEDDING_PROVIDER=huggingface` and
    `export HF_TOKEN=hf_...`. See [Getting Started](docs/getting-started.md).
 3. In the chat, start your message with **"Use cks-mcp to…"**.
-4. Claude automatically picks the right tool from the 53 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
+4. Claude automatically picks the right tool from the 55 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
 5. Every operation is logged, versioned, and stored in a persistent SQLite database.
 
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
@@ -53,7 +53,7 @@ Other projects build upon it:
 
 ![CKS Demo](https://github.com/Deus-corp/cks-mcp/releases/download/v1.10.2/demo.gif)
 
-*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. All 53 tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, gossip conflict resolution, and more — all triggered by plain English.*
+*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. All 55 tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, gossip conflict resolution, and more — all triggered by plain English.*
 
 ---
 
@@ -129,7 +129,7 @@ for the full list of environment variables and how to set them via a
    ```
 
 3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
-   After restart, a connector icon will appear – `cks-mcp` with 53 tools is ready to use.
+   After restart, a connector icon will appear – `cks-mcp` with 55 tools is ready to use.
 
 See [Getting Started](docs/getting-started.md) for a walkthrough of your
 first session once the server is connected.
@@ -138,7 +138,7 @@ first session once the server is connected.
 
 # Available Tools
 
-53 tools, grouped by function. Full reference with parameters and
+55 tools, grouped by function. Full reference with parameters and
 real request/response examples: [`docs/tools/`](docs/tools/index.md).
 
 | Group | Tools |
@@ -152,6 +152,7 @@ real request/response examples: [`docs/tools/`](docs/tools/index.md).
 | Export & Observability | `export_knowledge`, `export_session`, `get_metrics`, `export_storage`, `import_storage`, `migrate_storage`, `list_plugins` |
 | Memory & Persistence | `register_graph`, `get_graph`, `list_graphs`, `search_graphs`, `check_graph_freshness`, `check_component_versions`, `update_registered_graph`, `explain_graph`, `check_graph_health` |
 | Gossip & Conflict Resolution | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `refresh_verification`, `resolve_temporal_conflict`, `resolve_contradiction`, `review_dead_letter`, `approve_resolution`, `reject_resolution`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` |
+| Agent Observability | `list_agents`, `agent_status` |
 
 ## Critic Agent (unattended conflict resolution)
 

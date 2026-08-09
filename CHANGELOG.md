@@ -3,6 +3,15 @@
 
 ---
 
+## [1.53.1] - 2026-08-09
+
+### Added
+- **`list_agents` tool** – returns all known in‑process sweepers (contradiction, inference staleness, provenance staleness, temporal staleness, graph freshness, graph auto‑update, graph health) with their agent_id, kind, running status, and interval. Standalone agent processes (critic, enrichment, fork resolution, pipeline) are not included – they run in separate OS processes.
+- **`agent_status` tool** – returns detailed status for a single sweeper by agent_id, including last run timestamp, duration, result count, and last error.
+- Tool count increased from 53 to 55.
+
+---
+
 ## [1.53.0] - 2026-08-08
 
 ### Added

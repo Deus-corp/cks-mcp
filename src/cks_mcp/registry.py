@@ -19,6 +19,8 @@ from cks_mcp.middleware import (
     with_middleware,
 )
 from cks_mcp.observability import log_tool_call
+from cks_mcp.tools.agent_status import agent_status
+from cks_mcp.tools.agent_status.schema import AGENT_STATUS_SCHEMA
 from cks_mcp.tools.approve_resolution import approve_resolution
 from cks_mcp.tools.approve_resolution.schema import APPROVE_RESOLUTION_SCHEMA
 from cks_mcp.tools.arbitrate_inference_conflict import arbitrate_inference_conflict
@@ -75,6 +77,8 @@ from cks_mcp.tools.import_storage import import_storage
 from cks_mcp.tools.import_storage.schema import IMPORT_STORAGE_SCHEMA
 from cks_mcp.tools.ingest_document import ingest_document
 from cks_mcp.tools.ingest_document.schema import INGEST_DOCUMENT_SCHEMA
+from cks_mcp.tools.list_agents import list_agents
+from cks_mcp.tools.list_agents.schema import LIST_AGENTS_SCHEMA
 from cks_mcp.tools.list_dead_lettered_conflicts import list_dead_lettered_conflicts
 from cks_mcp.tools.list_dead_lettered_conflicts.schema import (
     LIST_DEAD_LETTERED_CONFLICTS_SCHEMA,
@@ -239,6 +243,14 @@ TOOLS = {
     "get_metrics": {
         **GET_METRICS_SCHEMA,
         "handler": _wrap("get_metrics")(get_metrics),
+    },
+    "list_agents": {
+        **LIST_AGENTS_SCHEMA,
+        "handler": _wrap("list_agents")(list_agents),
+    },
+    "agent_status": {
+        **AGENT_STATUS_SCHEMA,
+        "handler": _wrap("agent_status", "agent_id")(agent_status),
     },
     "verify_source": {
         **VERIFY_SOURCE_SCHEMA,
