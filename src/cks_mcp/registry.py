@@ -21,6 +21,8 @@ from cks_mcp.middleware import (
 from cks_mcp.observability import log_tool_call
 from cks_mcp.tools.agent_status import agent_status
 from cks_mcp.tools.agent_status.schema import AGENT_STATUS_SCHEMA
+from cks_mcp.tools.ai_chat import ai_chat
+from cks_mcp.tools.ai_chat.schema import AI_CHAT_SCHEMA
 from cks_mcp.tools.approve_resolution import approve_resolution
 from cks_mcp.tools.approve_resolution.schema import APPROVE_RESOLUTION_SCHEMA
 from cks_mcp.tools.arbitrate_inference_conflict import arbitrate_inference_conflict
@@ -208,6 +210,10 @@ def _wrap_open_session_fields(name: str, session_arg: str, *required_fields: str
 # ---------------------------------------------------------------------------
 
 TOOLS = {
+    "ai_chat": {
+        **AI_CHAT_SCHEMA,
+        "handler": _wrap_open_session("ai_chat", "session_id")(ai_chat),
+    },
     "validate_knowledge": {
         **VALIDATE_KNOWLEDGE_SCHEMA,
         "handler": _wrap_session("validate_knowledge", "session_id")(validate_knowledge),

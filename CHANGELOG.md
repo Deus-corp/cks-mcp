@@ -3,6 +3,16 @@
 
 ---
 
+## [1.55.0] - 2026-08-09
+
+### Added
+- **`ai_chat` tool** – sends a chat turn to an LLM (Anthropic API only for now) that can call any safe MCP tool. Implements a bounded agentic loop (max 8 iterations) with session pinning, denylist for server-management tools, and stateless message history.
+- **`call_anthropic_with_tools`** – new function in `llm_providers.py` for tool-use calls.
+- Tool count increased from 60 to 61.
+- New unit tests for `ai_chat`.
+
+---
+
 ## [1.54.1] - 2026-08-09
 
 ### Fixed
