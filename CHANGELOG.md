@@ -3,6 +3,13 @@
 
 ---
 
+## [1.53.3] - 2026-08-09
+
+### Added
+- Unit tests for `list_processes` and `process_status` MCP tools (11 tests).
+
+---
+
 ## [1.53.2] - 2026-08-09
 
 ### Added
