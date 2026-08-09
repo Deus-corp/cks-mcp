@@ -88,7 +88,9 @@ async def run_pipeline_agent(
         file=sys.stderr,
     )
 
-    liveness = LivenessReporter(runtime, "pipeline", settings.liveness_interval)
+    liveness = LivenessReporter(
+        runtime, "pipeline", settings.liveness_interval, stop_event=stop
+    )
     await liveness.start()
 
     try:

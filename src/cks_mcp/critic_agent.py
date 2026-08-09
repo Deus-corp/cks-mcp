@@ -1123,7 +1123,9 @@ async def run_critic_agent(
         file=sys.stderr,
     )
 
-    liveness = LivenessReporter(runtime, "critic", settings.liveness_interval)
+    liveness = LivenessReporter(
+        runtime, "critic", settings.liveness_interval, stop_event=stop
+    )
     await liveness.start()
 
     try:

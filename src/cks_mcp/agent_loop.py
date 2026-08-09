@@ -30,6 +30,14 @@ from uuid import uuid4
 from cks_runtime.runtime import Runtime
 from cks_runtime.storage.storage import AgentLivenessRecord
 
+# ADR-016 §3: a value for last_heartbeat_at far enough in the past that
+# the existing TTL check (alive = now - last_heartbeat_at <= 3 *
+# liveness_interval_s) fails immediately, regardless of
+# liveness_interval_s -- used by LivenessReporter.stop()'s final write
+# to make a graceful exit read as `stopped` right away instead of
+# waiting out the TTL window.
+_EPOCH_ISO = datetime.fromtimestamp(0, tz=UTC).isoformat()
+
 
 @dataclass(slots=True)
 class Resolution:
@@ -104,6 +112,14 @@ class LivenessReporter:
     tests) makes every write a silent no-op, same convention as the
     outbox's ``supports_outbox`` gate -- callers don't need to check
     it themselves.
+
+    ADR-016 extends this class with remote-stop support: passing
+    ``stop_event`` (the same ``asyncio.Event`` each ``run_*_agent``
+    function already creates for ``SIGTERM``/``SIGINT`` handling) makes
+    a ``request_agent_stop`` MCP call and a signal converge on the
+    exact same shutdown path -- see ADR-016 §2 for the rationale. When
+    omitted, this class behaves exactly as it did before ADR-016 (no
+    remote-stop check, ``stop()`` no longer backdates the heartbeat).
     """
 
     def __init__(
@@ -111,6 +127,8 @@ class LivenessReporter:
         runtime: Runtime,
         process_kind: str,
         liveness_interval: float,
+        *,
+        stop_event: asyncio.Event | None = None,
     ) -> None:
         self._runtime = runtime
         self._process_kind = process_kind
@@ -122,6 +140,7 @@ class LivenessReporter:
         self._current_task_id: int | None = None
         self._current_task_type: str | None = None
         self._tick_task: asyncio.Task[None] | None = None
+        self._stop_event = stop_event
 
     def set_current_task(self, task_id: int, task_type: str) -> None:
         self._current_task_id = task_id
@@ -131,7 +150,7 @@ class LivenessReporter:
         self._current_task_id = None
         self._current_task_type = None
 
-    async def _write(self) -> None:
+    async def _write(self, *, last_heartbeat_at_override: str | None = None) -> None:
         record = AgentLivenessRecord(
             instance_id=self._instance_id,
             process_kind=self._process_kind,
@@ -139,7 +158,7 @@ class LivenessReporter:
             pid=self._pid,
             liveness_interval_s=self._interval,
             started_at=self._started_at,
-            last_heartbeat_at=datetime.now(UTC).isoformat(),
+            last_heartbeat_at=last_heartbeat_at_override or datetime.now(UTC).isoformat(),
             current_task_id=self._current_task_id,
             current_task_type=self._current_task_type,
         )
@@ -155,6 +174,18 @@ class LivenessReporter:
                 # agent's actual work loop -- liveness reporting is
                 # observability, not the agent's core function.
                 await self._write()
+                if self._stop_event is not None:
+                    # ADR-016 §2: read our own row back on the same
+                    # cadence, so a `request_agent_stop` MCP call
+                    # (recorded by a different process) is observed and
+                    # converged onto the exact same shutdown path as
+                    # SIGTERM/SIGINT.
+                    record = self._runtime.storage.get_agent_liveness(self._instance_id)
+                    if asyncio.iscoroutine(record):
+                        record = await record
+                    if record is not None and record.desired_state == "stop_requested":
+                        self._stop_event.set()
+                        return
 
     async def start(self) -> None:
         """Write the initial row and start the background tick."""
@@ -163,9 +194,19 @@ class LivenessReporter:
         self._tick_task = asyncio.create_task(self._tick_forever())
 
     async def stop(self) -> None:
-        if self._tick_task is None:
-            return
-        self._tick_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await self._tick_task
-        self._tick_task = None
+        if self._tick_task is not None:
+            self._tick_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._tick_task
+            self._tick_task = None
+        with contextlib.suppress(Exception):
+            # ADR-016 §3: backdate last_heartbeat_at far enough into the
+            # past that the existing TTL check fails immediately, so a
+            # cleanly-exited process reads as `stopped` right away
+            # instead of up to `3 * liveness_interval_s` later. A crash
+            # (no chance to run this) still degrades the old way, via
+            # the TTL alone -- this only speeds up the voluntary-exit
+            # case, it doesn't change crash detection.
+            self._current_task_id = None
+            self._current_task_type = None
+            await self._write(last_heartbeat_at_override=_EPOCH_ISO)

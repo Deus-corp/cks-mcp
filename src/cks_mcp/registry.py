@@ -111,6 +111,8 @@ from cks_mcp.tools.reject_resolution import reject_resolution
 from cks_mcp.tools.reject_resolution.schema import REJECT_RESOLUTION_SCHEMA
 from cks_mcp.tools.request_enrichment import request_enrichment
 from cks_mcp.tools.request_enrichment.schema import REQUEST_ENRICHMENT_SCHEMA
+from cks_mcp.tools.request_process_stop import request_process_stop
+from cks_mcp.tools.request_process_stop.schema import REQUEST_PROCESS_STOP_SCHEMA
 from cks_mcp.tools.resolve_contradiction import resolve_contradiction
 from cks_mcp.tools.resolve_contradiction.schema import RESOLVE_CONTRADICTION_SCHEMA
 from cks_mcp.tools.resolve_gossip_conflict import resolve_gossip_conflict
@@ -131,6 +133,10 @@ from cks_mcp.tools.search_semantic import search_semantic
 from cks_mcp.tools.search_semantic.schema import SEARCH_SEMANTIC_SCHEMA
 from cks_mcp.tools.serialize import serialize_knowledge
 from cks_mcp.tools.serialize.schema import SERIALIZE_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.start_agent import start_agent
+from cks_mcp.tools.start_agent.schema import START_AGENT_SCHEMA
+from cks_mcp.tools.stop_agent import stop_agent
+from cks_mcp.tools.stop_agent.schema import STOP_AGENT_SCHEMA
 from cks_mcp.tools.suggest_evolution import suggest_evolution
 from cks_mcp.tools.suggest_evolution.schema import SUGGEST_EVOLUTION_SCHEMA
 from cks_mcp.tools.update_registered_graph import update_registered_graph
@@ -263,6 +269,18 @@ TOOLS = {
     "process_status": {
         **PROCESS_STATUS_SCHEMA,
         "handler": _wrap("process_status", "process_kind")(process_status),
+    },
+    "start_agent": {
+        **START_AGENT_SCHEMA,
+        "handler": _wrap("start_agent", "agent_id")(start_agent),
+    },
+    "stop_agent": {
+        **STOP_AGENT_SCHEMA,
+        "handler": _wrap("stop_agent", "agent_id")(stop_agent),
+    },
+    "request_process_stop": {
+        **REQUEST_PROCESS_STOP_SCHEMA,
+        "handler": _wrap("request_process_stop", "process_kind")(request_process_stop),
     },
     "verify_source": {
         **VERIFY_SOURCE_SCHEMA,

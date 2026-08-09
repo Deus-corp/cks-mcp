@@ -3,6 +3,18 @@
 
 ---
 
+## [1.54.0] - 2026-08-09
+
+### Added
+- **`start_agent` and `stop_agent` tools** – start or stop an in‑process sweeper (contradiction, inference staleness, etc.) at runtime via the `cks_sweeper_control` table (ADR-015). The override persists across server restarts.
+- **`request_process_stop` tool** – request a graceful shutdown of a standalone agent process (Critic, Enrichment, Fork Resolution, Pipeline) by setting `desired_state='stop_requested'` in its liveness row (ADR-016).
+- **`LivenessReporter` now supports remote stop** – when a `stop_event` is provided, the background tick reads its own liveness row and sets the event if `desired_state` is `'stop_requested'`, converging remote stop with SIGTERM.
+- **Backdated heartbeat on graceful exit** – `LivenessReporter.stop()` writes a last heartbeat at epoch so that a cleanly exited process reads as `stopped` immediately rather than after the TTL window.
+- Tool count increased from 57 to 60.
+- New unit tests for all three tools.
+
+---
+
 ## [1.53.3] - 2026-08-09
 
 ### Added
