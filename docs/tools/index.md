@@ -19,7 +19,7 @@ used together rather than their declaration order in the registry:
 | [Export & Observability](export-and-audit.md) | `export_knowledge`, `export_session`, `get_metrics`, `export_storage`, `import_storage`, `migrate_storage`, `list_plugins` | Get data out, back up, migrate between backends, list installed plugins, and see how the server is performing |
 | [Memory & Persistence](export-and-audit.md) | `register_graph`, `get_graph`, `list_graphs`, `search_graphs`, `check_graph_freshness`, `check_component_versions`, `update_registered_graph`, `explain_graph`, `check_graph_health` | Save and reuse Knowledge Graphs, check component freshness, update outdated graphs, generate reports, compute health scores |
 | [Gossip & Conflict Resolution](gossip-and-conflicts.md) | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `refresh_verification`, `resolve_temporal_conflict`, `resolve_contradiction`, `review_dead_letter`, `approve_resolution`, `reject_resolution`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` | Drain and resolve conflicts escalated by gossip, inference, provenance, temporal, or contradiction staleness, plus the critic‑agent task lifecycle and human-in-the-loop dead-letter review |
-| Agent Observability | `list_agents`, `agent_status` | Monitor background sweepers |
+| Agent Observability | `list_agents`, `agent_status`, `list_processes`, `process_status` | Monitor background sweepers and standalone agent processes |
 
 ## Conventions used across every tool
 
