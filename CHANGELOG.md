@@ -3,6 +3,15 @@
 
 ---
 
+## [1.53.2] - 2026-08-09
+
+### Added
+- **`list_processes` tool** – returns liveness status of all standalone agent processes (Critic, Enrichment, Fork Resolution, Pipeline) that have ever reported to the `cks_agent_liveness` table.
+- **`process_status` tool** – returns detailed status of the most recent instance of a given process kind.
+- Tool count increased from 55 to 57.
+
+---
+
 ## [1.53.1] - 2026-08-09
 
 ### Added

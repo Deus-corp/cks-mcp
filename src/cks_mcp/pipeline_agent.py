@@ -23,18 +23,21 @@ from cks_runtime.config import RuntimeConfig
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
+from cks_mcp.agent_loop import LivenessReporter
 from cks_mcp.orchestrator import CKSAgentOrchestrator
 from cks_mcp.paths import data_dir
 from cks_mcp.pipeline.researcher_step import ResearcherStep, ResearcherStepSettings
 from cks_mcp.pipeline.reviewer_step import ReviewerStep, ReviewerStepSettings
 
 _DEFAULT_POLL_INTERVAL_SECONDS = 5.0
+_DEFAULT_LIVENESS_INTERVAL_SECONDS = 30.0  # process liveness (ADR-014)
 
 
 @dataclass(slots=True)
 class PipelineAgentSettings:
     poll_interval: float = _DEFAULT_POLL_INTERVAL_SECONDS
     storage_path: str = field(default_factory=lambda: "")
+    liveness_interval: float = _DEFAULT_LIVENESS_INTERVAL_SECONDS
 
     @classmethod
     def from_env(cls) -> PipelineAgentSettings:
@@ -43,6 +46,11 @@ class PipelineAgentSettings:
                 os.environ.get("CKS_PIPELINE_POLL_INTERVAL", _DEFAULT_POLL_INTERVAL_SECONDS)
             ),
             storage_path=os.environ.get("CKS_MCP_DB_PATH") or str(data_dir() / "cks_mcp.db"),
+            liveness_interval=float(
+                os.environ.get(
+                    "CKS_PIPELINE_LIVENESS_INTERVAL", _DEFAULT_LIVENESS_INTERVAL_SECONDS
+                )
+            ),
         )
 
 
@@ -75,9 +83,13 @@ async def run_pipeline_agent(
 
     print(
         f"[cks-pipeline-agent] started (storage_path={settings.storage_path!r}, "
-        f"poll_interval={settings.poll_interval}s, steps=Researcher,Reviewer)",
+        f"poll_interval={settings.poll_interval}s, "
+        f"liveness_interval={settings.liveness_interval}s, steps=Researcher,Reviewer)",
         file=sys.stderr,
     )
+
+    liveness = LivenessReporter(runtime, "pipeline", settings.liveness_interval)
+    await liveness.start()
 
     try:
         iterations = 0
@@ -92,6 +104,7 @@ async def run_pipeline_agent(
             if max_iterations is not None and iterations >= max_iterations:
                 break
     finally:
+        await liveness.stop()
         await runtime.aclose()
         print("[cks-pipeline-agent] stopped", file=sys.stderr)
 

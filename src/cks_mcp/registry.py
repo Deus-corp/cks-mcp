@@ -93,10 +93,14 @@ from cks_mcp.tools.list_inference_conflicts.schema import (
 )
 from cks_mcp.tools.list_plugins import list_plugins
 from cks_mcp.tools.list_plugins.schema import LIST_PLUGINS_SCHEMA
+from cks_mcp.tools.list_processes import list_processes
+from cks_mcp.tools.list_processes.schema import LIST_PROCESSES_SCHEMA
 from cks_mcp.tools.merge import merge_branch, merge_knowledge
 from cks_mcp.tools.merge.schema import MERGE_BRANCH_SCHEMA, MERGE_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.migrate_storage import migrate_storage
 from cks_mcp.tools.migrate_storage.schema import MIGRATE_STORAGE_SCHEMA
+from cks_mcp.tools.process_status import process_status
+from cks_mcp.tools.process_status.schema import PROCESS_STATUS_SCHEMA
 from cks_mcp.tools.query_subgraph import query_subgraph_tool
 from cks_mcp.tools.query_subgraph.schema import QUERY_SUBGRAPH_SCHEMA
 from cks_mcp.tools.refresh_verification import refresh_verification
@@ -251,6 +255,14 @@ TOOLS = {
     "agent_status": {
         **AGENT_STATUS_SCHEMA,
         "handler": _wrap("agent_status", "agent_id")(agent_status),
+    },
+    "list_processes": {
+        **LIST_PROCESSES_SCHEMA,
+        "handler": _wrap("list_processes")(list_processes),
+    },
+    "process_status": {
+        **PROCESS_STATUS_SCHEMA,
+        "handler": _wrap("process_status", "process_kind")(process_status),
     },
     "verify_source": {
         **VERIFY_SOURCE_SCHEMA,

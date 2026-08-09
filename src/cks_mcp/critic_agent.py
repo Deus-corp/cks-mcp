@@ -122,7 +122,7 @@ from cks_runtime.config import RuntimeConfig
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
-from cks_mcp.agent_loop import Resolution, run_resolver_with_heartbeat
+from cks_mcp.agent_loop import LivenessReporter, Resolution, run_resolver_with_heartbeat
 from cks_mcp.paths import data_dir
 from cks_mcp.tools.arbitrate_inference_conflict.handler import (
     arbitrate_inference_conflict,
@@ -159,6 +159,13 @@ _DEFAULT_POLL_INTERVAL_SECONDS = 5.0
 # reclaim window (5 minutes) -- see _run_resolver_with_heartbeat.
 _DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60.0
 
+# Process-liveness heartbeat (ADR-014) -- independent of
+# _DEFAULT_HEARTBEAT_INTERVAL_SECONDS above, which is the outbox
+# task-lease keepalive (a different mechanism for a different failure
+# mode; see cks-runtime ADR-014's Context section for why these are
+# deliberately not the same knob).
+_DEFAULT_LIVENESS_INTERVAL_SECONDS = 30.0
+
 # Consecutive LLM-attributable arbitration failures before the circuit
 # breaker opens and auto_resolve calls are skipped for a cooldown period.
 _DEFAULT_LLM_BREAKER_THRESHOLD = 3
@@ -187,6 +194,7 @@ class CriticAgentSettings:
     max_retries: int = _DEFAULT_MAX_RETRIES
     storage_path: str = field(default_factory=lambda: "")
     heartbeat_interval: float = _DEFAULT_HEARTBEAT_INTERVAL_SECONDS
+    liveness_interval: float = _DEFAULT_LIVENESS_INTERVAL_SECONDS
     llm_breaker_threshold: int = _DEFAULT_LLM_BREAKER_THRESHOLD
     llm_breaker_cooldown: float = _DEFAULT_LLM_BREAKER_COOLDOWN_SECONDS
 
@@ -206,6 +214,11 @@ class CriticAgentSettings:
             heartbeat_interval=float(
                 os.environ.get(
                     "CKS_CRITIC_HEARTBEAT_INTERVAL", _DEFAULT_HEARTBEAT_INTERVAL_SECONDS
+                )
+            ),
+            liveness_interval=float(
+                os.environ.get(
+                    "CKS_CRITIC_LIVENESS_INTERVAL", _DEFAULT_LIVENESS_INTERVAL_SECONDS
                 )
             ),
             llm_breaker_threshold=int(
@@ -944,7 +957,10 @@ _RESOLVERS = {
 
 
 async def _process_one(
-    runtime: Runtime, task_type: str, settings: CriticAgentSettings
+    runtime: Runtime,
+    task_type: str,
+    settings: CriticAgentSettings,
+    liveness: LivenessReporter | None = None,
 ) -> bool | None:
     """
     Claim and process at most one task of ``task_type``.
@@ -972,6 +988,8 @@ async def _process_one(
 
     task_id = task["task_id"]
     _METRICS.processed[task_type] += 1
+    if liveness is not None:
+        liveness.set_current_task(task_id, task_type)
 
     resolver = _RESOLVERS[task_type]
     try:
@@ -982,6 +1000,9 @@ async def _process_one(
         resolution = Resolution(False, f"unexpected exception: {exc}")
         lease_lost = False
         traceback.print_exc(file=sys.stderr)
+    finally:
+        if liveness is not None:
+            liveness.clear_current_task()
 
     if lease_lost:
         _METRICS.lease_lost[task_type] += 1
@@ -1027,7 +1048,11 @@ async def _process_one(
     return True
 
 
-async def run_once(runtime: Runtime, settings: CriticAgentSettings | None = None) -> int:
+async def run_once(
+    runtime: Runtime,
+    settings: CriticAgentSettings | None = None,
+    liveness: LivenessReporter | None = None,
+) -> int:
     """
     Drain every currently-eligible task across every task type once
     (claiming one at a time per type until each queue reports empty),
@@ -1041,7 +1066,7 @@ async def run_once(runtime: Runtime, settings: CriticAgentSettings | None = None
     )
     processed = 0
     for task_type in _TASK_TYPES:
-        while await _process_one(runtime, task_type, settings):
+        while await _process_one(runtime, task_type, settings, liveness):
             processed += 1
     return processed
 
@@ -1092,15 +1117,19 @@ async def run_critic_agent(
         f"[cks-critic-agent] started (storage_path={settings.storage_path!r}, "
         f"poll_interval={settings.poll_interval}s, max_retries={settings.max_retries}, "
         f"heartbeat_interval={settings.heartbeat_interval}s, "
+        f"liveness_interval={settings.liveness_interval}s, "
         f"llm_breaker_threshold={settings.llm_breaker_threshold}, "
         f"llm_breaker_cooldown={settings.llm_breaker_cooldown}s)",
         file=sys.stderr,
     )
 
+    liveness = LivenessReporter(runtime, "critic", settings.liveness_interval)
+    await liveness.start()
+
     try:
         iterations = 0
         while not stop.is_set():
-            processed = await run_once(runtime, settings)
+            processed = await run_once(runtime, settings, liveness)
             if processed == 0:
                 try:
                     await asyncio.wait_for(stop.wait(), timeout=settings.poll_interval)
@@ -1110,6 +1139,7 @@ async def run_critic_agent(
             if max_iterations is not None and iterations >= max_iterations:
                 break
     finally:
+        await liveness.stop()
         await runtime.aclose()
         print("[cks-critic-agent] stopped", file=sys.stderr)
 

@@ -68,7 +68,7 @@ from cks_runtime.config import RuntimeConfig
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
-from cks_mcp.agent_loop import Resolution, run_resolver_with_heartbeat
+from cks_mcp.agent_loop import LivenessReporter, Resolution, run_resolver_with_heartbeat
 from cks_mcp.enrichment.adapters import DEFAULT_ADAPTERS, build_enrichment_candidates
 from cks_mcp.enrichment.filters import EnrichmentPolicy
 from cks_mcp.enrichment.robots import robots_allows
@@ -85,6 +85,7 @@ from cks_mcp.tools.verify_source.handler import verify_source
 _DEFAULT_MAX_RETRIES = 5
 _DEFAULT_POLL_INTERVAL_SECONDS = 5.0
 _DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60.0
+_DEFAULT_LIVENESS_INTERVAL_SECONDS = 30.0  # process liveness (ADR-014), distinct from the lease heartbeat above
 _DEFAULT_MIN_SCORE = 0.5
 _DEFAULT_MAX_INGESTS = 2
 _DEFAULT_LIMIT_PER_ADAPTER = 3
@@ -100,6 +101,7 @@ class EnrichmentAgentSettings:
     max_retries: int = _DEFAULT_MAX_RETRIES
     storage_path: str = field(default_factory=lambda: "")
     heartbeat_interval: float = _DEFAULT_HEARTBEAT_INTERVAL_SECONDS
+    liveness_interval: float = _DEFAULT_LIVENESS_INTERVAL_SECONDS
     adapters: tuple[str, ...] = DEFAULT_ADAPTERS
     limit_per_adapter: int = _DEFAULT_LIMIT_PER_ADAPTER
     min_score: float = _DEFAULT_MIN_SCORE
@@ -125,6 +127,11 @@ class EnrichmentAgentSettings:
             heartbeat_interval=float(
                 os.environ.get(
                     "CKS_ENRICHMENT_HEARTBEAT_INTERVAL", _DEFAULT_HEARTBEAT_INTERVAL_SECONDS
+                )
+            ),
+            liveness_interval=float(
+                os.environ.get(
+                    "CKS_ENRICHMENT_LIVENESS_INTERVAL", _DEFAULT_LIVENESS_INTERVAL_SECONDS
                 )
             ),
             adapters=adapters,
@@ -386,7 +393,11 @@ _RESOLVERS = {_TASK_TYPE: resolve_enrichment_request}
 # ---------------------------------------------------------------------------
 
 
-async def _process_one(runtime: Runtime, settings: EnrichmentAgentSettings) -> bool | None:
+async def _process_one(
+    runtime: Runtime,
+    settings: EnrichmentAgentSettings,
+    liveness: LivenessReporter | None = None,
+) -> bool | None:
     """Claim and process at most one enrichment_request task. See
     ``cks_mcp.critic_agent._process_one``, this mirrors it exactly."""
     claim_result = await claim_conflict_task(runtime, {"task_type": _TASK_TYPE})
@@ -403,6 +414,8 @@ async def _process_one(runtime: Runtime, settings: EnrichmentAgentSettings) -> b
         return None
 
     task_id = task["task_id"]
+    if liveness is not None:
+        liveness.set_current_task(task_id, _TASK_TYPE)
 
     async def _resolver(rt: Runtime, t: dict[str, Any]) -> Resolution:
         return await resolve_enrichment_request(rt, t, settings)
@@ -415,6 +428,9 @@ async def _process_one(runtime: Runtime, settings: EnrichmentAgentSettings) -> b
         resolution = Resolution(False, f"unexpected exception: {exc}")
         lease_lost = False
         traceback.print_exc(file=sys.stderr)
+    finally:
+        if liveness is not None:
+            liveness.clear_current_task()
 
     if lease_lost:
         print(
@@ -454,11 +470,15 @@ async def _process_one(runtime: Runtime, settings: EnrichmentAgentSettings) -> b
     return True
 
 
-async def run_once(runtime: Runtime, settings: EnrichmentAgentSettings | None = None) -> int:
+async def run_once(
+    runtime: Runtime,
+    settings: EnrichmentAgentSettings | None = None,
+    liveness: LivenessReporter | None = None,
+) -> int:
     """Drain every currently-eligible enrichment_request task once."""
     settings = settings or EnrichmentAgentSettings.from_env()
     processed = 0
-    while await _process_one(runtime, settings):
+    while await _process_one(runtime, settings, liveness):
         processed += 1
     return processed
 
@@ -496,15 +516,19 @@ async def run_enrichment_agent(
     print(
         f"[cks-enrichment-agent] started (storage_path={settings.storage_path!r}, "
         f"poll_interval={settings.poll_interval}s, max_retries={settings.max_retries}, "
+        f"liveness_interval={settings.liveness_interval}s, "
         f"adapters={settings.adapters}, min_score={settings.min_score}, "
         f"max_ingests={settings.max_ingests})",
         file=sys.stderr,
     )
 
+    liveness = LivenessReporter(runtime, "enrichment", settings.liveness_interval)
+    await liveness.start()
+
     try:
         iterations = 0
         while not stop.is_set():
-            processed = await run_once(runtime, settings)
+            processed = await run_once(runtime, settings, liveness)
             if processed == 0:
                 try:
                     await asyncio.wait_for(stop.wait(), timeout=settings.poll_interval)
@@ -514,6 +538,7 @@ async def run_enrichment_agent(
             if max_iterations is not None and iterations >= max_iterations:
                 break
     finally:
+        await liveness.stop()
         await runtime.aclose()
         print("[cks-enrichment-agent] stopped", file=sys.stderr)
 

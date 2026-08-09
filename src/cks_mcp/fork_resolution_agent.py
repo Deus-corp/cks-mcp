@@ -77,7 +77,7 @@ from cks_runtime.crdt.version_vector import VersionVector
 from cks_runtime.runtime import Runtime
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
-from cks_mcp.agent_loop import Resolution, run_resolver_with_heartbeat
+from cks_mcp.agent_loop import LivenessReporter, Resolution, run_resolver_with_heartbeat
 from cks_mcp.lca_arbiter import resolve_with_lca
 from cks_mcp.paths import data_dir
 from cks_mcp.tools.claim_conflict_task.handler import claim_conflict_task
@@ -99,6 +99,7 @@ _DEFAULT_MAX_RETRIES = 3
 # Must stay comfortably under SQLiteStorage's/PostgresStorage's stale-lease
 # reclaim window (5 minutes) -- same reasoning as CriticAgentSettings.
 _DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 60.0
+_DEFAULT_LIVENESS_INTERVAL_SECONDS = 30.0  # process liveness (ADR-014), distinct from the lease heartbeat above
 
 
 @dataclass(slots=True)
@@ -109,6 +110,7 @@ class ForkResolutionAgentSettings:
     max_retries: int = _DEFAULT_MAX_RETRIES
     storage_path: str = field(default_factory=lambda: "")
     heartbeat_interval: float = _DEFAULT_HEARTBEAT_INTERVAL_SECONDS
+    liveness_interval: float = _DEFAULT_LIVENESS_INTERVAL_SECONDS
     # Whether to try the topology-aware LCA arbiter (cks_mcp.lca_arbiter)
     # before falling back to the mechanical VersionVector/created_at/
     # alphabetical policy below. Defaults to on -- the LCA path is a
@@ -139,6 +141,12 @@ class ForkResolutionAgentSettings:
                 os.environ.get(
                     "CKS_FORK_AGENT_HEARTBEAT_INTERVAL",
                     _DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+                )
+            ),
+            liveness_interval=float(
+                os.environ.get(
+                    "CKS_FORK_AGENT_LIVENESS_INTERVAL",
+                    _DEFAULT_LIVENESS_INTERVAL_SECONDS,
                 )
             ),
             use_lca=os.environ.get("CKS_FORK_AGENT_USE_LCA", "1") not in ("0", "false", "False"),
@@ -465,7 +473,11 @@ async def resolve_fork(runtime: Runtime, fork_event: dict[str, Any]) -> Resoluti
 # ---------------------------------------------------------------------------
 
 
-async def _process_one(runtime: Runtime, settings: ForkResolutionAgentSettings) -> bool | None:
+async def _process_one(
+    runtime: Runtime,
+    settings: ForkResolutionAgentSettings,
+    liveness: LivenessReporter | None = None,
+) -> bool | None:
     """
     Claim and process at most one ``crdt_fork`` task. Returns True if a
     task was claimed and processed (regardless of outcome), or None if
@@ -486,6 +498,8 @@ async def _process_one(runtime: Runtime, settings: ForkResolutionAgentSettings) 
         return None
 
     task_id = task["task_id"]
+    if liveness is not None:
+        liveness.set_current_task(task_id, _TASK_TYPE)
 
     try:
         resolution, lease_lost = await _run_resolver_with_heartbeat(
@@ -495,6 +509,9 @@ async def _process_one(runtime: Runtime, settings: ForkResolutionAgentSettings) 
         resolution = Resolution(False, f"unexpected exception: {exc}")
         lease_lost = False
         traceback.print_exc(file=sys.stderr)
+    finally:
+        if liveness is not None:
+            liveness.clear_current_task()
 
     if lease_lost:
         print(
@@ -537,7 +554,9 @@ async def _process_one(runtime: Runtime, settings: ForkResolutionAgentSettings) 
 
 
 async def run_once(
-    runtime: Runtime, settings: ForkResolutionAgentSettings | None = None
+    runtime: Runtime,
+    settings: ForkResolutionAgentSettings | None = None,
+    liveness: LivenessReporter | None = None,
 ) -> int:
     """
     Drain every currently-eligible ``crdt_fork`` task once (claiming
@@ -548,7 +567,7 @@ async def run_once(
     """
     settings = settings or ForkResolutionAgentSettings.from_env()
     processed = 0
-    while await _process_one(runtime, settings):
+    while await _process_one(runtime, settings, liveness):
         processed += 1
     return processed
 
@@ -598,14 +617,18 @@ async def run_fork_agent(
     print(
         f"[cks-fork-agent] started (storage_path={settings.storage_path!r}, "
         f"poll_interval={settings.poll_interval}s, max_retries={settings.max_retries}, "
-        f"heartbeat_interval={settings.heartbeat_interval}s)",
+        f"heartbeat_interval={settings.heartbeat_interval}s, "
+        f"liveness_interval={settings.liveness_interval}s)",
         file=sys.stderr,
     )
+
+    liveness = LivenessReporter(runtime, "fork_resolution", settings.liveness_interval)
+    await liveness.start()
 
     try:
         iterations = 0
         while not stop.is_set():
-            processed = await run_once(runtime, settings)
+            processed = await run_once(runtime, settings, liveness)
             if processed == 0:
                 try:
                     await asyncio.wait_for(stop.wait(), timeout=settings.poll_interval)
@@ -615,6 +638,7 @@ async def run_fork_agent(
             if max_iterations is not None and iterations >= max_iterations:
                 break
     finally:
+        await liveness.stop()
         await runtime.aclose()
         print("[cks-fork-agent] stopped", file=sys.stderr)
 
