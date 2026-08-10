@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import urllib.error
 from unittest.mock import MagicMock, patch
 
@@ -553,3 +554,125 @@ def test_call_ollama_with_tools_records_telemetry_on_success():
     snap = llm_telemetry.snapshot()
     assert snap["total_calls"] == 1
     assert snap["success_rate"] == 1.0
+
+
+# ---------------------------------------------------------------------------
+# call_openai_compatible_with_tools
+# ---------------------------------------------------------------------------
+
+
+def test_call_openai_compatible_missing_api_key_raises():
+    with patch.dict("os.environ", {}, clear=True), \
+         pytest.raises(RuntimeError, match="CKS_OPENAI_API_KEY"):
+        llm_providers.call_openai_compatible_with_tools(
+            messages=[{"role": "user", "content": "hi"}], tools=_TOOL_SPECS
+        )
+
+
+def test_call_openai_compatible_success_text_response():
+    body = {
+        "choices": [
+            {"message": {"role": "assistant", "content": "hello from gpt"}}
+        ],
+        "usage": {"total_tokens": 42},
+    }
+    with patch.dict("os.environ", {"CKS_OPENAI_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        result = llm_providers.call_openai_compatible_with_tools(
+            messages=[{"role": "user", "content": "hi"}], tools=_TOOL_SPECS
+        )
+    assert result == {"content": [{"type": "text", "text": "hello from gpt"}]}
+
+
+def test_call_openai_compatible_success_tool_use_response():
+    body = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_123",
+                            "type": "function",
+                            "function": {
+                                "name": "search_semantic",
+                                "arguments": json.dumps({"query": "foo"}),
+                            },
+                        }
+                    ],
+                }
+            }
+        ],
+        "usage": {"total_tokens": 10},
+    }
+    with patch.dict("os.environ", {"CKS_OPENAI_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        result = llm_providers.call_openai_compatible_with_tools(
+            messages=[{"role": "user", "content": "hi"}], tools=_TOOL_SPECS
+        )
+    assert result["content"] == [
+        {
+            "type": "tool_use",
+            "id": "call_123",
+            "name": "search_semantic",
+            "input": {"query": "foo"},
+        }
+    ]
+
+
+def test_call_openai_compatible_http_error_includes_base_url():
+    err = urllib.error.HTTPError(
+        url="https://api.openai.com/v1/chat/completions",
+        code=401,
+        msg="Unauthorized",
+        hdrs=None,
+        fp=io.BytesIO(b"invalid api key"),
+    )
+    with patch.dict("os.environ", {"CKS_OPENAI_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", side_effect=err), \
+         pytest.raises(RuntimeError, match="HTTP 401"):
+        llm_providers.call_openai_compatible_with_tools(
+            messages=[{"role": "user", "content": "hi"}], tools=_TOOL_SPECS
+        )
+
+
+def test_call_openai_compatible_url_error_mentions_base_url():
+    with patch.dict(
+        "os.environ",
+        {"CKS_OPENAI_API_KEY": "fake-key", "CKS_OPENAI_BASE_URL": "http://localhost:1234/v1"},
+    ), \
+         patch("urllib.request.urlopen", side_effect=urllib.error.URLError("connection refused")), \
+         pytest.raises(RuntimeError, match="http://localhost:1234/v1"):
+        llm_providers.call_openai_compatible_with_tools(
+            messages=[{"role": "user", "content": "hi"}], tools=_TOOL_SPECS
+        )
+
+
+def test_call_openai_compatible_uses_custom_base_url_and_model():
+    body = {"choices": [{"message": {"role": "assistant", "content": "ok"}}]}
+    captured = {}
+
+    def _fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["payload"] = json.loads(req.data.decode())
+        return _fake_urlopen_returning(body)
+
+    with patch.dict(
+        "os.environ",
+        {
+            "CKS_OPENAI_API_KEY": "fake-key",
+            "CKS_OPENAI_BASE_URL": "https://api.groq.com/openai/v1",
+            "CKS_OPENAI_MODEL": "llama-3.3-70b",
+        },
+    ), patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+        llm_providers.call_openai_compatible_with_tools(
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_TOOL_SPECS,
+            model=os.environ.get("CKS_OPENAI_MODEL"),
+        )
+
+    assert captured["url"] == "https://api.groq.com/openai/v1/chat/completions"
+    assert captured["payload"]["model"] == "llama-3.3-70b"
+    assert captured["payload"]["stream"] is False
+    assert captured["payload"]["tool_choice"] == "auto"

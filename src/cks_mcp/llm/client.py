@@ -3,7 +3,7 @@ Provider-routing LLM client for tools that need *tool calling*
 (currently just ``ai_chat`` -- see cks-mcp ADR-011 §6).
 
 ``construct_knowledge`` already has a provider router
-(``CKS_LLM_PROVIDER=auto|ollama|anthropic``) for its single-shot
+(``CKS_LLM_PROVIDER=auto|ollama|anthropic|openai_compatible``) for its single-shot
 text-in/text-out extraction calls; this module applies the same
 routing convention to the tool-calling case, where the LLM must be
 able to request tool invocations and get their results back in a
@@ -54,10 +54,12 @@ class LLMClient:
         *,
         anthropic_fn: _ProviderFn = llm_providers.call_anthropic_with_tools,
         ollama_fn: _ProviderFn = llm_providers.call_ollama_with_tools,
+        openai_compatible_fn: _ProviderFn = llm_providers.call_openai_compatible_with_tools,
         ollama_available_fn: Callable[[], bool] = llm_providers.ollama_available,
     ) -> None:
         self._anthropic_fn = anthropic_fn
         self._ollama_fn = ollama_fn
+        self._openai_compatible_fn = openai_compatible_fn
         self._ollama_available_fn = ollama_available_fn
 
     def call_with_tools(
@@ -86,14 +88,22 @@ class LLMClient:
         if provider == "anthropic":
             return self._call_anthropic(messages, tools, tool_name)
 
+        if provider == "openai_compatible":
+            return self._call_openai_compatible(messages, tools, tool_name)
+
         if provider != "auto":
             raise RuntimeError(
-                f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', or 'anthropic'."
+                f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', "
+                "'anthropic', or 'openai_compatible'."
             )
 
         # auto: prefer a local, keyless model if one is already
         # running; otherwise fall through to Anthropic. Mirrors
         # construct_knowledge's _call_llm dispatch exactly.
+        # 'openai_compatible' is never picked automatically -- its
+        # base URL/model/key vary too much across providers to guess
+        # safely, so it must be selected explicitly via
+        # CKS_LLM_PROVIDER=openai_compatible.
         if self._ollama_available_fn():
             return self._call_ollama(messages, tools, tool_name)
 
@@ -132,3 +142,15 @@ class LLMClient:
         if model:
             kwargs["model"] = model
         return self._anthropic_fn(**kwargs)
+
+    def _call_openai_compatible(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        tool_name: str | None,
+    ) -> dict[str, Any]:
+        model = os.environ.get("CKS_OPENAI_MODEL")
+        kwargs: dict[str, Any] = {"messages": messages, "tools": tools, "tool_name": tool_name}
+        if model:
+            kwargs["model"] = model
+        return self._openai_compatible_fn(**kwargs)

@@ -19,10 +19,18 @@ MESSAGES = [{"role": "user", "content": "hi"}]
 TOOLS = [{"name": "noop", "description": "does nothing", "input_schema": {"type": "object"}}]
 
 
-def _client(*, ollama_available: bool = False, anthropic_fn=None, ollama_fn=None) -> LLMClient:
+def _client(
+    *,
+    ollama_available: bool = False,
+    anthropic_fn=None,
+    ollama_fn=None,
+    openai_compatible_fn=None,
+) -> LLMClient:
     return LLMClient(
         anthropic_fn=anthropic_fn or MagicMock(return_value={"content": [{"type": "text", "text": "anthropic"}]}),
         ollama_fn=ollama_fn or MagicMock(return_value={"content": [{"type": "text", "text": "ollama"}]}),
+        openai_compatible_fn=openai_compatible_fn
+        or MagicMock(return_value={"content": [{"type": "text", "text": "openai_compatible"}]}),
         ollama_available_fn=MagicMock(return_value=ollama_available),
     )
 
@@ -156,4 +164,66 @@ def test_default_construction_uses_real_llm_providers_functions():
     client = LLMClient()
     assert client._anthropic_fn is llm_providers.call_anthropic_with_tools
     assert client._ollama_fn is llm_providers.call_ollama_with_tools
+    assert client._openai_compatible_fn is llm_providers.call_openai_compatible_with_tools
     assert client._ollama_available_fn is llm_providers.ollama_available
+
+
+# ---------------------------------------------------------------------------
+# openai_compatible provider
+# ---------------------------------------------------------------------------
+
+
+def test_explicit_openai_compatible_calls_openai_compatible_fn_only():
+    ollama_fn = MagicMock()
+    anthropic_fn = MagicMock()
+    openai_compatible_fn = MagicMock(
+        return_value={"content": [{"type": "text", "text": "openai_compatible"}]}
+    )
+    client = _client(
+        anthropic_fn=anthropic_fn, ollama_fn=ollama_fn, openai_compatible_fn=openai_compatible_fn
+    )
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "openai_compatible"}):
+        result = client.call_with_tools(messages=MESSAGES, tools=TOOLS, tool_name="ai_chat")
+
+    assert result["content"][0]["text"] == "openai_compatible"
+    openai_compatible_fn.assert_called_once()
+    ollama_fn.assert_not_called()
+    anthropic_fn.assert_not_called()
+
+
+def test_auto_never_selects_openai_compatible_when_ollama_unavailable():
+    # 'auto' with Ollama unreachable must still fall through to
+    # Anthropic (or raise LLMProviderUnavailable) -- it must never
+    # silently pick openai_compatible, since its base URL/model/key
+    # combination can't be guessed safely.
+    ollama_fn = MagicMock()
+    anthropic_fn = MagicMock(return_value={"content": [{"type": "text", "text": "anthropic"}]})
+    openai_compatible_fn = MagicMock()
+    client = _client(
+        ollama_available=False,
+        anthropic_fn=anthropic_fn,
+        ollama_fn=ollama_fn,
+        openai_compatible_fn=openai_compatible_fn,
+    )
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "auto"}):
+        result = client.call_with_tools(messages=MESSAGES, tools=TOOLS)
+
+    assert result["content"][0]["text"] == "anthropic"
+    openai_compatible_fn.assert_not_called()
+
+
+def test_openai_compatible_model_env_override_is_passed_through():
+    openai_compatible_fn = MagicMock(
+        return_value={"content": [{"type": "text", "text": "ok"}]}
+    )
+    client = _client(openai_compatible_fn=openai_compatible_fn)
+
+    with patch.dict(
+        "os.environ",
+        {"CKS_LLM_PROVIDER": "openai_compatible", "CKS_OPENAI_MODEL": "gpt-4o-mini"},
+    ):
+        client.call_with_tools(messages=MESSAGES, tools=TOOLS)
+
+    assert openai_compatible_fn.call_args.kwargs["model"] == "gpt-4o-mini"

@@ -3,6 +3,14 @@
 
 ---
 
+## [1.56.1] - 2026-08-10
+
+### Added
+- **OpenAI-compatible provider** – `ai_chat` now supports `CKS_LLM_PROVIDER=openai_compatible` for any OpenAI-compatible API (OpenAI, Groq, DeepSeek, Together, LM Studio, vLLM, etc.). New env vars: `CKS_OPENAI_BASE_URL`, `CKS_OPENAI_API_KEY`, `CKS_OPENAI_MODEL`.
+- `call_openai_compatible_with_tools` – translates between OpenAI and Anthropic message/tool shapes.
+
+---
+
 ## [1.56.0] - 2026-08-10
 
 ### Added
