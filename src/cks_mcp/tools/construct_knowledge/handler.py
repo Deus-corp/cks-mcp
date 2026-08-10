@@ -116,7 +116,7 @@ def _ollama_available(host: str | None = None) -> bool:
     return llm_providers.ollama_available(host)
 
 
-def _call_ollama(prompt: str, model: str, max_tokens: int, tool_name: str) -> str:
+def _call_ollama(prompt: str, model: str, max_tokens: int, tool_name: str | None) -> str:
     return llm_providers.call_ollama(
         prompt,
         system_prompt=_SYSTEM_PROMPT,
@@ -126,7 +126,7 @@ def _call_ollama(prompt: str, model: str, max_tokens: int, tool_name: str) -> st
     )
 
 
-def _call_anthropic(prompt: str, model: str, max_tokens: int, tool_name: str) -> str:
+def _call_anthropic(prompt: str, model: str, max_tokens: int, tool_name: str | None) -> str:
     return llm_providers.call_anthropic(
         prompt,
         system_prompt=_SYSTEM_PROMPT,
@@ -136,7 +136,7 @@ def _call_anthropic(prompt: str, model: str, max_tokens: int, tool_name: str) ->
     )
 
 
-def _call_openai_compatible(prompt: str, model: str, max_tokens: int, tool_name: str) -> str:
+def _call_openai_compatible(prompt: str, model: str, max_tokens: int, tool_name: str | None) -> str:
     return llm_providers.call_openai_compatible_single_shot(
         prompt,
         system_prompt=_SYSTEM_PROMPT,
