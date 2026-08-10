@@ -149,7 +149,7 @@ real request/response examples: [`docs/tools/`](docs/tools/index.md).
 | Branching & Merging | `create_branch`, `merge_branch`, `merge_knowledge`, `close_session`, `fork_sandbox` |
 | Graph Exploration | `query_subgraph`, `search_semantic`, `visualize_graph` |
 | Verification & Integrity | `verify_source`, `detect_contradictions` |
-| LLM & AI | `ai_chat`, `construct_knowledge`, `suggest_evolution`, `ingest_document`, `request_enrichment`, `get_llm_status` |
+| LLM & AI | `ai_chat`, `construct_knowledge`, `suggest_evolution`, `ingest_document`, `request_enrichment`, `get_llm_status`, `list_llm_models` |
 | Export & Observability | `export_knowledge`, `export_session`, `get_metrics`, `export_storage`, `import_storage`, `migrate_storage`, `list_plugins` |
 | Memory & Persistence | `register_graph`, `get_graph`, `list_graphs`, `search_graphs`, `check_graph_freshness`, `check_component_versions`, `update_registered_graph`, `explain_graph`, `check_graph_health` |
 | Gossip & Conflict Resolution | `list_gossip_conflicts`, `list_inference_conflicts`, `arbitrate_inference_conflict`, `resolve_gossip_conflict`, `refresh_verification`, `resolve_temporal_conflict`, `resolve_contradiction`, `review_dead_letter`, `approve_resolution`, `reject_resolution`, `claim_conflict_task`, `complete_conflict_task`, `fail_conflict_task`, `dead_letter_conflict_task`, `list_dead_lettered_conflicts` |
