@@ -40,6 +40,7 @@ async def test_auto_prefers_ollama_when_reachable_even_with_anthropic_key(mock_r
         "provider": "ollama",
         "ollama_available": True,
         "anthropic_configured": True,
+        "openai_compatible_configured": False,
         "model": "llama3.2",
     }
 
@@ -53,6 +54,7 @@ async def test_auto_falls_back_to_anthropic_when_ollama_unreachable(mock_runtime
         "provider": "anthropic",
         "ollama_available": False,
         "anthropic_configured": True,
+        "openai_compatible_configured": False,
         "model": "claude-sonnet-4-5-20250929",
     }
 
@@ -66,6 +68,7 @@ async def test_auto_reports_none_when_nothing_available_or_configured(mock_runti
         "provider": "none",
         "ollama_available": False,
         "anthropic_configured": False,
+        "openai_compatible_configured": False,
         "model": None,
     }
 
@@ -165,3 +168,73 @@ async def test_anthropic_model_env_override_is_reflected(mock_runtime):
         result = await get_llm_status(mock_runtime, {})
 
     assert result["model"] == "claude-opus-4-1"
+
+
+# ---------------------------------------------------------------------------
+# openai_compatible provider
+# ---------------------------------------------------------------------------
+
+
+async def test_explicit_openai_compatible_wins_even_when_ollama_reachable(mock_runtime):
+    env_patch, ollama_patch = _patched(
+        {"CKS_LLM_PROVIDER": "openai_compatible", "CKS_OPENAI_API_KEY": "sk-fake"}, True
+    )
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result == {
+        "provider": "openai_compatible",
+        "ollama_available": True,
+        "anthropic_configured": False,
+        "openai_compatible_configured": True,
+        "model": "gpt-4o",
+    }
+
+
+async def test_explicit_openai_compatible_without_key_still_reports_openai_compatible(mock_runtime):
+    env_patch, ollama_patch = _patched({"CKS_LLM_PROVIDER": "openai_compatible"}, False)
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result["provider"] == "openai_compatible"
+    assert result["openai_compatible_configured"] is False
+
+
+async def test_openai_compatible_model_env_override_is_reflected(mock_runtime):
+    env_patch, ollama_patch = _patched(
+        {
+            "CKS_LLM_PROVIDER": "openai_compatible",
+            "CKS_OPENAI_API_KEY": "sk-fake",
+            "CKS_OPENAI_MODEL": "deepseek-chat",
+        },
+        False,
+    )
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result["model"] == "deepseek-chat"
+
+
+async def test_auto_never_selects_openai_compatible_even_when_configured(mock_runtime):
+    # auto-detection must never pick openai_compatible on its own, even if
+    # CKS_OPENAI_API_KEY happens to be set -- it requires an explicit
+    # CKS_LLM_PROVIDER=openai_compatible, same as every other provider
+    # router in cks-mcp.
+    env_patch, ollama_patch = _patched(
+        {"CKS_OPENAI_API_KEY": "sk-fake", "ANTHROPIC_API_KEY": "sk-test"}, False
+    )
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result["provider"] == "anthropic"
+    assert result["openai_compatible_configured"] is True
+
+
+async def test_empty_openai_api_key_counts_as_not_configured(mock_runtime):
+    env_patch, ollama_patch = _patched(
+        {"CKS_LLM_PROVIDER": "openai_compatible", "CKS_OPENAI_API_KEY": "   "}, False
+    )
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result["openai_compatible_configured"] is False

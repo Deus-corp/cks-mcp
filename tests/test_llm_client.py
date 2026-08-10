@@ -25,6 +25,9 @@ def _client(
     anthropic_fn=None,
     ollama_fn=None,
     openai_compatible_fn=None,
+    single_shot_ollama_fn=None,
+    single_shot_anthropic_fn=None,
+    single_shot_openai_compatible_fn=None,
 ) -> LLMClient:
     return LLMClient(
         anthropic_fn=anthropic_fn or MagicMock(return_value={"content": [{"type": "text", "text": "anthropic"}]}),
@@ -32,6 +35,10 @@ def _client(
         openai_compatible_fn=openai_compatible_fn
         or MagicMock(return_value={"content": [{"type": "text", "text": "openai_compatible"}]}),
         ollama_available_fn=MagicMock(return_value=ollama_available),
+        single_shot_ollama_fn=single_shot_ollama_fn or MagicMock(return_value="ollama text"),
+        single_shot_anthropic_fn=single_shot_anthropic_fn or MagicMock(return_value="anthropic text"),
+        single_shot_openai_compatible_fn=single_shot_openai_compatible_fn
+        or MagicMock(return_value="openai_compatible text"),
     )
 
 
@@ -166,6 +173,12 @@ def test_default_construction_uses_real_llm_providers_functions():
     assert client._ollama_fn is llm_providers.call_ollama_with_tools
     assert client._openai_compatible_fn is llm_providers.call_openai_compatible_with_tools
     assert client._ollama_available_fn is llm_providers.ollama_available
+    assert client._single_shot_ollama_fn is llm_providers.call_ollama
+    assert client._single_shot_anthropic_fn is llm_providers.call_anthropic
+    assert (
+        client._single_shot_openai_compatible_fn
+        is llm_providers.call_openai_compatible_single_shot
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -227,3 +240,197 @@ def test_openai_compatible_model_env_override_is_passed_through():
         client.call_with_tools(messages=MESSAGES, tools=TOOLS)
 
     assert openai_compatible_fn.call_args.kwargs["model"] == "gpt-4o-mini"
+
+
+# ---------------------------------------------------------------------------
+# call_single_shot: explicit provider selection
+# ---------------------------------------------------------------------------
+
+
+def test_single_shot_explicit_ollama_calls_ollama_fn_only():
+    ollama_fn = MagicMock(return_value="ollama text")
+    anthropic_fn = MagicMock()
+    openai_compatible_fn = MagicMock()
+    client = _client(
+        single_shot_ollama_fn=ollama_fn,
+        single_shot_anthropic_fn=anthropic_fn,
+        single_shot_openai_compatible_fn=openai_compatible_fn,
+    )
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "ollama"}, clear=True):
+        text, model = client.call_single_shot(
+            "hi", system_prompt="sys", max_tokens=100, tool_name="construct_knowledge"
+        )
+
+    assert (text, model) == ("ollama text", "llama3.2")
+    ollama_fn.assert_called_once_with(
+        "hi", system_prompt="sys", model="llama3.2", max_tokens=100, tool_name="construct_knowledge"
+    )
+    anthropic_fn.assert_not_called()
+    openai_compatible_fn.assert_not_called()
+
+
+def test_single_shot_explicit_anthropic_calls_anthropic_fn_only():
+    ollama_fn = MagicMock()
+    anthropic_fn = MagicMock(return_value="anthropic text")
+    openai_compatible_fn = MagicMock()
+    client = _client(
+        single_shot_ollama_fn=ollama_fn,
+        single_shot_anthropic_fn=anthropic_fn,
+        single_shot_openai_compatible_fn=openai_compatible_fn,
+    )
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "anthropic"}, clear=True):
+        text, model = client.call_single_shot("hi", system_prompt="sys", max_tokens=100)
+
+    assert (text, model) == ("anthropic text", "claude-sonnet-4-6")
+    anthropic_fn.assert_called_once()
+    ollama_fn.assert_not_called()
+    openai_compatible_fn.assert_not_called()
+
+
+def test_single_shot_explicit_openai_compatible_calls_openai_compatible_fn_only():
+    ollama_fn = MagicMock()
+    anthropic_fn = MagicMock()
+    openai_compatible_fn = MagicMock(return_value="openai_compatible text")
+    client = _client(
+        single_shot_ollama_fn=ollama_fn,
+        single_shot_anthropic_fn=anthropic_fn,
+        single_shot_openai_compatible_fn=openai_compatible_fn,
+    )
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "openai_compatible"}, clear=True):
+        text, model = client.call_single_shot("hi", system_prompt="sys", max_tokens=100)
+
+    assert (text, model) == ("openai_compatible text", "gpt-4o")
+    openai_compatible_fn.assert_called_once_with(
+        "hi", system_prompt="sys", model="gpt-4o", max_tokens=100, tool_name=None
+    )
+    ollama_fn.assert_not_called()
+    anthropic_fn.assert_not_called()
+
+
+def test_single_shot_unknown_provider_raises_plain_runtime_error():
+    client = _client()
+    with (
+        patch.dict("os.environ", {"CKS_LLM_PROVIDER": "bogus"}, clear=True),
+        pytest.raises(RuntimeError, match="Unknown CKS_LLM_PROVIDER"),
+    ):
+        client.call_single_shot("hi", system_prompt="sys")
+
+
+# ---------------------------------------------------------------------------
+# call_single_shot: 'auto' provider selection
+# ---------------------------------------------------------------------------
+
+
+def test_single_shot_auto_prefers_ollama_when_available():
+    ollama_fn = MagicMock(return_value="ollama text")
+    anthropic_fn = MagicMock()
+    client = _client(
+        ollama_available=True, single_shot_ollama_fn=ollama_fn, single_shot_anthropic_fn=anthropic_fn
+    )
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "auto"}, clear=True):
+        text, _ = client.call_single_shot("hi", system_prompt="sys")
+
+    assert text == "ollama text"
+    anthropic_fn.assert_not_called()
+
+
+def test_single_shot_auto_falls_back_to_anthropic_when_ollama_unavailable():
+    ollama_fn = MagicMock()
+    anthropic_fn = MagicMock(return_value="anthropic text")
+    client = _client(
+        ollama_available=False, single_shot_ollama_fn=ollama_fn, single_shot_anthropic_fn=anthropic_fn
+    )
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "auto"}, clear=True):
+        text, _ = client.call_single_shot("hi", system_prompt="sys")
+
+    assert text == "anthropic text"
+    ollama_fn.assert_not_called()
+
+
+def test_single_shot_auto_never_selects_openai_compatible_when_ollama_unavailable():
+    anthropic_fn = MagicMock(return_value="anthropic text")
+    openai_compatible_fn = MagicMock()
+    client = _client(
+        ollama_available=False,
+        single_shot_anthropic_fn=anthropic_fn,
+        single_shot_openai_compatible_fn=openai_compatible_fn,
+    )
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "auto"}, clear=True):
+        text, _ = client.call_single_shot("hi", system_prompt="sys")
+
+    assert text == "anthropic text"
+    openai_compatible_fn.assert_not_called()
+
+
+def test_single_shot_auto_raises_llm_provider_unavailable_when_nothing_works():
+    anthropic_fn = MagicMock(side_effect=RuntimeError("ANTHROPIC_API_KEY not set"))
+    client = _client(ollama_available=False, single_shot_anthropic_fn=anthropic_fn)
+
+    with (
+        patch.dict("os.environ", {"CKS_LLM_PROVIDER": "auto"}, clear=True),
+        pytest.raises(LLMProviderUnavailable),
+    ):
+        client.call_single_shot("hi", system_prompt="sys")
+
+
+def test_single_shot_auto_reraises_non_api_key_anthropic_errors_as_plain_runtime_error():
+    anthropic_fn = MagicMock(side_effect=RuntimeError("some other failure"))
+    client = _client(ollama_available=False, single_shot_anthropic_fn=anthropic_fn)
+
+    with (
+        patch.dict("os.environ", {"CKS_LLM_PROVIDER": "auto"}, clear=True),
+        pytest.raises(RuntimeError) as exc_info,
+    ):
+        client.call_single_shot("hi", system_prompt="sys")
+
+    assert not isinstance(exc_info.value, LLMProviderUnavailable)
+
+
+# ---------------------------------------------------------------------------
+# call_single_shot: model resolution
+# ---------------------------------------------------------------------------
+
+
+def test_single_shot_explicit_model_overrides_env_default():
+    ollama_fn = MagicMock(return_value="ollama text")
+    client = _client(single_shot_ollama_fn=ollama_fn)
+
+    with patch.dict(
+        "os.environ", {"CKS_LLM_PROVIDER": "ollama", "CKS_OLLAMA_MODEL": "qwen2.5:7b"}, clear=True
+    ):
+        _, model = client.call_single_shot("hi", system_prompt="sys", model="llama3.1")
+
+    assert model == "llama3.1"
+    assert ollama_fn.call_args.kwargs["model"] == "llama3.1"
+
+
+def test_single_shot_ollama_model_env_override_is_passed_through():
+    ollama_fn = MagicMock(return_value="ollama text")
+    client = _client(single_shot_ollama_fn=ollama_fn)
+
+    with patch.dict(
+        "os.environ", {"CKS_LLM_PROVIDER": "ollama", "CKS_OLLAMA_MODEL": "qwen2.5:7b"}, clear=True
+    ):
+        _, model = client.call_single_shot("hi", system_prompt="sys")
+
+    assert model == "qwen2.5:7b"
+
+
+def test_single_shot_openai_compatible_model_env_override_is_passed_through():
+    openai_compatible_fn = MagicMock(return_value="ok")
+    client = _client(single_shot_openai_compatible_fn=openai_compatible_fn)
+
+    with patch.dict(
+        "os.environ",
+        {"CKS_LLM_PROVIDER": "openai_compatible", "CKS_OPENAI_MODEL": "deepseek-chat"},
+        clear=True,
+    ):
+        _, model = client.call_single_shot("hi", system_prompt="sys")
+
+    assert model == "deepseek-chat"

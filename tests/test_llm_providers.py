@@ -676,3 +676,83 @@ def test_call_openai_compatible_uses_custom_base_url_and_model():
     assert captured["payload"]["model"] == "llama-3.3-70b"
     assert captured["payload"]["stream"] is False
     assert captured["payload"]["tool_choice"] == "auto"
+
+
+# ---------------------------------------------------------------------------
+# call_openai_compatible_single_shot
+# ---------------------------------------------------------------------------
+
+
+def test_call_openai_compatible_single_shot_missing_api_key_raises():
+    with patch.dict("os.environ", {}, clear=True), \
+         pytest.raises(RuntimeError, match="CKS_OPENAI_API_KEY"):
+        llm_providers.call_openai_compatible_single_shot(
+            "prompt", system_prompt="sys", model="gpt-4o", max_tokens=100
+        )
+
+
+def test_call_openai_compatible_single_shot_success():
+    body = {
+        "choices": [{"message": {"role": "assistant", "content": "hello from gpt"}}],
+        "usage": {"total_tokens": 12},
+    }
+    with patch.dict("os.environ", {"CKS_OPENAI_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        result = llm_providers.call_openai_compatible_single_shot(
+            "prompt", system_prompt="sys", model="gpt-4o", max_tokens=100
+        )
+    assert result == "hello from gpt"
+
+
+def test_call_openai_compatible_single_shot_empty_response_raises():
+    body = {"choices": [{"message": {"role": "assistant", "content": ""}}]}
+    with patch.dict("os.environ", {"CKS_OPENAI_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)), \
+         pytest.raises(RuntimeError, match="no text"):
+        llm_providers.call_openai_compatible_single_shot(
+            "prompt", system_prompt="sys", model="gpt-4o", max_tokens=100
+        )
+
+
+def test_call_openai_compatible_single_shot_http_error_includes_status_code():
+    err = urllib.error.HTTPError(
+        url="https://api.openai.com/v1/chat/completions",
+        code=401,
+        msg="Unauthorized",
+        hdrs=None,
+        fp=io.BytesIO(b"invalid api key"),
+    )
+    with patch.dict("os.environ", {"CKS_OPENAI_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", side_effect=err), \
+         pytest.raises(RuntimeError, match="HTTP 401"):
+        llm_providers.call_openai_compatible_single_shot(
+            "prompt", system_prompt="sys", model="gpt-4o", max_tokens=100
+        )
+
+
+def test_call_openai_compatible_single_shot_url_error_mentions_base_url():
+    with patch.dict(
+        "os.environ",
+        {"CKS_OPENAI_API_KEY": "fake-key", "CKS_OPENAI_BASE_URL": "http://localhost:1234/v1"},
+    ), \
+         patch("urllib.request.urlopen", side_effect=urllib.error.URLError("connection refused")), \
+         pytest.raises(RuntimeError, match="http://localhost:1234/v1"):
+        llm_providers.call_openai_compatible_single_shot(
+            "prompt", system_prompt="sys", model="gpt-4o", max_tokens=100
+        )
+
+
+def test_call_openai_compatible_single_shot_records_telemetry_on_success():
+    body = {
+        "choices": [{"message": {"role": "assistant", "content": "hello"}}],
+        "usage": {"total_tokens": 7},
+    }
+    with patch.dict("os.environ", {"CKS_OPENAI_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        llm_providers.call_openai_compatible_single_shot(
+            "prompt", system_prompt="sys", model="gpt-4o", max_tokens=100, tool_name="construct_knowledge"
+        )
+
+    snap = llm_telemetry.snapshot()
+    assert snap["total_calls"] == 1
+    assert snap["success_rate"] == 1.0

@@ -3,10 +3,11 @@ would currently use, and whether it's actually reachable/configured
 (cks-mcp ADR-011 §6).
 
 Exists so a thin client like cks-studio's Settings page can show "Local
-Ollama" / "Anthropic" / "Not configured" without ever seeing
-ANTHROPIC_API_KEY or other provider env vars itself -- those stay
-server-side (see cks-studio ADR: Studio never talks to Ollama/Anthropic
-directly, only through cks-mcp tools).
+Ollama" / "Anthropic" / "OpenAI-compatible" / "Not configured" without ever
+seeing ANTHROPIC_API_KEY, CKS_OPENAI_API_KEY, or other provider env vars
+itself -- those stay server-side (see cks-studio ADR: Studio never talks to
+Ollama/Anthropic/OpenAI-compatible endpoints directly, only through cks-mcp
+tools).
 """
 
 from __future__ import annotations
@@ -21,7 +22,10 @@ from cks_mcp import llm_providers
 # Recognized explicit values for CKS_LLM_PROVIDER; anything else (unset,
 # empty, "auto", or a typo) falls through to availability-based
 # detection below, same as construct_knowledge's _call_llm dispatch.
-_EXPLICIT_PROVIDERS = {"ollama", "anthropic"}
+# "openai_compatible" is recognized when explicit but -- same as every
+# other provider router in cks-mcp -- is never selected by auto-detection,
+# since its base URL/model/key combination can't be guessed safely.
+_EXPLICIT_PROVIDERS = {"ollama", "anthropic", "openai_compatible"}
 
 
 async def get_llm_status(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -29,20 +33,24 @@ async def get_llm_status(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
     Returns::
 
         {
-            "provider": "ollama" | "anthropic" | "none",
+            "provider": "ollama" | "anthropic" | "openai_compatible" | "none",
             "ollama_available": bool,
             "anthropic_configured": bool,
+            "openai_compatible_configured": bool,
             "model": str | None,
         }
 
     ``provider`` mirrors the resolution construct_knowledge's provider
-    router already does for ``CKS_LLM_PROVIDER=auto|ollama|anthropic``
-    (see that tool's handler.py): an explicit ``ollama``/``anthropic``
-    value wins outright (even if that provider then turns out to be
-    unreachable/unconfigured -- ``ollama_available`` /
-    ``anthropic_configured`` still tell the caller whether it'll
+    router already does for ``CKS_LLM_PROVIDER=auto|ollama|anthropic|
+    openai_compatible`` (see that tool's handler.py): an explicit
+    ``ollama``/``anthropic``/``openai_compatible`` value wins outright
+    (even if that provider then turns out to be unreachable/unconfigured
+    -- ``ollama_available`` / ``anthropic_configured`` /
+    ``openai_compatible_configured`` still tell the caller whether it'll
     actually work); otherwise Ollama is preferred if reachable, then
-    Anthropic if ``ANTHROPIC_API_KEY`` is set, else ``"none"``.
+    Anthropic if ``ANTHROPIC_API_KEY`` is set, else ``"none"`` --
+    ``openai_compatible`` is never picked by this auto-detection, only
+    ever reported when explicitly selected.
 
     ``ollama_available`` reuses ``llm_providers.ollama_available()`` --
     the same reachability probe (GET ``{CKS_OLLAMA_HOST}/api/tags``)
@@ -51,11 +59,12 @@ async def get_llm_status(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
     report "available" while the actual provider router would still
     treat Ollama as unreachable, or vice versa.
 
-    Read-only: makes no calls to either provider's chat/completion
+    Read-only: makes no calls to any provider's chat/completion
     endpoints, only a cheap reachability check.
     """
     ollama_reachable = llm_providers.ollama_available()
     anthropic_key_set = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
+    openai_compatible_key_set = bool(os.environ.get("CKS_OPENAI_API_KEY", "").strip())
 
     explicit = os.environ.get("CKS_LLM_PROVIDER", "").strip().lower()
     if explicit in _EXPLICIT_PROVIDERS:
@@ -73,6 +82,8 @@ async def get_llm_status(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
         model = os.environ.get("CKS_ANTHROPIC_MODEL") or os.environ.get(
             "CKS_LLM_MODEL", "claude-sonnet-4-5-20250929"
         )
+    elif provider == "openai_compatible":
+        model = os.environ.get("CKS_OPENAI_MODEL", "gpt-4o")
     else:
         model = None
 
@@ -80,5 +91,6 @@ async def get_llm_status(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
         "provider": provider,
         "ollama_available": ollama_reachable,
         "anthropic_configured": anthropic_key_set,
+        "openai_compatible_configured": openai_compatible_key_set,
         "model": model,
     }

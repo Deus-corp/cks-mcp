@@ -27,6 +27,12 @@ from cks_mcp import llm_providers
 # keyword-only messages/tools/tool_name in, {'content': [...]} out.
 _ProviderFn = Callable[..., dict[str, Any]]
 
+# Signature shared by the single-shot (no tools) text-in/text-out entry
+# points: call_ollama / call_anthropic / call_openai_compatible_single_shot
+# all take (prompt, *, system_prompt, model, max_tokens, tool_name=None)
+# and return a plain str.
+_SingleShotFn = Callable[..., str]
+
 
 class LLMProviderUnavailable(RuntimeError):
     """Raised when no LLM provider could be used at all.
@@ -56,11 +62,19 @@ class LLMClient:
         ollama_fn: _ProviderFn = llm_providers.call_ollama_with_tools,
         openai_compatible_fn: _ProviderFn = llm_providers.call_openai_compatible_with_tools,
         ollama_available_fn: Callable[[], bool] = llm_providers.ollama_available,
+        single_shot_ollama_fn: _SingleShotFn = llm_providers.call_ollama,
+        single_shot_anthropic_fn: _SingleShotFn = llm_providers.call_anthropic,
+        single_shot_openai_compatible_fn: _SingleShotFn = (
+            llm_providers.call_openai_compatible_single_shot
+        ),
     ) -> None:
         self._anthropic_fn = anthropic_fn
         self._ollama_fn = ollama_fn
         self._openai_compatible_fn = openai_compatible_fn
         self._ollama_available_fn = ollama_available_fn
+        self._single_shot_ollama_fn = single_shot_ollama_fn
+        self._single_shot_anthropic_fn = single_shot_anthropic_fn
+        self._single_shot_openai_compatible_fn = single_shot_openai_compatible_fn
 
     def call_with_tools(
         self,
@@ -154,3 +168,125 @@ class LLMClient:
         if model:
             kwargs["model"] = model
         return self._openai_compatible_fn(**kwargs)
+
+    # -----------------------------------------------------------------
+    # Single-shot (no tools) text-in/text-out -- for tools like
+    # construct_knowledge that just need a plain completion, not a
+    # tool-calling loop.
+    # -----------------------------------------------------------------
+
+    def call_single_shot(
+        self,
+        prompt: str,
+        *,
+        system_prompt: str,
+        model: str | None = None,
+        max_tokens: int = 4096,
+        tool_name: str | None = None,
+    ) -> tuple[str, str]:
+        """Route a single-shot (no tools) completion to whichever
+        provider ``CKS_LLM_PROVIDER`` selects.
+
+        Returns ``(text, model_used)``. Raises ``LLMProviderUnavailable``
+        if (and only if) no provider could be used at all -- e.g. 'auto'
+        with neither Ollama reachable nor ``ANTHROPIC_API_KEY`` set,
+        mirroring ``call_with_tools``'s contract. Any other failure
+        (explicit provider errored, unknown provider value) is raised as
+        a plain ``RuntimeError``.
+
+        Like ``call_with_tools``, 'auto' never picks 'openai_compatible'
+        automatically -- it must be selected explicitly via
+        ``CKS_LLM_PROVIDER=openai_compatible``, since its base
+        URL/model/key combination can't be guessed safely.
+        """
+        provider = os.environ.get("CKS_LLM_PROVIDER", "auto").lower()
+
+        if provider == "ollama":
+            return self._single_shot_ollama(prompt, system_prompt, model, max_tokens, tool_name)
+
+        if provider == "anthropic":
+            return self._single_shot_anthropic(prompt, system_prompt, model, max_tokens, tool_name)
+
+        if provider == "openai_compatible":
+            return self._single_shot_openai_compatible(
+                prompt, system_prompt, model, max_tokens, tool_name
+            )
+
+        if provider != "auto":
+            raise RuntimeError(
+                f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', "
+                "'anthropic', or 'openai_compatible'."
+            )
+
+        # auto: prefer a local, keyless model if one is already
+        # running; otherwise fall through to Anthropic.
+        if self._ollama_available_fn():
+            return self._single_shot_ollama(prompt, system_prompt, model, max_tokens, tool_name)
+
+        try:
+            return self._single_shot_anthropic(prompt, system_prompt, model, max_tokens, tool_name)
+        except RuntimeError as exc:
+            if "ANTHROPIC_API_KEY" not in str(exc):
+                raise
+            raise LLMProviderUnavailable(
+                "No single-shot LLM provider available. Options: "
+                "(1) run a local model -- `ollama serve` -- no API key needed, "
+                "this auto-detects it on localhost:11434 (set "
+                "CKS_LLM_PROVIDER=ollama to force it); "
+                "(2) set ANTHROPIC_API_KEY and CKS_LLM_PROVIDER=anthropic; "
+                "(3) set CKS_OPENAI_API_KEY and CKS_LLM_PROVIDER=openai_compatible."
+            ) from exc
+
+    def _single_shot_ollama(
+        self,
+        prompt: str,
+        system_prompt: str,
+        model: str | None,
+        max_tokens: int,
+        tool_name: str | None,
+    ) -> tuple[str, str]:
+        resolved_model = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
+        text = self._single_shot_ollama_fn(
+            prompt,
+            system_prompt=system_prompt,
+            model=resolved_model,
+            max_tokens=max_tokens,
+            tool_name=tool_name,
+        )
+        return text, resolved_model
+
+    def _single_shot_anthropic(
+        self,
+        prompt: str,
+        system_prompt: str,
+        model: str | None,
+        max_tokens: int,
+        tool_name: str | None,
+    ) -> tuple[str, str]:
+        resolved_model = model or os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
+        text = self._single_shot_anthropic_fn(
+            prompt,
+            system_prompt=system_prompt,
+            model=resolved_model,
+            max_tokens=max_tokens,
+            tool_name=tool_name,
+        )
+        return text, resolved_model
+
+    def _single_shot_openai_compatible(
+        self,
+        prompt: str,
+        system_prompt: str,
+        model: str | None,
+        max_tokens: int,
+        tool_name: str | None,
+    ) -> tuple[str, str]:
+        resolved_model = model or os.environ.get("CKS_OPENAI_MODEL", "gpt-4o")
+        text = self._single_shot_openai_compatible_fn(
+            prompt,
+            system_prompt=system_prompt,
+            model=resolved_model,
+            max_tokens=max_tokens,
+            tool_name=tool_name,
+        )
+        return text, resolved_model

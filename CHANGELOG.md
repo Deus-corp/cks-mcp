@@ -3,6 +3,22 @@
 
 ---
 
+## [1.56.2] - 2026-08-10
+
+### Added
+- **OpenAI-compatible single‑shot support** – `construct_knowledge`, `arbitrate_inference_conflict`, and `resolve_gossip_conflict` now work with `CKS_LLM_PROVIDER=openai_compatible`. New function `call_openai_compatible_single_shot` in `llm_providers.py`.
+- **`LLMClient.call_single_shot`** – unified text‑in/text‑out LLM call across all providers (Ollama, Anthropic, OpenAI‑compatible), replacing the ad‑hoc dispatch in `construct_knowledge`.
+- **`openai_compatible_configured` field** in `get_llm_status` – reports whether `CKS_OPENAI_API_KEY` is set.
+
+### Changed
+- `construct_knowledge`, `arbitrate_inference_conflict`, `resolve_gossip_conflict` now route through `LLMClient` instead of private provider functions.
+- `get_llm_status` now recognises `openai_compatible` as a known explicit provider.
+
+### Fixed
+- `LLMClient` single‑shot methods reuse the existing injectable function pattern for testability, preserving backward compatibility with tests that patch `_call_anthropic` etc.
+
+---
+
 ## [1.56.1] - 2026-08-10
 
 ### Added

@@ -905,6 +905,132 @@ def call_openai_compatible_with_tools(
     return result
 
 
+def call_openai_compatible_single_shot(
+    prompt: str,
+    *,
+    system_prompt: str,
+    model: str,
+    max_tokens: int,
+    tool_name: str | None = None,
+) -> str:
+    """
+    Call an OpenAI-compatible ``/chat/completions`` endpoint synchronously,
+    single-shot text-in/text-out (no tools) -- the same contract
+    ``call_ollama``/``call_anthropic`` already provide for
+    ``construct_knowledge`` and ``ingest_document``'s ``use_llm`` mode.
+
+    Works with any provider that implements the OpenAI Chat Completions
+    API shape (OpenAI, Groq, DeepSeek, Together, LM Studio, vLLM, ...) by
+    pointing ``CKS_OPENAI_BASE_URL`` at it. Raises ``RuntimeError`` with a
+    descriptive message on any failure, same convention as
+    ``call_anthropic``.
+    """
+    import urllib.error
+    import urllib.request
+
+    api_key = os.environ.get("CKS_OPENAI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError(
+            "CKS_OPENAI_API_KEY environment variable is not set. "
+            "This tool requires an API key to use the 'openai_compatible' provider "
+            "(set it to any value your endpoint accepts, e.g. a local LM Studio "
+            "instance may accept a dummy key)."
+        )
+
+    base_url = openai_base_url()
+
+    payload = json.dumps(
+        {
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            "stream": False,
+        }
+    ).encode()
+
+    req = urllib.request.Request(
+        f"{base_url}/chat/completions",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+
+    start = time.monotonic()
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            body = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode(errors="replace")
+        if tool_name is not None:
+            _record_llm_call(
+                provider="openai_compatible",
+                model=model,
+                tool=tool_name,
+                tokens=0,
+                start=start,
+                success=False,
+                error_type=type(exc).__name__,
+            )
+        raise RuntimeError(
+            f"OpenAI-compatible API at {base_url} returned HTTP {exc.code}: {raw[:400]}"
+        ) from exc
+    except urllib.error.URLError as exc:
+        if tool_name is not None:
+            _record_llm_call(
+                provider="openai_compatible",
+                model=model,
+                tool=tool_name,
+                tokens=0,
+                start=start,
+                success=False,
+                error_type=type(exc).__name__,
+            )
+        raise RuntimeError(
+            f"Network error calling OpenAI-compatible API at {base_url}: {exc.reason}"
+        ) from exc
+
+    usage = body.get("usage") or {}
+    tokens = int(usage.get("total_tokens") or 0)
+
+    choices = body.get("choices") or []
+    message = (choices[0].get("message") if choices else None) or {}
+    text = message.get("content") or ""
+
+    if not tokens:
+        tokens = estimate_tokens_from_chars(system_prompt + prompt + text)
+
+    if not text:
+        if tool_name is not None:
+            _record_llm_call(
+                provider="openai_compatible",
+                model=model,
+                tool=tool_name,
+                tokens=tokens,
+                start=start,
+                success=False,
+                error_type="EmptyResponse",
+            )
+        raise RuntimeError(f"OpenAI-compatible API returned no text. Full response: {body}")
+
+    if tool_name is not None:
+        _record_llm_call(
+            provider="openai_compatible",
+            model=model,
+            tool=tool_name,
+            tokens=tokens,
+            start=start,
+            success=True,
+        )
+
+    return text
+
+
 # ---------------------------------------------------------------------------
 # JSON extraction from LLM output
 # ---------------------------------------------------------------------------

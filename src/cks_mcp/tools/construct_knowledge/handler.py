@@ -13,8 +13,12 @@ Provider selection (CKS_LLM_PROVIDER):
                         back to Anthropic if ANTHROPIC_API_KEY is set.
     "ollama"          — force local Ollama. No API key required.
     "anthropic"       — force the Anthropic API. Requires ANTHROPIC_API_KEY.
+    "openai_compatible" — force an OpenAI-compatible endpoint (OpenAI, Groq,
+                        DeepSeek, Together, LM Studio, vLLM, ...). Requires
+                        CKS_OPENAI_API_KEY. Never picked by "auto" -- must be
+                        selected explicitly.
 
-If no provider is available, the tool returns an error explaining all three
+If no provider is available, the tool returns an error explaining all
 options, including the option to skip this tool entirely: since the MCP
 client calling this server is typically itself an LLM, it can build the CKS
 JSON directly (the exact required shape is in _SYSTEM_PROMPT below) and pass
@@ -26,13 +30,19 @@ model to do this — was deprecated in the 2026-07-28 protocol revision, so it
 is intentionally not used here.)
 
 Environment variables:
-    CKS_LLM_PROVIDER    — "auto" (default) | "ollama" | "anthropic".
+    CKS_LLM_PROVIDER    — "auto" (default) | "ollama" | "anthropic" |
+                          "openai_compatible".
     ANTHROPIC_API_KEY   — required only for the "anthropic" provider.
     CKS_LLM_MODEL       — model override for the "anthropic" provider
                           (default: claude-sonnet-4-6).
     CKS_OLLAMA_MODEL    — model override for the "ollama" provider
                           (default: llama3.2).
     CKS_OLLAMA_HOST     — Ollama server URL (default: http://localhost:11434).
+    CKS_OPENAI_API_KEY  — required only for the "openai_compatible" provider.
+    CKS_OPENAI_BASE_URL — base URL for the "openai_compatible" provider
+                          (default: https://api.openai.com/v1).
+    CKS_OPENAI_MODEL    — model override for the "openai_compatible" provider
+                          (default: gpt-4o).
     CKS_LLM_MAX_TOKENS  — optional override (default: 4096).
 """
 
@@ -46,6 +56,7 @@ from cks_runtime.runtime import Runtime
 
 from cks_mcp import llm_providers
 from cks_mcp.errors import internal_error, missing_parameter
+from cks_mcp.llm.client import LLMClient, LLMProviderUnavailable
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -115,6 +126,57 @@ def _call_ollama(prompt: str, model: str, max_tokens: int, tool_name: str) -> st
     )
 
 
+def _call_anthropic(prompt: str, model: str, max_tokens: int, tool_name: str) -> str:
+    return llm_providers.call_anthropic(
+        prompt,
+        system_prompt=_SYSTEM_PROMPT,
+        model=model,
+        max_tokens=max_tokens,
+        tool_name=tool_name,
+    )
+
+
+def _call_openai_compatible(prompt: str, model: str, max_tokens: int, tool_name: str) -> str:
+    return llm_providers.call_openai_compatible_single_shot(
+        prompt,
+        system_prompt=_SYSTEM_PROMPT,
+        model=model,
+        max_tokens=max_tokens,
+        tool_name=tool_name,
+    )
+
+
+# ---------------------------------------------------------------------------
+# LLMClient adapters -- call_single_shot's generic single-shot signature is
+# (prompt, *, system_prompt, model, max_tokens, tool_name=None); these
+# adapters translate that into the _call_ollama/_call_anthropic/
+# _call_openai_compatible calling convention above (system_prompt already
+# bound to _SYSTEM_PROMPT inside those wrappers, so it's just dropped here).
+# They look up _call_ollama/_call_anthropic/_call_openai_compatible as
+# module globals *at call time* rather than capturing a reference up front,
+# so tests that patch e.g. "handler._call_anthropic" keep working exactly
+# as before, whether or not they go through LLMClient.
+# ---------------------------------------------------------------------------
+
+
+def _single_shot_ollama_adapter(
+    prompt: str, *, system_prompt: str, model: str, max_tokens: int, tool_name: str | None = None
+) -> str:
+    return _call_ollama(prompt, model=model, max_tokens=max_tokens, tool_name=tool_name)
+
+
+def _single_shot_anthropic_adapter(
+    prompt: str, *, system_prompt: str, model: str, max_tokens: int, tool_name: str | None = None
+) -> str:
+    return _call_anthropic(prompt, model=model, max_tokens=max_tokens, tool_name=tool_name)
+
+
+def _single_shot_openai_compatible_adapter(
+    prompt: str, *, system_prompt: str, model: str, max_tokens: int, tool_name: str | None = None
+) -> str:
+    return _call_openai_compatible(prompt, model=model, max_tokens=max_tokens, tool_name=tool_name)
+
+
 # ---------------------------------------------------------------------------
 # Provider dispatch
 # ---------------------------------------------------------------------------
@@ -125,57 +187,39 @@ def _call_llm(
 ) -> tuple[str, str]:
     """
     Route the extraction prompt to whichever LLM provider is configured or
-    available. Returns (raw_text, model_used). Raises RuntimeError with a
-    message listing every option when no provider can be used.
+    available, via LLMClient.call_single_shot. Returns (raw_text,
+    model_used). Raises RuntimeError with a message listing every option
+    (including the DIY option specific to this tool) when no provider can
+    be used.
+
+    A fresh LLMClient is built on every call (cheap -- just wiring function
+    references) rather than cached at module scope, so that
+    ``_ollama_available`` -- looked up as a module global here, not
+    captured early -- keeps reflecting whatever tests patch it to via
+    ``monkeypatch.setattr("...handler._ollama_available", ...)``.
     """
-    provider = os.environ.get("CKS_LLM_PROVIDER", "auto").lower()
-
-    if provider == "ollama":
-        m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
-        return _call_ollama(prompt, model=m, max_tokens=max_tokens, tool_name=tool_name), m
-
-    if provider == "anthropic":
-        m = model or os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
-        return _call_anthropic(prompt, model=m, max_tokens=max_tokens, tool_name=tool_name), m
-
-    if provider != "auto":
-        raise RuntimeError(
-            f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', or 'anthropic'."
-        )
-
-    # auto: prefer a local, keyless model if one is already running; otherwise
-    # fall through to Anthropic, which raises its own clear error if
-    # ANTHROPIC_API_KEY isn't set either (caught below and rewrapped with the
-    # full list of options).
-    if _ollama_available():
-        m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
-        return _call_ollama(prompt, model=m, max_tokens=max_tokens, tool_name=tool_name), m
-
-    m = model or os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
+    client = LLMClient(
+        single_shot_ollama_fn=_single_shot_ollama_adapter,
+        single_shot_anthropic_fn=_single_shot_anthropic_adapter,
+        single_shot_openai_compatible_fn=_single_shot_openai_compatible_adapter,
+        ollama_available_fn=_ollama_available,
+    )
     try:
-        return _call_anthropic(prompt, model=m, max_tokens=max_tokens, tool_name=tool_name), m
-    except RuntimeError as exc:
-        if "ANTHROPIC_API_KEY" not in str(exc):
-            raise
+        return client.call_single_shot(
+            prompt, system_prompt=_SYSTEM_PROMPT, model=model, max_tokens=max_tokens, tool_name=tool_name
+        )
+    except LLMProviderUnavailable as exc:
         raise RuntimeError(
             "No LLM provider available for construct_knowledge. Options: "
             "(1) run a local model — `ollama serve` + `ollama pull llama3.2` — "
             "no API key needed, this tool auto-detects it on localhost:11434; "
             "(2) set ANTHROPIC_API_KEY and CKS_LLM_PROVIDER=anthropic; "
-            "(3) skip this tool: ask your LLM client to build the CKS JSON directly "
+            "(3) set CKS_OPENAI_API_KEY and CKS_LLM_PROVIDER=openai_compatible "
+            "to use OpenAI or any OpenAI-compatible endpoint; "
+            "(4) skip this tool: ask your LLM client to build the CKS JSON directly "
             "(same format as this tool's own system prompt) and pass it straight "
             "to evolve_knowledge or validate_knowledge — no server-side LLM call needed."
         ) from exc
-
-
-def _call_anthropic(prompt: str, model: str, max_tokens: int, tool_name: str) -> str:
-    return llm_providers.call_anthropic(
-        prompt,
-        system_prompt=_SYSTEM_PROMPT,
-        model=model,
-        max_tokens=max_tokens,
-        tool_name=tool_name,
-    )
 
 
 # ---------------------------------------------------------------------------
