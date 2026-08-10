@@ -59,5 +59,6 @@ turn — the tool is stateless between calls.
 
 ## Limitations
 
-- Currently requires `ANTHROPIC_API_KEY` (no Ollama tool‑calling path yet).
+- Supports both **Ollama** (local, no API key) and **Anthropic**.
+- Provider is selected via `CKS_LLM_PROVIDER` (auto/ollama/anthropic), same as `construct_knowledge`.
 - Maximum 8 tool‑calling iterations per turn.
