@@ -412,3 +412,144 @@ def test_call_anthropic_missing_api_key_does_not_record_since_no_request_was_mad
 
     # Fails before the HTTP request is even built -- nothing to record.
     assert llm_telemetry.snapshot()["total_calls"] == 0
+
+# ---------------------------------------------------------------------------
+# call_ollama_with_tools (cks-mcp ADR-011 §6)
+# ---------------------------------------------------------------------------
+
+_TOOL_SPECS = [
+    {
+        "name": "query_subgraph",
+        "description": "Read the graph.",
+        "input_schema": {"type": "object", "properties": {"session_id": {"type": "string"}}},
+    }
+]
+
+
+def test_call_ollama_with_tools_text_only_reply():
+    body = {"message": {"role": "assistant", "content": "hello there"}}
+    with patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        result = llm_providers.call_ollama_with_tools(
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_TOOL_SPECS,
+            model="llama3.1",
+        )
+
+    assert result == {"content": [{"type": "text", "text": "hello there"}]}
+
+
+def test_call_ollama_with_tools_tool_use_reply_matches_anthropic_shape():
+    body = {
+        "message": {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_abc",
+                    "function": {
+                        "name": "query_subgraph",
+                        "arguments": {"session_id": "s1"},
+                    },
+                }
+            ],
+        }
+    }
+    with patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        result = llm_providers.call_ollama_with_tools(
+            messages=[{"role": "user", "content": "read the graph"}],
+            tools=_TOOL_SPECS,
+            model="llama3.1",
+        )
+
+    assert result["content"] == [
+        {
+            "type": "tool_use",
+            "id": "call_abc",
+            "name": "query_subgraph",
+            "input": {"session_id": "s1"},
+        }
+    ]
+
+
+def test_call_ollama_with_tools_parses_stringified_arguments():
+    body = {
+        "message": {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"function": {"name": "query_subgraph", "arguments": '{"session_id": "s1"}'}}
+            ],
+        }
+    }
+    with patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        result = llm_providers.call_ollama_with_tools(
+            messages=[{"role": "user", "content": "hi"}], tools=_TOOL_SPECS, model="llama3.1"
+        )
+
+    assert result["content"][0]["input"] == {"session_id": "s1"}
+
+
+def test_call_ollama_with_tools_translates_tool_result_messages():
+    """A prior tool_result message (Anthropic shape) must become a
+    dedicated 'tool' role message Ollama's /api/chat understands, not
+    be silently dropped."""
+    captured_payload = {}
+
+    def _capture_and_respond(req, timeout=None):
+        captured_payload.update(json.loads(req.data.decode()))
+        return _fake_urlopen_returning({"message": {"role": "assistant", "content": "ok"}})
+
+    messages = [
+        {"role": "user", "content": "read the graph"},
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "tool_use", "id": "call_1", "name": "query_subgraph", "input": {}}
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "tool_result", "tool_use_id": "call_1", "content": '{"objects": []}'}
+            ],
+        },
+    ]
+
+    with patch("urllib.request.urlopen", side_effect=_capture_and_respond):
+        llm_providers.call_ollama_with_tools(messages=messages, tools=_TOOL_SPECS, model="llama3.1")
+
+    roles = [m["role"] for m in captured_payload["messages"]]
+    assert roles == ["user", "assistant", "tool"]
+    assert captured_payload["messages"][1]["tool_calls"][0]["function"]["name"] == "query_subgraph"
+    assert captured_payload["messages"][2]["content"] == '{"objects": []}'
+
+
+def test_call_ollama_with_tools_no_message_field_raises():
+    with patch("urllib.request.urlopen", return_value=_fake_urlopen_returning({"done": True})), \
+         pytest.raises(RuntimeError, match="no 'message' field"):
+        llm_providers.call_ollama_with_tools(
+            messages=[{"role": "user", "content": "hi"}], tools=_TOOL_SPECS, model="llama3.1"
+        )
+
+
+def test_call_ollama_with_tools_unreachable_raises_actionable_error():
+    with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("connection refused")), \
+         pytest.raises(RuntimeError, match="Could not reach Ollama"):
+        llm_providers.call_ollama_with_tools(
+            messages=[{"role": "user", "content": "hi"}], tools=_TOOL_SPECS, model="llama3.1"
+        )
+
+
+def test_call_ollama_with_tools_records_telemetry_on_success():
+    body = {"message": {"role": "assistant", "content": "hello"}}
+    with patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        llm_providers.call_ollama_with_tools(
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_TOOL_SPECS,
+            model="llama3.1",
+            tool_name="ai_chat",
+        )
+
+    snap = llm_telemetry.snapshot()
+    assert snap["total_calls"] == 1
+    assert snap["success_rate"] == 1.0

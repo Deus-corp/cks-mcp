@@ -3,6 +3,18 @@
 
 ---
 
+## [1.56.0] - 2026-08-10
+
+### Added
+- **Ollama support for `ai_chat`** – the `ai_chat` tool now routes through the same provider selection as `construct_knowledge` (`CKS_LLM_PROVIDER=auto|ollama|anthropic`). Ollama tool‑calling uses the `/api/chat` endpoint with a translation layer that normalises responses into the Anthropic content‑block envelope, so the `ai_chat` loop remains provider‑agnostic.
+- **Shared LLM client** (`cks_mcp.llm.client.LLMClient`) – encapsulates provider selection and tool‑calling dispatch, with fakes injectable for testing.
+- **`call_ollama_with_tools`** in `llm_providers.py` – translates between Ollama and Anthropic message/tool shapes.
+- **`get_llm_status` tool** – reports which LLM provider is currently selected, whether it's reachable/configured, and which model it would use. Read‑only, no chat calls. Exists so a thin client (cks‑studio Settings page) can show provider status without ever seeing API keys.
+- New unit tests for the LLM client, Ollama tool‑calling, provider‑routing in `ai_chat`, and `get_llm_status`.
+- Tool count increased from 61 to 62.
+
+---
+
 ## [1.55.0] - 2026-08-09
 
 ### Added

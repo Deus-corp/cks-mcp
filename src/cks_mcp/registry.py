@@ -73,6 +73,8 @@ from cks_mcp.tools.fork_sandbox import fork_sandbox
 from cks_mcp.tools.fork_sandbox.schema import FORK_SANDBOX_SCHEMA
 from cks_mcp.tools.get_graph import get_graph
 from cks_mcp.tools.get_graph.schema import GET_GRAPH_SCHEMA
+from cks_mcp.tools.get_llm_status import get_llm_status
+from cks_mcp.tools.get_llm_status.schema import GET_LLM_STATUS_SCHEMA
 from cks_mcp.tools.get_metrics import get_metrics
 from cks_mcp.tools.get_metrics.schema import GET_METRICS_SCHEMA
 from cks_mcp.tools.import_storage import import_storage
@@ -259,6 +261,10 @@ TOOLS = {
     "get_metrics": {
         **GET_METRICS_SCHEMA,
         "handler": _wrap("get_metrics")(get_metrics),
+    },
+    "get_llm_status": {
+        **GET_LLM_STATUS_SCHEMA,
+        "handler": _wrap("get_llm_status")(get_llm_status),
     },
     "list_agents": {
         **LIST_AGENTS_SCHEMA,

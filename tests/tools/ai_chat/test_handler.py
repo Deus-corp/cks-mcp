@@ -148,6 +148,70 @@ async def test_iteration_cap_returns_clear_message_not_infinite_loop():
     assert "iteration limit" in result["reply"]
 
 
+def _ollama_tool_use_response(tool_name: str, tool_args: dict, call_id: str = "call_1") -> dict:
+    """As returned by call_ollama_with_tools -- already normalized into
+    the same {'content': [...]} envelope call_anthropic_with_tools
+    returns, since that normalization is call_ollama_with_tools's own
+    job (tested separately in test_llm_providers.py)."""
+    return {
+        "content": [
+            {"type": "tool_use", "id": call_id, "name": tool_name, "input": tool_args}
+        ]
+    }
+
+
+async def test_ai_chat_uses_ollama_when_provider_is_explicitly_ollama():
+    runtime = MagicMock()
+    responses = [
+        _ollama_tool_use_response("query_subgraph", {}),
+        _text_response("Done via Ollama."),
+    ]
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "ollama"}), patch(
+        "cks_mcp.tools.ai_chat.handler.call_ollama_with_tools", side_effect=responses
+    ) as mock_ollama, patch(
+        "cks_mcp.tools.ai_chat.handler.call_anthropic_with_tools"
+    ) as mock_anthropic:
+        result = await ai_chat(runtime, {"session_id": "s1", "prompt": "read the graph"})
+
+    assert result["reply"] == "Done via Ollama."
+    mock_anthropic.assert_not_called()
+    assert mock_ollama.call_count == 2
+
+
+async def test_ai_chat_auto_prefers_ollama_when_available():
+    runtime = MagicMock()
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "auto"}), patch(
+        "cks_mcp.tools.ai_chat.handler.ollama_available", return_value=True
+    ), patch(
+        "cks_mcp.tools.ai_chat.handler.call_ollama_with_tools",
+        return_value=_text_response("Hi from local model."),
+    ) as mock_ollama, patch(
+        "cks_mcp.tools.ai_chat.handler.call_anthropic_with_tools"
+    ) as mock_anthropic:
+        result = await ai_chat(runtime, {"session_id": "s1", "prompt": "hi"})
+
+    assert result["reply"] == "Hi from local model."
+    mock_ollama.assert_called_once()
+    mock_anthropic.assert_not_called()
+
+
+async def test_ai_chat_auto_falls_back_to_anthropic_when_ollama_unreachable():
+    runtime = MagicMock()
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "auto", "ANTHROPIC_API_KEY": "sk-test"}), patch(
+        "cks_mcp.tools.ai_chat.handler.ollama_available", return_value=False
+    ), patch(
+        "cks_mcp.tools.ai_chat.handler.call_anthropic_with_tools",
+        return_value=_text_response("Hi from Anthropic."),
+    ) as mock_anthropic, patch(
+        "cks_mcp.tools.ai_chat.handler.call_ollama_with_tools"
+    ) as mock_ollama:
+        result = await ai_chat(runtime, {"session_id": "s1", "prompt": "hi"})
+
+    assert result["reply"] == "Hi from Anthropic."
+    mock_ollama.assert_not_called()
+    mock_anthropic.assert_called_once()
+
+
 async def test_missing_prompt_and_messages_returns_missing_parameter():
     runtime = MagicMock()
     result = await ai_chat(runtime, {"session_id": "s1"})
@@ -155,12 +219,36 @@ async def test_missing_prompt_and_messages_returns_missing_parameter():
 
 
 async def test_llm_call_failure_is_reported_not_raised():
+    # Provider forced to 'anthropic' so a non-ANTHROPIC_API_KEY failure
+    # (e.g. a transient HTTP error) surfaces as a plain llm_call_failed
+    # rather than being reinterpreted as "no provider available at
+    # all" (see test_no_provider_available_returns_llm_provider_unavailable
+    # below for that case).
     runtime = MagicMock()
-    with patch(
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "anthropic"}), patch(
+        "cks_mcp.tools.ai_chat.handler.call_anthropic_with_tools",
+        side_effect=RuntimeError("Anthropic API returned HTTP 529: overloaded"),
+    ):
+        result = await ai_chat(runtime, {"session_id": "s1", "prompt": "hi"})
+
+    assert result["error"] == "llm_call_failed"
+    assert "overloaded" in result["message"]
+
+
+async def test_no_provider_available_returns_llm_provider_unavailable():
+    # 'auto' with Ollama unreachable and no ANTHROPIC_API_KEY: neither
+    # provider can serve the call, so this is reported with a distinct
+    # error code rather than crashing or looking like a normal
+    # transient llm_call_failed.
+    runtime = MagicMock()
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "auto"}), patch(
+        "cks_mcp.tools.ai_chat.handler.ollama_available", return_value=False
+    ), patch(
         "cks_mcp.tools.ai_chat.handler.call_anthropic_with_tools",
         side_effect=RuntimeError("ANTHROPIC_API_KEY environment variable is not set."),
     ):
         result = await ai_chat(runtime, {"session_id": "s1", "prompt": "hi"})
 
-    assert result["error"] == "llm_call_failed"
-    assert "ANTHROPIC_API_KEY" in result["message"]
+    assert result["error"] == "llm_provider_unavailable"
+    assert "ollama" in result["message"].lower()
+    assert "anthropic" in result["message"].lower()

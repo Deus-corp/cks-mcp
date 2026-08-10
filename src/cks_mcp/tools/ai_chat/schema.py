@@ -21,8 +21,15 @@ AI_CHAT_SCHEMA = {
         "Returns {'reply': str, 'tool_calls': [...], 'messages': [...]} "
         "-- 'messages' is the full updated history; pass it back as-is "
         "on the next turn (this tool is stateless between calls). "
-        "Requires ANTHROPIC_API_KEY to be set server-side (no Ollama "
-        "tool-calling path yet, see ADR-011 §6)."
+        "The LLM provider is selected via CKS_LLM_PROVIDER='auto' "
+        "(default) | 'ollama' | 'anthropic', same convention as "
+        "construct_knowledge: 'auto' uses a local Ollama server if "
+        "one is reachable, otherwise Anthropic. 'ollama' requires a "
+        "tool-calling-capable model (e.g. llama3.1+, qwen2.5) pulled "
+        "and served locally (CKS_OLLAMA_HOST, CKS_OLLAMA_MODEL); "
+        "'anthropic' requires ANTHROPIC_API_KEY. If no provider is "
+        "available, returns {'error': 'llm_provider_unavailable', "
+        "'message': ...} instead of raising (see ADR-011 §6)."
     ),
     "inputSchema": {
         "type": "object",
