@@ -16,6 +16,7 @@ get, rather than a second, unaudited ``requests.get`` path.
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from typing import Any
 from urllib.parse import urlparse
@@ -28,6 +29,16 @@ from cks_mcp.tools.verify_source.handler import UnsafeURLError, _safe_request
 _VERSION_RE = re.compile(r"""__version__\s*=\s*['"]([^'"]+)['"]""")
 
 _DEFAULT_BRANCH = "main"
+
+# Candidate package.json locations tried, in order, for a JS/TS
+# component (identified via 'version_source': 'package.json' on the
+# Component object's structure). Most components keep it at the repo
+# root; a handful of monorepo-style layouts nest it under a package
+# dir sharing the component's name.
+_PACKAGE_JSON_CANDIDATE_PATHS = (
+    "package.json",
+    "{pkg}/package.json",
+)
 
 # Components whose repo layout we know outright, so we don't have to
 # guess at _version.py's location for the core CKS ecosystem itself.
@@ -98,6 +109,42 @@ def _fetch_version_sync(repo: str, candidate_paths: tuple[str, ...]) -> tuple[st
         return match.group(1), None
     return None, last_error or f"no candidate paths for {repo}"
 
+def _fetch_package_json_version_sync(
+    repo: str, candidate_paths: tuple[str, ...]
+) -> tuple[str | None, str | None]:
+    """
+    Same shape and calling convention as `_fetch_version_sync`, but for
+    JS/TS components: fetches `package.json` over the GitHub raw API
+    and reads its top-level "version" field instead of parsing a
+    Python `__version__` assignment.
+
+    Returns ``(version, error)`` where exactly one of the two is
+    ``None``. Performs blocking network I/O -- run via
+    ``asyncio.to_thread``, same as `_fetch_version_sync`.
+    """
+    last_error: str | None = None
+    for path in candidate_paths:
+        url = _raw_url(repo, path)
+        try:
+            resp = _safe_request(url)
+        except UnsafeURLError as exc:
+            return None, f"unsafe_url: {exc}"
+        if resp is None or resp.status_code != 200:
+            last_error = f"could not fetch {url}"
+            continue
+        try:
+            data = json.loads(resp.text)
+        except (ValueError, TypeError):
+            last_error = f"invalid JSON at {url}"
+            continue
+        version = data.get("version") if isinstance(data, dict) else None
+        if not isinstance(version, str) or not version:
+            last_error = f"no 'version' field found at {url}"
+            continue
+        return version, None
+    return None, last_error or f"no candidate paths for {repo}"
+
+
 def _strip_v_prefix(version: str) -> str:
     return version.lstrip("v")
 
@@ -157,24 +204,42 @@ def _compare_versions(graph_version: Any, actual_version: str) -> str:
 
 def _resolve_component(
     component_name: str, structure: dict[str, Any]
-) -> tuple[str | None, tuple[str, ...]]:
+) -> tuple[str | None, tuple[str, ...], str]:
     """
-    Work out which GitHub repo (and which _version.py paths to try in
-    it) a Component object corresponds to. Returns (repo, candidate_paths);
-    repo is None if it couldn't be determined at all.
+    Work out which GitHub repo (and which version-file paths to try in
+    it) a Component object corresponds to. Returns
+    (repo, candidate_paths, source); repo is None if it couldn't be
+    determined at all. `source` is "package_json" when the Component's
+    structure declares 'version_source': 'package.json' (JS/TS
+    components, which have no _version.py to find), else "python"
+    (the existing __version__-in-_version.py convention).
     """
+    is_npm = structure.get("version_source") == "package.json"
+
     known = _KNOWN_COMPONENTS.get(component_name)
-    if known is not None:
-        return known["repo"], (known["path"],)
+    if known is not None and not is_npm:
+        return known["repo"], (known["path"],), "python"
 
     repo_url = structure.get("repo_url")
     if repo_url:
         repo = _repo_from_url(repo_url)
         if repo is not None:
+            if is_npm:
+                pkg = _pkg_name(component_name)
+                paths = tuple(p.format(pkg=pkg) for p in _PACKAGE_JSON_CANDIDATE_PATHS)
+                return repo, paths, "package_json"
             pkg = _pkg_name(component_name)
-            return repo, tuple(p.format(pkg=pkg) for p in _CANDIDATE_PATHS)
+            return repo, tuple(p.format(pkg=pkg) for p in _CANDIDATE_PATHS), "python"
 
-    return None, ()
+    # No repo_url and not a _KNOWN_COMPONENTS entry (or npm requested
+    # for one): nothing to resolve against.
+    if known is not None:
+        # npm requested but only a Python-style known mapping exists --
+        # fall back to it rather than reporting unknown_repo, since we
+        # do at least know the repo.
+        return known["repo"], _PACKAGE_JSON_CANDIDATE_PATHS, "package_json"
+
+    return None, (), "python"
 
 
 async def check_component_versions(
@@ -215,7 +280,7 @@ async def check_component_versions(
         component_name = obj.identity.name or obj.identity.id
         graph_version = obj.structure.get("version")
 
-        repo, candidate_paths = _resolve_component(component_name, obj.structure)
+        repo, candidate_paths, source = _resolve_component(component_name, obj.structure)
         if repo is None:
             results.append(
                 {
@@ -232,8 +297,13 @@ async def check_component_versions(
             )
             continue
 
+        fetch_fn = (
+            _fetch_package_json_version_sync
+            if source == "package_json"
+            else _fetch_version_sync
+        )
         actual_version, error = await asyncio.to_thread(
-            _fetch_version_sync, repo, candidate_paths
+            fetch_fn, repo, candidate_paths
         )
 
         if actual_version is None:

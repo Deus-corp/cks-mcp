@@ -126,24 +126,51 @@ def test_compare_versions_unparsable_falls_back_to_outdated():
 
 
 def test_resolve_component_known():
-    repo, paths = _resolve_component("cks-core", {})
+    repo, paths, source = _resolve_component("cks-core", {})
     assert repo == "Deus-corp/cks-core"
     assert paths == ("src/cks/_version.py",)
+    assert source == "python"
 
 
 def test_resolve_component_via_repo_url():
-    repo, paths = _resolve_component(
+    repo, paths, source = _resolve_component(
         "some-plugin", {"repo_url": "https://github.com/acme/some-plugin"}
     )
     assert repo == "acme/some-plugin"
     assert paths[0] == "_version.py"
     assert "some_plugin" in paths[1]
+    assert source == "python"
 
 
 def test_resolve_component_unknown():
-    repo, paths = _resolve_component("mystery", {})
+    repo, paths, source = _resolve_component("mystery", {})
     assert repo is None
     assert paths == ()
+    assert source == "python"
+
+
+def test_resolve_component_npm_via_repo_url():
+    repo, paths, source = _resolve_component(
+        "cks-studio",
+        {
+            "repo_url": "https://github.com/Deus-corp/cks-studio",
+            "version_source": "package.json",
+        },
+    )
+    assert repo == "Deus-corp/cks-studio"
+    assert paths[0] == "package.json"
+    assert source == "package_json"
+
+
+def test_resolve_component_npm_known_component_falls_back_to_repo():
+    # A _KNOWN_COMPONENTS entry with version_source=package.json still
+    # resolves against that repo, just via the npm strategy instead of
+    # the Python one.
+    repo, _paths, source = _resolve_component(
+        "cks-core", {"version_source": "package.json"}
+    )
+    assert repo == "Deus-corp/cks-core"
+    assert source == "package_json"
 
 
 # ---------------------------------------------------------------------------
@@ -358,3 +385,106 @@ async def test_multiple_components_mixed_statuses():
         "cks-runtime": "up_to_date",
         "unknown-thing": "unknown_repo",
     }
+
+# ---------------------------------------------------------------------------
+# package.json (npm) version source
+# ---------------------------------------------------------------------------
+
+
+async def test_npm_component_up_to_date():
+    structure = _FakeStructure(
+        objects=[
+            _obj(
+                "c1",
+                "Component",
+                "cks-studio",
+                {
+                    "version": "v0.5.9",
+                    "repo_url": "https://github.com/Deus-corp/cks-studio",
+                    "version_source": "package.json",
+                },
+            ),
+        ]
+    )
+    session = SimpleNamespace(knowledge_structure=structure)
+    runtime = _mock_runtime(
+        graph_record={"name": "cks-ecosystem", "session_id": "s1"}, session=session
+    )
+
+    with patch(
+        "cks_mcp.tools.check_component_versions.handler._safe_request",
+        return_value=_mock_response(200, '{"name": "cks-studio", "version": "0.5.9"}'),
+    ) as mock_request:
+        result = await check_component_versions(runtime, {"name": "cks-ecosystem"})
+
+    assert result["components"] == [
+        {
+            "component": "cks-studio",
+            "graph_version": "v0.5.9",
+            "actual_version": "0.5.9",
+            "status": "up_to_date",
+        }
+    ]
+    mock_request.assert_called_once_with(
+        "https://raw.githubusercontent.com/Deus-corp/cks-studio/main/package.json"
+    )
+
+
+async def test_npm_component_outdated():
+    structure = _FakeStructure(
+        objects=[
+            _obj(
+                "c1",
+                "Component",
+                "cks-studio",
+                {
+                    "version": "v0.5.9",
+                    "repo_url": "https://github.com/Deus-corp/cks-studio",
+                    "version_source": "package.json",
+                },
+            ),
+        ]
+    )
+    session = SimpleNamespace(knowledge_structure=structure)
+    runtime = _mock_runtime(
+        graph_record={"name": "cks-ecosystem", "session_id": "s1"}, session=session
+    )
+
+    with patch(
+        "cks_mcp.tools.check_component_versions.handler._safe_request",
+        return_value=_mock_response(200, '{"name": "cks-studio", "version": "0.6.0"}'),
+    ):
+        result = await check_component_versions(runtime, {"name": "cks-ecosystem"})
+
+    assert result["components"][0]["status"] == "outdated"
+    assert result["components"][0]["actual_version"] == "0.6.0"
+
+
+async def test_npm_component_no_version_field_falls_back_to_fetch_failed():
+    structure = _FakeStructure(
+        objects=[
+            _obj(
+                "c1",
+                "Component",
+                "cks-studio",
+                {
+                    "version": "v0.5.9",
+                    "repo_url": "https://github.com/Deus-corp/cks-studio",
+                    "version_source": "package.json",
+                },
+            ),
+        ]
+    )
+    session = SimpleNamespace(knowledge_structure=structure)
+    runtime = _mock_runtime(
+        graph_record={"name": "cks-ecosystem", "session_id": "s1"}, session=session
+    )
+
+    with patch(
+        "cks_mcp.tools.check_component_versions.handler._safe_request",
+        return_value=_mock_response(200, '{"name": "cks-studio"}'),
+    ):
+        result = await check_component_versions(runtime, {"name": "cks-ecosystem"})
+
+    assert result["components"][0]["status"] == "fetch_failed"
+    assert result["components"][0]["actual_version"] is None

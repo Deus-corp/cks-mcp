@@ -3,6 +3,13 @@
 
 ---
 
+## [1.57.1] - 2026-08-11
+
+### Added
+- **`check_component_versions` now supports JS/TS components** – when a Component object has `version_source: "package.json"` in its structure, the tool fetches `package.json` from GitHub raw and reads the `"version"` field instead of looking for `_version.py`. This allows `cks-studio` and other non-Python components to be properly version‑checked.
+
+---
+
 ## [1.57.0] - 2026-08-10
 
 ### Added
