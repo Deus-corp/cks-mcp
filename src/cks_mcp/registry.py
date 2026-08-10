@@ -95,6 +95,8 @@ from cks_mcp.tools.list_inference_conflicts import list_inference_conflicts
 from cks_mcp.tools.list_inference_conflicts.schema import (
     LIST_INFERENCE_CONFLICTS_SCHEMA,
 )
+from cks_mcp.tools.list_llm_models import list_llm_models
+from cks_mcp.tools.list_llm_models.schema import LIST_LLM_MODELS_SCHEMA
 from cks_mcp.tools.list_plugins import list_plugins
 from cks_mcp.tools.list_plugins.schema import LIST_PLUGINS_SCHEMA
 from cks_mcp.tools.list_processes import list_processes
@@ -265,6 +267,10 @@ TOOLS = {
     "get_llm_status": {
         **GET_LLM_STATUS_SCHEMA,
         "handler": _wrap("get_llm_status")(get_llm_status),
+    },
+    "list_llm_models": {
+        **LIST_LLM_MODELS_SCHEMA,
+        "handler": _wrap("list_llm_models")(list_llm_models),
     },
     "list_agents": {
         **LIST_AGENTS_SCHEMA,

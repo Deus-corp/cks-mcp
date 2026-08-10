@@ -3,6 +3,14 @@
 
 ---
 
+## [1.57.0] - 2026-08-10
+
+### Added
+- **`list_llm_models` tool** – returns the list of available models for the current LLM provider (Ollama via `/api/tags`, Anthropic and OpenAI-compatible via hardcoded lists). Provider resolution mirrors `get_llm_status`.
+- Tool count increased from 62 to 63.
+
+---
+
 ## [1.56.2] - 2026-08-10
 
 ### Added

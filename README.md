@@ -4,11 +4,11 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-837%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-843%20passed-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
-that gives LLMs a **canonical knowledge backbone**. It exposes **62
+that gives LLMs a **canonical knowledge backbone**. It exposes **63
 tools** (listed under *Available Tools* below) for validation, evolution,
 branching, merging, semantic search, contradiction detection, sandboxing,
 and more, backed by the deterministic, immutable semantics of `cks-core`
@@ -45,7 +45,7 @@ Other projects build upon it:
    models instead, set `CKS_EMBEDDING_PROVIDER=huggingface` and
    `export HF_TOKEN=hf_...`. See [Getting Started](docs/getting-started.md).
 3. In the chat, start your message with **"Use cks-mcp to…"**.
-4. Claude automatically picks the right tool from the 62 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
+4. Claude automatically picks the right tool from the 63 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
 5. Every operation is logged, versioned, and stored in a persistent SQLite database.
 
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
@@ -53,7 +53,7 @@ Other projects build upon it:
 
 ![CKS Demo](https://github.com/Deus-corp/cks-mcp/releases/download/v1.10.2/demo.gif)
 
-*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. All 62 tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, gossip conflict resolution, and more — all triggered by plain English.*
+*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. All 63 tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, gossip conflict resolution, and more — all triggered by plain English.*
 
 ---
 
@@ -130,7 +130,7 @@ for the full list of environment variables and how to set them via a
    ```
 
 3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
-   After restart, a connector icon will appear – `cks-mcp` with 62 tools is ready to use.
+   After restart, a connector icon will appear – `cks-mcp` with 63 tools is ready to use.
 
 See [Getting Started](docs/getting-started.md) for a walkthrough of your
 first session once the server is connected.
@@ -139,7 +139,7 @@ first session once the server is connected.
 
 # Available Tools
 
-62 tools, grouped by function. Full reference with parameters and
+63 tools, grouped by function. Full reference with parameters and
 real request/response examples: [`docs/tools/`](docs/tools/index.md).
 
 | Group | Tools |
@@ -220,7 +220,7 @@ CKS_MCP_DB_PATH=~/.cks-mcp/cks_mcp.db cks-fork-agent
 Env vars: `CKS_MCP_DB_PATH` (shared storage path), `CKS_FORK_AGENT_POLL_INTERVAL`
 (seconds between polls, default 30), `CKS_FORK_AGENT_MAX_RETRIES` (attempts
 before dead‑lettering, default 3), `CKS_FORK_AGENT_HEARTBEAT_INTERVAL` (lease
-renewal interval, default 62). See `cks_mcp/fork_resolution_agent.py` for the
+renewal interval, default 63). See `cks_mcp/fork_resolution_agent.py` for the
 resolution policy in full.
 
 > **Note:** `critic_agent.py` also claims `crdt_fork` tasks from the same
@@ -346,7 +346,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-837+ tests, all passing.
+843+ tests, all passing.
 
 ---
 
