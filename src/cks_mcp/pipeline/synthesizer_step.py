@@ -140,16 +140,14 @@ async def resolve_pipeline_synthesis_request(
     if missing:
         return Resolution(False, f"object(s) not found in session '{session_id}': {missing}")
 
-    content_hash = _objects_content_hash(objs)
-    primary_object = objs[0]
+    # mypy: after the missing check, guarantee that all objects are non‑None
+    valid_objs: list[Any] = [obj for obj in objs if obj is not None]
+
+    content_hash = _objects_content_hash(valid_objs)
+    primary_object = valid_objs[0]
     current_log = read_transition_log(primary_object)
 
     if has_agent_transitioned(primary_object, AGENT_NAME, content_hash=content_hash):
-        # Idempotency guard (ADR-007 Decision 4 / AgentStep.run
-        # docstring): already synthesized this exact set of source
-        # contents -- skip the LLM call, but still make sure the
-        # synthesized node is (re-)enqueued for review, same rationale
-        # as researcher_step's idempotent-skip path.
         existing_synth_id = next(
             (
                 entry.get("reasoning_node_id")
@@ -180,7 +178,7 @@ async def resolve_pipeline_synthesis_request(
                 if k not in ("current_status", "transition_log")
             },
         }
-        for obj in objs
+        for obj in valid_objs
     ]
 
     prompt = (
@@ -246,7 +244,7 @@ async def resolve_pipeline_synthesis_request(
     # f) One transition_log entry per source object, all referencing
     # the same synth_id "group" so idempotency/lookup works uniformly
     # regardless of which source object a later retry inspects first.
-    for oid, obj in zip(object_ids, objs):
+    for oid, obj in zip(object_ids, valid_objs):
         ops.append(
             append_transition(
                 oid,
