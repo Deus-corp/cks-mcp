@@ -3,6 +3,15 @@
 
 ---
 
+## [1.57.3] - 2026-08-11
+
+### Added
+- **ArbiterStep** – terminal pipeline agent (ADR-007 Milestone 2) that consumes `contradiction_detected` outbox tasks, asks an LLM to pick the best-supported relation based on provenance, and removes the losing relations. Completes the Researcher → Synthesizer → Reviewer → Arbiter pipeline.
+- `AWAITING_ARBITRATION` and `RESOLVED` statuses in pipeline schema.
+- Unit tests for ArbiterStep.
+
+---
+
 ## [1.57.2] - 2026-08-11
 
 ### Added

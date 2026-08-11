@@ -1,13 +1,14 @@
 """
 Pipeline Agent: the console-script entry point for ADR-007's
-``CKSAgentOrchestrator``, Milestone 1 (Researcher + Reviewer).
+``CKSAgentOrchestrator``, Milestone 1 (Researcher + Reviewer) plus
+Milestone 2 (Synthesizer + Arbiter).
 
 Same process shape as ``cks_mcp.critic_agent``/``cks_mcp.enrichment_agent``:
 its own OS process, its own ``Runtime`` sharing storage with the main
 ``cks-mcp`` server (same SQLite file or Postgres DSN), looping
-``CKSAgentOrchestrator.run_sequential()`` -- drain Researcher's queue,
-then Reviewer's, sleep ``poll_interval`` if nothing was processed,
-repeat.
+``CKSAgentOrchestrator.run_sequential()`` -- drain each step's queue in
+turn (Researcher, Reviewer, Synthesizer, Arbiter), sleep
+``poll_interval`` if nothing was processed, repeat.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from cks_runtime_plugins.cks_core import CksCoreAdapter
 from cks_mcp.agent_loop import LivenessReporter
 from cks_mcp.orchestrator import CKSAgentOrchestrator
 from cks_mcp.paths import data_dir
+from cks_mcp.pipeline.arbiter_step import ArbiterStep, ArbiterStepSettings
 from cks_mcp.pipeline.researcher_step import ResearcherStep, ResearcherStepSettings
 from cks_mcp.pipeline.reviewer_step import ReviewerStep, ReviewerStepSettings
 from cks_mcp.pipeline.synthesizer_step import SynthesizerStep, SynthesizerStepSettings
@@ -71,6 +73,7 @@ async def run_pipeline_agent(
             ResearcherStep(ResearcherStepSettings.from_env()),
             ReviewerStep(ReviewerStepSettings.from_env()),
             SynthesizerStep(SynthesizerStepSettings.from_env()),
+            ArbiterStep(ArbiterStepSettings.from_env()),
         ],
     )
 
@@ -90,7 +93,7 @@ async def run_pipeline_agent(
         f"[cks-pipeline-agent] started (storage_path={settings.storage_path!r}, "
         f"poll_interval={settings.poll_interval}s, "
         f"liveness_interval={settings.liveness_interval}s, "
-        "steps=Researcher,Reviewer,Synthesizer)",
+        "steps=Researcher,Reviewer,Synthesizer,Arbiter)",
         file=sys.stderr,
     )
 
