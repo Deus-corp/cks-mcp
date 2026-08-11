@@ -3,6 +3,14 @@
 
 ---
 
+## [1.58.0] - 2026-08-11
+
+### Added
+- **Phase 1 safety infrastructure** – automatic `fork_sandbox` isolation, token/cost budgeting (`TokenBudget`), idempotency cache (hash‑based dedup of pipeline runs), and graceful degradation (stop on first failure, leave sandbox for manual analysis).
+- `run_sequential` and `run_concurrent` now accept optional `parent_session_id`, `object_ids`, and `schema_version` to opt into Phase 1 isolation.
+
+---
+
 ## [1.57.3] - 2026-08-11
 
 ### Added
