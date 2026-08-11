@@ -171,8 +171,10 @@ async def resolve_pipeline_arbitration_request(
             False, f"relation(s) not found in session '{session_id}': {missing_relations}"
         )
 
+    valid_relation_objs = [obj for obj in relation_objs if obj is not None]
+
     participant_ids: list[str] = sorted(
-        {pid for obj in relation_objs for pid in getattr(obj, "participants", [])}
+        {pid for obj in valid_relation_objs for pid in getattr(obj, "participants", [])}
     )
     participant_objs = [find_object(session, pid) for pid in participant_ids]
     missing_participants = [
@@ -185,8 +187,10 @@ async def resolve_pipeline_arbitration_request(
             f"{missing_participants}",
         )
 
+    valid_participant_objs = [obj for obj in participant_objs if obj is not None]
+
     content_hash = _contradiction_content_hash(location, code, relation_ids)
-    primary_obj = participant_objs[0] if participant_objs else relation_objs[0]
+    primary_obj = valid_participant_objs[0] if valid_participant_objs else valid_relation_objs[0]
 
     if has_agent_transitioned(primary_obj, AGENT_NAME, content_hash=content_hash):
         # Idempotency guard: already arbitrated this exact
@@ -216,7 +220,7 @@ async def resolve_pipeline_arbitration_request(
             "relation_type": getattr(obj, "relation_type", None),
             "participants": list(getattr(obj, "participants", [])),
         }
-        for obj in relation_objs
+        for obj in valid_relation_objs
     ]
     claims_context = subgraph.get("subgraph", {}).get("nodes", [])
 
@@ -276,7 +280,7 @@ async def resolve_pipeline_arbitration_request(
 
     # f) One transition_log entry per contended-claim participant, all
     # referencing the same verdict node.
-    for obj in participant_objs:
+    for obj in valid_participant_objs:
         ops.append(
             append_transition(
                 obj.identity.id,
