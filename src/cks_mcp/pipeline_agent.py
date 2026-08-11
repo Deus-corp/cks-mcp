@@ -28,6 +28,7 @@ from cks_mcp.orchestrator import CKSAgentOrchestrator
 from cks_mcp.paths import data_dir
 from cks_mcp.pipeline.researcher_step import ResearcherStep, ResearcherStepSettings
 from cks_mcp.pipeline.reviewer_step import ReviewerStep, ReviewerStepSettings
+from cks_mcp.pipeline.synthesizer_step import SynthesizerStep, SynthesizerStepSettings
 
 _DEFAULT_POLL_INTERVAL_SECONDS = 5.0
 _DEFAULT_LIVENESS_INTERVAL_SECONDS = 30.0  # process liveness (ADR-014)
@@ -66,7 +67,11 @@ async def run_pipeline_agent(
 
     orchestrator = CKSAgentOrchestrator(
         runtime,
-        [ResearcherStep(ResearcherStepSettings.from_env()), ReviewerStep(ReviewerStepSettings.from_env())],
+        [
+            ResearcherStep(ResearcherStepSettings.from_env()),
+            ReviewerStep(ReviewerStepSettings.from_env()),
+            SynthesizerStep(SynthesizerStepSettings.from_env()),
+        ],
     )
 
     stop = asyncio.Event()
@@ -84,7 +89,8 @@ async def run_pipeline_agent(
     print(
         f"[cks-pipeline-agent] started (storage_path={settings.storage_path!r}, "
         f"poll_interval={settings.poll_interval}s, "
-        f"liveness_interval={settings.liveness_interval}s, steps=Researcher,Reviewer)",
+        f"liveness_interval={settings.liveness_interval}s, "
+        "steps=Researcher,Reviewer,Synthesizer)",
         file=sys.stderr,
     )
 

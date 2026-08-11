@@ -3,6 +3,15 @@
 
 ---
 
+## [1.57.2] - 2026-08-11
+
+### Added
+- **SynthesizerStep** – new pipeline agent step (ADR-007 Milestone 2) that takes a set of raw facts, asks an LLM to deduplicate and reconcile them, and commits the synthesized subgraph via `evolve_knowledge`. The synthesized node is then automatically enqueued for review by the existing Reviewer step.
+- **`pipeline_agent.py`** now includes SynthesizerStep alongside Researcher and Reviewer.
+- Unit tests for SynthesizerStep.
+
+---
+
 ## [1.57.1] - 2026-08-11
 
 ### Added
