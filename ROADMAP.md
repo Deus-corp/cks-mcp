@@ -6,41 +6,85 @@ towards a stable, production-ready platform and beyond.
 
 ---
 
-# Current Status (v1.49.x — August 2026)
+# Current Status (v1.58.0 — August 2026)
 
-CKS has matured into a **53‑tool, 1 750+ test autonomous knowledge platform**
-with four persistent agents, six background sweepers, a plugin framework, and
-a CRDT adapter (ADR‑013). It provides LLMs with a verifiable, self‑maintaining
-knowledge backbone that runs entirely on local infrastructure (SQLite/Postgres,
-fastembed, optional Ollama). See [README](README.md#available-tools) for the
-full tool list.
+CKS has matured into a **63‑tool, 1 750+ test autonomous knowledge platform**
+with five persistent agents (Critic, Enrichment, Fork Resolution, Pipeline,
+plus the in‑process sweepers), seven background sweepers, a plugin framework,
+an LLM abstraction layer with three providers, and a CRDT adapter (ADR‑013).
+It provides LLMs with a verifiable, self‑maintaining knowledge backbone that
+runs entirely on local infrastructure (SQLite/Postgres, fastembed, optional
+Ollama/Anthropic/OpenAI‑compatible). See [README](README.md#available-tools)
+for the full tool list.
 
 ## ✅ Completed Milestones
 
 ### Core Server & Protocol
 - Full MCP protocol compliance.
 - MCP Resources, Prompts, JSON-RPC over stdio, CI/CD (ruff + mypy).
-- **Plugin Framework** (`CksPlugin`, `PluginRegistry`, `list_plugins`).
-- **CRDT Adapter** (ADR‑013): G‑Set + Merkle Tree (Stage 1), MV‑Register +
-  fork detection + conflict events (Stage 2), ForkResolutionAgent (Stage 3).
+- **Optional HTTP transport** (`CKS_MCP_HTTP_PORT`) with CORS, for direct
+  integration with web frontends like `cks-studio`.
+- **Plugin Framework** (`CksPlugin`, `PluginRegistry`, `list_plugins`), fully
+  async lifecycle (`setup`/`teardown`).
+- **CRDT Adapter** (ADR‑013): G‑Set + Merkle Tree (Stage 1), MV‑Register +
+  fork detection + conflict events (Stage 2), ForkResolutionAgent (Stage 3).
 
-### Canonical Tools (53 total)
+### Canonical Tools (63 total)
 - Knowledge Lifecycle, Version Control, Branching & Merging, Graph Exploration,
-  Verification & Integrity, AI‑Assisted & Ingestion, Export & Observability,
-  Memory & Persistence, Conflict Resolution, Reasoning & Explainability,
-  Ontology Validation.
+  Verification & Integrity, LLM & AI, Export & Observability,
+  Memory & Persistence, Gossip & Conflict Resolution, Agent Observability,
+  Agent Control.
+
+### LLM Integration
+- **Shared `LLMClient`** (`cks_mcp.llm.client`) unifying Ollama, Anthropic,
+  and any OpenAI‑compatible endpoint (OpenAI, Groq, DeepSeek, Together,
+  LM Studio, vLLM) behind one tool‑calling and single‑shot interface.
+- **`ai_chat` tool** — bounded agentic loop (max 8 iterations) that can call
+  any safe MCP tool, with session pinning and a denylist for
+  server‑management tools.
+- **`get_llm_status` / `list_llm_models`** — read‑only provider/model
+  introspection for thin clients (e.g. `cks-studio` Settings page).
+
+### Multi‑Agent Pipeline (ADR‑007)
+- **`CKSAgentOrchestrator`** (`run_sequential` / `run_concurrent`) coordinating
+  agent steps through the persistent outbox and CRDT registers.
+- **Researcher → Synthesizer → Reviewer → Arbiter** pipeline, each step an
+  `AgentStep` committing via `evolve_knowledge` with full provenance.
+- **`cks-pipeline-agent`** console script running the pipeline autonomously.
+- **Phase 1 safety infrastructure** — `fork_sandbox` isolation, token/cost
+  budgeting (`TokenBudget`), idempotency cache, graceful degradation.
+
+### LCA Arbiter
+- **Topology‑aware fork resolution** (`lca_arbiter.py`) — finds the lowest
+  common ancestor of conflicting objects via `query_subgraph`, classifies
+  conflicts (`non_overlapping`, `competing_claims`, `erroneous_branch`), and
+  auto‑merges disjoint branches or escalates a `Resolution` object for review.
+- **Integrated into `ForkResolutionAgent`** via `use_lca` (default `true`),
+  with fallback to the mechanical tie‑break when LCA is unavailable.
 
 ### Autonomous Agents & Background Workers
 - **Critic Agent** (`cks‑critic‑agent`): 6 conflict types (gossip, inference,
   provenance, temporal, contradiction, crdt_fork).
 - **Enrichment Agent** (`cks‑enrichment‑agent`): Wikipedia, arXiv.
-- **Fork Resolution Agent** (`cks‑fork‑agent`): CRDT fork resolution with
-  causality‑based winner selection.
-- **Memory Agent v2:** `check_component_versions`, `update_registered_graph`,
-  `GraphAutoUpdateSweeper`, `explain_graph`.
-- **Six background sweepers:** Inference, Provenance, Temporal, GraphFreshness,
-  Contradiction, GraphHealth.
+- **Fork Resolution Agent** (`cks‑fork‑agent`): CRDT fork resolution, now
+  LCA‑aware (see above).
+- **Pipeline Agent** (`cks-pipeline-agent`): Researcher/Synthesizer/Reviewer/
+  Arbiter orchestration.
+- **Memory Agent v2:** `check_component_versions` (Python and JS/TS via
+  `package.json`), `update_registered_graph`, `GraphAutoUpdateSweeper`,
+  `explain_graph`.
+- **Seven background sweepers:** Inference, Provenance, Temporal,
+  GraphFreshness, Contradiction, GraphHealth, GraphAutoUpdate.
 - **Persistent Outbox + DLQ** for all agents and sweepers.
+
+### Agent Observability & Control (ADR‑015, ADR‑016)
+- **`list_agents` / `agent_status`** — status of in‑process sweepers.
+- **`list_processes` / `process_status`** — liveness of standalone agent
+  processes (Critic, Enrichment, Fork Resolution, Pipeline).
+- **`start_agent` / `stop_agent`** — runtime‑persisted sweeper enable/disable
+  (`cks_sweeper_control` table, ADR‑015).
+- **`request_process_stop`** — graceful remote shutdown of a standalone agent
+  process via its liveness row (ADR‑016).
 
 ### Observability & Human‑in‑the‑loop
 - **Cost & Token Tracking** (`LLMTelemetry` + `get_metrics`).
@@ -54,53 +98,26 @@ full tool list.
 
 ### Security & Testing
 - SSRF & DNS Rebinding Protection, Persistent Provenance Secrets.
-- **1 750+ tests** across cks‑core, cks‑runtime, cks‑mcp.
+- **1 750+ tests** across cks‑core, cks‑runtime, cks‑mcp (873 passed, 6 skipped
+  in cks‑mcp alone — skips require Postgres/optional providers).
 
 ---
 
-# Next Up — LCA Arbiter, Visualization, Orchestrator
-
-## LCA Arbiter (🔴 P0)
-
-**Goal:** Replace the mechanical tie‑break in ForkResolutionAgent with a
-topological arbiter that understands the DAG structure of conflicts.
-
-- [ ] **`find_lca`** – find the Lowest Common Ancestor of two conflicting
-  objects via backward BFS through `depends_on` relations.
-- [ ] **`extract_delta`** – extract the subgraph between the LCA and each
-  conflicting branch.
-- [ ] **`classify_conflict`** – classify conflicts as non‑overlapping,
-  competing claims, or erroneous branch.
-- [ ] **`resolve_with_lca`** – create a `Resolution` object with
-  `strategy_applied`, `resolved_branches`, `common_ancestor`, `rationale`,
-  and `depends_on` both branches.
-- [ ] **Integration with ForkResolutionAgent** – optional `use_lca` flag;
-  fallback to mechanical resolution when LCA is unavailable.
+# Next Up — Visualization, Graph Gallery
 
 ## Visualization & Dashboard (🟡 P1)
 
 **Goal:** An interactive web dashboard for exploring the knowledge graph,
-inference chains, and fork resolution.
+inference chains, and fork resolution. `cks-studio` already covers parts of
+this (session graph view, LLM settings); this tracks the remaining pieces.
 
-- [ ] **React Flow dashboard** with custom nodes (Definition, Claim, Fork,
-  Resolution).
-- [ ] **Fork & Conflict Diff View** – highlight parallel branches from LCA.
+- [ ] **Fork & Conflict Diff View** – highlight parallel branches from the
+  LCA Arbiter's `extract_delta` output (arbiter itself is implemented, see
+  Completed Milestones).
 - [ ] **Inference Chain Inspector** – trace `depends_on` from conclusion to
-  base axioms.
+  base axioms in the UI.
 - [ ] **Real‑time Gossip Visualizer** – live updates via WebSocket/SSE.
 - [ ] **Color‑coded nodes** by type and status (stale, conflict, resolved).
-
-## Multi‑Agent Orchestrator (🟢 P2)
-
-**Goal:** A hierarchical orchestration layer (Overseer → Meta‑Agent → Node)
-for coordinating multiple CKS agents in a pipeline.
-
-- [ ] **Researcher → Critic → Synthesizer → Arbiter** pipeline.
-- [ ] **`CKSAgentOrchestrator`** class with pluggable roles and LLM backends.
-- [ ] **CRDT‑based communication** between orchestration layers.
-- [ ] **Integration with existing agents** (Critic, Enrichment, Fork).
-
----
 
 ## Graph Gallery (🟡 P1)
 

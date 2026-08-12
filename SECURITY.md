@@ -2,14 +2,18 @@
 
 ## Supported Versions
 
-`cks-mcp` is actively maintained. Security fixes are provided for the
-current stable release and the immediately preceding minor version.
+`cks-mcp` is production/stable and follows semantic versioning where
+practical.
 
-| Version | Supported |
-| ------- | --------- |
-| 1.16.x  | ✅        |
-| 1.15.x  | ✅        |
-| < 1.15  | ❌        |
+Security fixes are provided for the latest released 1.x version. Given the
+project's small surface area and single-maintainer model, older 1.x releases
+are not separately patched — users are expected to upgrade to the latest
+release.
+
+| Version       | Supported |
+| ------------- | --------- |
+| 1.x (latest)  | ✅        |
+| Earlier 1.x   | ❌        |
 
 ---
 
@@ -64,6 +68,10 @@ boundary:
   (`CKS_MCP_SECRET`);
 - input validation at the MCP tool boundary before anything reaches
   `cks-runtime` or `cks-core`;
+- the optional HTTP transport (`CKS_MCP_HTTP_PORT`) — when enabled, exposes
+  MCP over HTTP with CORS support; intended for local development and
+  trusted-network integration with clients like `cks-studio`, not for
+  exposure on an untrusted network;
 - safe handling of LLM-generated output in `construct_knowledge` (parsed
   and validated before it is ever persisted, never executed).
 

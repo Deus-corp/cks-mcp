@@ -32,7 +32,7 @@ class CksPlugin(ABC):
         """Return True if optional deps are present. Must not raise."""
 
     @abstractmethod
-    def setup(self, runtime: Runtime, config: RuntimeConfig) -> Any:
+    async def setup(self, runtime: Runtime, config: RuntimeConfig) -> Any:
         """
         Initialise the plugin.
 
@@ -40,16 +40,22 @@ class CksPlugin(ABC):
         Returns a *handle* (any object) passed later to teardown.
         Return None to signal "deps present but plugin decided not to start"
         (e.g. CKS_GOSSIP_ENABLED not set).
+
+        async because setup_all() already runs inside server.py's own
+        event loop — a plugin needing to await genuinely async work
+        (e.g. GossipPlugin starting a GossipService) can do so directly,
+        without spinning up a second event loop via asyncio.run().
         """
 
     @abstractmethod
-    def teardown(self, handle: Any) -> None:
+    async def teardown(self, handle: Any) -> None:
         """
         Stop the plugin.
 
         handle is whatever setup() returned.
         If handle is None the plugin was not started; implementations must
-        handle that case and do nothing.
+        handle that case and do nothing. async for the same reason as
+        setup() above.
         """
 ```
 
@@ -61,11 +67,11 @@ class CksPlugin(ABC):
 registry = PluginRegistry()
 registry.register(MyPlugin())
 
-# at startup
-handles = registry.setup_all(runtime, config)
+# at startup (inside an already-running event loop, e.g. server.py's main())
+handles = await registry.setup_all(runtime, config)
 
 # at shutdown
-registry.teardown_all(handles)
+await registry.teardown_all(handles)
 ```
 
 | Method | Description |
@@ -95,13 +101,13 @@ class FastEmbedPlugin(CksPlugin):
         # True when `import fastembed` succeeds
         ...
 
-    def setup(self, runtime, config):
+    async def setup(self, runtime, config):
         # Reads CKS_EMBEDDING_PROVIDER (fastembed | huggingface | stub)
         # Sets runtime.embedding_client
         # Returns True on success, None when provider == "stub"
         ...
 
-    def teardown(self, handle):
+    async def teardown(self, handle):
         # No-op: runtime falls back to StubEmbeddingClient automatically
         ...
 ```
@@ -126,14 +132,14 @@ class GossipPlugin(CksPlugin):
         # True when `import aiohttp` succeeds
         ...
 
-    def setup(self, runtime, config):
+    async def setup(self, runtime, config):
         # Reads CKS_GOSSIP_* env vars
-        # Calls setup_gossip() and starts the handle
+        # Calls setup_gossip() and awaits handle.start()
         # Returns GossipHandle or None (when CKS_GOSSIP_ENABLED != "true")
         ...
 
-    def teardown(self, handle):
-        # Calls handle.stop() if handle is not None
+    async def teardown(self, handle):
+        # Awaits handle.stop() if handle is not None
         ...
 ```
 
@@ -172,12 +178,12 @@ class MyPlugin(CksPlugin):
         except ImportError:
             return False
 
-    def setup(self, runtime: Runtime, config: RuntimeConfig) -> Any:
+    async def setup(self, runtime: Runtime, config: RuntimeConfig) -> Any:
         import some_optional_dep  # noqa: PLC0415
         handle = some_optional_dep.start()
         return handle
 
-    def teardown(self, handle: Any) -> None:
+    async def teardown(self, handle: Any) -> None:
         if handle is None:
             return
         handle.stop()
@@ -251,14 +257,14 @@ def test_is_available_false():
     with patch("importlib.import_module", side_effect=ImportError):
         assert MyPlugin().is_available() is False
 
-def test_setup_calls_start():
+async def test_setup_calls_start():
     plugin = MyPlugin()
     runtime, config = MagicMock(), MagicMock()
     fake_handle = MagicMock()
     with patch("some_optional_dep.start", return_value=fake_handle):
-        handle = plugin.setup(runtime, config)
+        handle = await plugin.setup(runtime, config)
     assert handle is fake_handle
 
-def test_teardown_none_is_noop():
-    MyPlugin().teardown(None)  # must not raise
+async def test_teardown_none_is_noop():
+    await MyPlugin().teardown(None)  # must not raise
 ```

@@ -6,8 +6,9 @@ validated Knowledge Structure, and one that helps an LLM propose a correct
 
 ## `construct_knowledge`
 
-Sends free‑form text to an LLM (a local Ollama model **by default**,
-or the Anthropic API if `CKS_LLM_PROVIDER=anthropic`), asks it to
+Sends free‑form text to an LLM (a local Ollama model **by default**, the
+Anthropic API if `CKS_LLM_PROVIDER=anthropic`, or any OpenAI-compatible
+endpoint if `CKS_LLM_PROVIDER=openai_compatible`), asks it to
 extract entities and relationships as CKS JSON, then parses and
 validates that output with `cks‑core` before persisting it as a new
 session. **Nothing is committed if the LLM's output fails validation.**
@@ -15,9 +16,10 @@ session. **Nothing is committed if the LLM's output fails validation.**
 **No API key is needed** when a local Ollama server is reachable
 (default) — `construct_knowledge` auto‑detects it and uses `llama3.2`.
 Set `CKS_LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` to use the
-Anthropic API instead.
-
-**Requires** `ANTHROPIC_API_KEY` in the server's environment.
+Anthropic API instead, or `CKS_LLM_PROVIDER=openai_compatible` with
+`CKS_OPENAI_API_KEY` (and optionally `CKS_OPENAI_BASE_URL` /
+`CKS_OPENAI_MODEL`) to point at OpenAI, Groq, DeepSeek, Together,
+LM Studio, vLLM, or any other OpenAI-compatible API.
 
 **Parameters**
 
@@ -25,7 +27,7 @@ Anthropic API instead.
 |------|------|----------|--------------|
 | `text` | string | yes | Free-form text to extract a structure from. |
 | `hint` | string | no | Focus the extraction, e.g. `"focus on causal relations between diseases and symptoms"`. |
-| `model` | string | no | Model name for whichever provider is selected (e.g. an Ollama model tag, or an Anthropic model). Defaults to `CKS_OLLAMA_MODEL` / `CKS_LLM_MODEL` depending on provider. |
+| `model` | string | no | Model name for whichever provider is selected (e.g. an Ollama model tag, an Anthropic model, or an OpenAI-compatible model). Defaults to `CKS_OLLAMA_MODEL` / `CKS_LLM_MODEL` / `CKS_OPENAI_MODEL` depending on provider. |
 | `max_tokens` | integer | no | Defaults to `CKS_LLM_MAX_TOKENS` env var, or `4096`. |
 
 **Response**

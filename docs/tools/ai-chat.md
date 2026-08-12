@@ -1,6 +1,6 @@
 # AI Chat (`ai_chat`)
 
-Send a chat turn to an LLM (currently Anthropic only) that has access
+Send a chat turn to an LLM (Ollama or Anthropic) that has access
 to a restricted set of cks-mcp tools, scoped to a single session.
 
 The LLM can call tools (`query_subgraph`, `evolve_knowledge`, …); the
@@ -59,6 +59,10 @@ turn — the tool is stateless between calls.
 
 ## Limitations
 
-- Supports both **Ollama** (local, no API key) and **Anthropic**.
-- Provider is selected via `CKS_LLM_PROVIDER` (auto/ollama/anthropic), same as `construct_knowledge`.
+- Supports both **Ollama** (local, no API key) and **Anthropic** for
+  tool-calling. `construct_knowledge` additionally supports any
+  OpenAI-compatible endpoint for single-shot calls via the shared
+  `LLMClient` — `ai_chat` does not yet route through `LLMClient` and so
+  does not support `openai_compatible` tool-calling.
+- Provider is selected via `CKS_LLM_PROVIDER` (auto/ollama/anthropic).
 - Maximum 8 tool‑calling iterations per turn.

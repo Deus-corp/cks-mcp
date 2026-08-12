@@ -1,6 +1,6 @@
 # MCP Resources
 
-Beyond its 24 tools, `cks-mcp` exposes every active session and its version
+Beyond its 63 tools, `cks-mcp` exposes every active session and its version
 history as **MCP Resources** — read-only, URI-addressable views a client
 can list and read directly, without a tool call. Useful for a client UI
 that wants to browse what exists without asking an LLM to call

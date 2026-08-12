@@ -6,7 +6,7 @@
 versioned, verifiable place to put structured knowledge, instead of holding
 it — and quietly forgetting or hallucinating it — in a context window.
 
-It exposes **24 tools** over MCP, backed by the deterministic, immutable
+It exposes **63 tools** over MCP, backed by the deterministic, immutable
 semantics of [`cks-core`](https://github.com/Deus-corp/cks-core) and the
 async operational management of
 [`cks-runtime`](https://github.com/Deus-corp/cks-runtime). Every tool call
@@ -62,11 +62,11 @@ for the full picture.
 | Page | Covers |
 |------|--------|
 | [Getting Started](getting-started.md) | Install, connect to Claude Desktop, first session |
-| [Tools Reference](tools/index.md) | All 24 tools, grouped by function, with request/response examples |
+| [Tools Reference](tools/index.md) | All 63 tools, grouped by function, with request/response examples |
 | [Architecture](architecture/ARCHITECTURE.md) | Layering, components, and the [request lifecycle](architecture/request-lifecycle.md) |
 | [Security Model](security.md) | SSRF protection, provenance signing, defense in depth |
-| [Extension Model](extensions.md) | The opt-in `extensions` parameter and what each of the six checks |
-| [MCP Resources](protocol/resources.md) & [Prompts](protocol/prompts.md) | The two MCP-native features the server exposes beyond its 24 tools |
+| [Extension Model](extensions.md) | The opt-in `extensions` parameter and what each of the eleven checks |
+| [MCP Resources](protocol/resources.md) & [Prompts](protocol/prompts.md) | The two MCP-native features the server exposes beyond its 63 tools |
 | [ADRs](adr/) | Why specific architectural decisions were made — thin translator, provenance signing, middleware, extension model |
 
 ## Learning Path
@@ -84,11 +84,14 @@ for the full picture.
 
 ## Current Status
 
-The project is in active development (`v1.16.x` — see
+The project is production/stable (`v1.58.0` — see
 [CHANGELOG](../CHANGELOG.md) for the exact history and
 [ROADMAP](../ROADMAP.md) for what's next). It ships with a persistent
-SQLite-backed runtime, real HuggingFace-embedding semantic search, and a
-test suite covering core functionality, security, and integrations.
+SQLite/PostgreSQL-backed runtime, real HuggingFace-embedding semantic
+search, an LLM abstraction layer (Ollama/Anthropic/OpenAI-compatible), five
+autonomous agents (Critic, Enrichment, Fork Resolution, Pipeline, plus
+in-process sweepers), and a test suite (879 tests: 873 passing, 6 skipped)
+covering core functionality, security, and integrations.
 
 ## License
 

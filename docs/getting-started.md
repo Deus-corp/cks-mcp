@@ -4,7 +4,7 @@
 
 `cks-mcp` is an MCP server: it lets an LLM client (Claude Desktop, or any
 other MCP-speaking client) validate, evolve, branch, merge, and search a
-**Canonical Knowledge Structure** through 24 tools, instead of holding
+**Canonical Knowledge Structure** through 63 tools, instead of holding
 that knowledge loosely in its own context. See [the overview](index.md)
 for why that matters.
 
@@ -72,7 +72,7 @@ without your shell's environment.
    ```
 
 3. Save and fully restart Claude Desktop (quit, then reopen). A connector
-   icon for `cks-mcp` (24 tools) should appear.
+   icon for `cks-mcp` (63 tools) should appear.
 
 Any other MCP client that speaks JSON-RPC over stdio works the same way —
 point it at the `cks-mcp` executable.

@@ -2,7 +2,7 @@
 
 # Gossip Conflict Arbitration: LLM-Assisted Merge Resolution
 
-**Status:** Proposed
+**Status:** Implemented (`resolve_gossip_conflict`, `arbitrate_inference_conflict`)
 
 **Date:** 2026-08-04
 

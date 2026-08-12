@@ -4,8 +4,10 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-879%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-873%20passed%2C%206%20skipped-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
+
+> 🚀 **[Live demo →](https://deus-corp.github.io/cks-website/demo/demo.html)** — explore the CKS ecosystem graph directly in your browser, no server required.
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
 that gives LLMs a **canonical knowledge backbone**. It exposes **63
@@ -17,10 +19,6 @@ and the async operational management of `cks-runtime`.
 Every tool call creates a **Runtime Session** and **Transaction**,
 producing an immutable **Version** and collecting **Diagnostics**.
 This guarantees full auditability and reproducibility.
-
-📚 **Full documentation:** [docs/index.md](docs/index.md) — start with
-[Getting Started](docs/getting-started.md) or jump straight to the
-[Tools Reference](docs/tools/index.md).
 
 ---
 
@@ -35,6 +33,9 @@ Other projects build upon it:
 | **cks-mcp** | MCP server – exposes CKS to LLMs and autonomous agents. | [Deus-corp/cks-mcp](https://github.com/Deus-corp/cks-mcp) |
 | **cks-studio** | Visual workspace – explore, monitor, and manage graphs. | [Deus-corp/cks-studio](https://github.com/Deus-corp/cks-studio) |
 | **cks-website** | Documentation & demo site. | [Deus-corp/cks-website](https://github.com/Deus-corp/cks-website) |
+
+📖 **Full documentation, case studies, and an interactive demo**
+are available at the **[CKS Documentation Site](https://deus-corp.github.io/cks-website/)**.
 
 ---
 
@@ -347,7 +348,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-879+ tests, all passing.
+879+ tests: 873 passing, 6 skipped (require Postgres or optional providers not configured in a default environment).
 
 ---
 

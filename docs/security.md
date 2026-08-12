@@ -12,11 +12,13 @@ ever being treated as genuine.
 
 ## SSRF & DNS-Rebinding Protection
 
-`verify_source` and `ingest_document` are the only two tools that make an
-outbound HTTP request on the server's behalf, and both route through the
-same `_safe_request` implementation — the protection isn't duplicated
-per-tool, and a new tool that needs to fetch a URL gets the same guarantees
-by construction.
+`verify_source`, `ingest_document`, and `check_component_versions` are the
+tools that make an outbound HTTP request directly on the server's behalf,
+and the Enrichment Agent's source adapters (`enrichment/adapters.py`,
+`enrichment/robots.py`) do the same when fetching from Wikipedia/arXiv. All
+of them route through the same `_safe_request` implementation — the
+protection isn't duplicated per-caller, and a new tool or adapter that
+needs to fetch a URL gets the same guarantees by construction.
 
 The request goes through three checks, in order:
 
@@ -103,6 +105,17 @@ response itself said. The same dry-run-before-commit shape is used by
 `evolve_knowledge`, `merge_branch`, and `merge_knowledge` for the same
 reason: a version is exactly what every downstream reader will treat as
 trustworthy, so nothing becomes a version unless it's already known-good.
+
+## Optional HTTP Transport
+
+When `CKS_MCP_HTTP_PORT` is set, `server.py` starts an `aiohttp` server
+alongside the default stdio transport, with CORS enabled for local
+development (e.g. `cks-studio` running in a browser). This transport is
+meant for local development and trusted-network integration — it carries
+no additional authentication of its own beyond whatever the network it's
+bound to already provides, so it should not be exposed on an untrusted
+network. All the SSRF and provenance guarantees above apply identically
+regardless of which transport a request arrived through.
 
 ## Trust Boundary Summary
 

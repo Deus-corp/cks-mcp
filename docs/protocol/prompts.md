@@ -7,7 +7,7 @@ chain together or in what order.
 
 A prompt doesn't call any tools itself: `prompts/get` returns a single
 user-role text message, built from the prompt's arguments, that the
-connected model then acts on normally — using whichever of the 24 tools
+connected model then acts on normally — using whichever of the 63 tools
 that instruction implies.
 
 ## Available prompts

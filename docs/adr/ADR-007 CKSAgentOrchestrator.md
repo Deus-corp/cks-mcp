@@ -2,7 +2,7 @@
 
 # CKSAgentOrchestrator: Coordinating Researcher → Critic → Synthesizer → Arbiter
 
-**Status:** Proposed
+**Status:** Implemented (`cks_mcp/orchestrator.py`, `cks-pipeline-agent`)
 
 **Date:** 2026-08-07
 

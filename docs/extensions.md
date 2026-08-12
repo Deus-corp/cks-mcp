@@ -2,20 +2,21 @@
 
 `cks-mcp` validates structures against a small, normative core rule set by
 default (unique identities, no dangling relations, derivation arity and
-acyclicity). Beyond that, six **opt-in extensions** add domain-specific
+acyclicity). Beyond that, **eleven opt-in extensions** add domain-specific
 checks — each one defined in `cks-core` as a `Constraint`, and activated
-per call via `validate_knowledge`'s `extensions` parameter:
+per call via `validate_knowledge`'s (or `evolve_knowledge`'s) `extensions`
+parameter:
 
 ```json
 {"json_data": "...", "extensions": ["embedding_projection", "type_hierarchy"]}
 ```
 
-All six share one property: **additive by default**. A structure that
+All eleven share one property: **additive by default**. A structure that
 doesn't use the relevant Knowledge Object type (`EmbeddingProjection`,
-`TypeRule`, `MutualExclusionRule`, ...) is entirely unaffected by the
-corresponding extension, whether or not you request it — the check only
-ever activates on structures that opt in *structurally*, by containing the
-declaration type it looks for.
+`TypeRule`, `MutualExclusionRule`, `InferenceStep`, ...) is entirely
+unaffected by the corresponding extension, whether or not you request it —
+the check only ever activates on structures that opt in *structurally*, by
+containing the declaration type it looks for.
 
 | Name | Constraint identity | Checks |
 |------|---------------------|--------|
@@ -25,6 +26,18 @@ declaration type it looks for.
 | `relation_type` | `CKS-EXT-RELATION-TYPE` | Relations connect object types allowed by any declared `TypeRule`. |
 | `mutual_exclusion` | `CKS-EXT-MUTUAL-EXCLUSION` | No pair of relation types declared mutually exclusive both connect the same source→target pair. |
 | `functional_relation` | `CKS-EXT-FUNCTIONAL-RELATION` | No source has more than one target via a relation type declared single-valued. |
+| `inference_referential_integrity` | `CKS-EXT-INFERENCE-REFERENTIAL-INTEGRITY` | Every `InferenceStep` references premises/conclusion that actually exist (cks-core ADR-001). |
+| `confidence_bounds` | `CKS-EXT-CONFIDENCE-BOUNDS` | An `InferenceStep`'s confidence value stays within its declared bounds. |
+| `supersession_chain` | `CKS-EXT-SUPERSESSION-CHAIN` | A chain of superseding `InferenceStep`s doesn't cycle or fork inconsistently. |
+| `inference_confidence_conflict` | `CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT` | Flags inference conflicts for `arbitrate_inference_conflict` / the reasoning sweepers (cks-runtime ADR-009) to resolve. |
+| `temporal_validity` | `CKS-EXT-TEMPORAL-VALIDITY` | An object's `valid_until` window hasn't closed (cks-core ADR-003; feeds `resolve_temporal_conflict` and cks-runtime's `TemporalStalenessSweeper`, ADR-011). |
+
+> **Not yet wired up:** cks-core's `layering_rule` constraint
+> (`LayeringRuleConstraint`, added in cks-core 1.21.0) has no entry in
+> `cks-mcp`'s `EXTENSION_ALIASES` yet, so it cannot currently be requested
+> by name through `validate_knowledge`/`evolve_knowledge`. This is a real
+> gap in the code, not just in this document — tracked for a future
+> release.
 
 ## `embedding_projection`
 
@@ -103,6 +116,27 @@ directly for a read-only report against the current state without
 attempting to validate or commit anything. Same rules, same rule objects —
 different tool depending on whether you want validation-time enforcement
 or an on-demand check.
+
+## Reasoning domain: `inference_referential_integrity`, `confidence_bounds`, `supersession_chain`, `inference_confidence_conflict`
+
+These four check the belief-revision machinery cks-core added for
+`InferenceStep` objects (cks-core ADR-001–004): that a step's premises and
+conclusion actually exist, that its confidence value is well-formed, that a
+chain of superseding steps stays acyclic, and that unresolved confidence
+conflicts are flagged for `arbitrate_inference_conflict` or cks-runtime's
+inference/provenance/temporal staleness sweepers to pick up. They were
+defined in `cks-core` well before `cks-mcp` could resolve them by name —
+see the CHANGELOG for the exact release that closed that gap.
+
+## `temporal_validity`
+
+Checks an object's optional `valid_until` field (ISO-8601) against the
+current time, flagging anything past its expiry window
+(cks-core ADR-003). This is the mechanical check behind
+`resolve_temporal_conflict` and cks-runtime's `TemporalStalenessSweeper`
+(ADR-011) — the sweeper detects staleness proactively in the background;
+this extension lets a caller ask the same question synchronously at
+validation time.
 
 ## Why unconditional enforcement matters
 

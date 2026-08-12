@@ -99,7 +99,7 @@ managing its own validation stack.
 
 ### `tools/` — Operation Handlers
 
-Each of the 24 tools lives in its own package under `tools/<name>/`
+Each of the 63 tools lives in its own package under `tools/<name>/`
 (a small number of packages hold two closely related tools, e.g.
 `tools/revert/` has both `list_versions` and `revert_version`) — see
 [Tools Reference](../tools/index.md) for the full, grouped list with
@@ -162,11 +162,70 @@ Resolves `~/.cks-mcp` (or `CKS_MCP_DATA_DIR`) once, cwd-independent — the
 one place the SQLite database, the persisted provenance secret, and the
 optional `.env` file all live.
 
+### `llm/` and `llm_providers.py` — LLM Abstraction
+
+`llm/client.py`'s `LLMClient` is the single entry point every LLM-backed
+tool (`ai_chat`, `construct_knowledge`, `arbitrate_inference_conflict`,
+`resolve_gossip_conflict`) calls through, whether the configured provider
+is Ollama, Anthropic, or any OpenAI-compatible endpoint. `llm_providers.py`
+holds the per-provider request/response translation (e.g. Ollama's
+`/api/chat` tool-calling shape normalised into the Anthropic content-block
+envelope), and `llm_telemetry.py` records token/cost usage for
+`get_metrics`.
+
+### `orchestrator.py` and `pipeline/` — Multi-Agent Pipeline (ADR-007)
+
+`CKSAgentOrchestrator` (`run_sequential` / `run_concurrent`) coordinates a
+sequence of `AgentStep` implementations through the persistent outbox and
+CRDT registers. `pipeline/researcher_step.py`, `synthesizer_step.py`,
+`reviewer_step.py`, and the terminal `arbiter_step.py` each commit their
+result via `evolve_knowledge` with provenance and a semantic edge from the
+previous step; shared helpers live in `pipeline/common.py` and pipeline
+status transitions in `pipeline/schema.py`. `pipeline_agent.py` is the
+`cks-pipeline-agent` console-script entry point that runs the pipeline
+autonomously.
+
+### `critic_agent.py`, `enrichment_agent.py`, `fork_resolution_agent.py` — Standalone Agents
+
+Three companion processes, each following the same outbox-polling
+architecture: `cks-critic-agent` resolves gossip/inference/provenance/
+temporal/contradiction/CRDT-fork conflicts; `cks-enrichment-agent` pulls
+external context (Wikipedia, arXiv) for objects marked via
+`request_enrichment`; `cks-fork-agent` resolves CRDT MV-Register forks,
+preferring the LCA Arbiter (see below) before falling back to a mechanical
+tie-break. `agent_loop.py` holds the shared poll/claim/complete/dead-letter loop all
+three build on; `conflict_inbox.py` is the outbox-backed queue
+`fork_resolution_agent.py` reads `crdt_fork` tasks from.
+
+### `lca_arbiter.py` — Topology-Aware Fork Resolution
+
+A fork-resolution policy that analyses the Knowledge Graph structure
+before picking a winner: finds the lowest common ancestor of conflicting
+objects via `query_subgraph`, extracts each branch's delta, and classifies
+the conflict as `non_overlapping`, `competing_claims`, or
+`erroneous_branch`. Disjoint branches merge automatically; otherwise a
+`Resolution` object is created for a human or the Critic Agent to review.
+Used by `fork_resolution_agent.py` when `use_lca` is enabled (the default).
+
+### `gossip.py` — Gossip Adapter Wiring
+
+Builds the CRDT store and gossip transport `cks-runtime` needs for
+distributed replication, and is the integration point the standalone
+agents and `plugins/gossip_plugin.py` share so they operate on the same
+underlying storage lock (see cks-runtime's storage-layer thread safety).
+
+### `plugin.py` / `plugins/` — Plugin Framework
+
+`plugin.py` defines `CksPlugin` and `PluginRegistry` with a fully async
+`setup()`/`teardown()` lifecycle, invoked from `server.py`'s startup and
+shutdown. `plugins/` holds the built-in plugins (e.g. `gossip_plugin.py`,
+the fastembed embedding plugin) discovered and reported via `list_plugins`.
+
 ## 5. Where to go next
 
 - [Request Lifecycle](request-lifecycle.md) — how a `validate_knowledge`
   call actually flows through these components.
 - [Security Model](../security.md) — the full SSRF and provenance story.
-- [Extension Model](../extensions.md) — the six opt-in validation
+- [Extension Model](../extensions.md) — the eleven opt-in validation
   extensions.
 - [ADRs](../adr/) — why specific components look the way they do.
