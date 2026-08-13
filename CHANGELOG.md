@@ -3,6 +3,13 @@
 
 ---
 
+## [1.59.0] - 2026-08-13
+
+### Added
+- **`start_pipeline` tool** – new MCP tool that enqueues `pipeline_research_request` outbox tasks for selected session objects, enabling cks-studio to start an ADR-007 agent pipeline run from the graph UI. Supports `session_id`, optional `object_ids`, `mode`, `parent_session_id` for Phase 1 sandbox isolation, and `schema_version`. Returns `run_id`, `enqueued_objects`, `status`. Tool count increased from 63 to 64.
+
+---
+
 ## [1.58.0] - 2026-08-11
 
 ### Added

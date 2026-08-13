@@ -141,6 +141,8 @@ from cks_mcp.tools.serialize import serialize_knowledge
 from cks_mcp.tools.serialize.schema import SERIALIZE_KNOWLEDGE_SCHEMA
 from cks_mcp.tools.start_agent import start_agent
 from cks_mcp.tools.start_agent.schema import START_AGENT_SCHEMA
+from cks_mcp.tools.start_pipeline import start_pipeline
+from cks_mcp.tools.start_pipeline.schema import START_PIPELINE_SCHEMA
 from cks_mcp.tools.stop_agent import stop_agent
 from cks_mcp.tools.stop_agent.schema import STOP_AGENT_SCHEMA
 from cks_mcp.tools.suggest_evolution import suggest_evolution
@@ -295,6 +297,10 @@ TOOLS = {
     "stop_agent": {
         **STOP_AGENT_SCHEMA,
         "handler": _wrap("stop_agent", "agent_id")(stop_agent),
+    },
+    "start_pipeline": {
+        **START_PIPELINE_SCHEMA,
+        "handler": _wrap_open_session("start_pipeline", "session_id")(start_pipeline),
     },
     "request_process_stop": {
         **REQUEST_PROCESS_STOP_SCHEMA,
