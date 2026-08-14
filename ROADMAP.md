@@ -6,16 +6,17 @@ towards a stable, production-ready platform and beyond.
 
 ---
 
-# Current Status (v1.58.0 — August 2026)
+# Current Status (v1.59.0 — August 2026)
 
-CKS has matured into a **63‑tool, 1 750+ test autonomous knowledge platform**
-with five persistent agents (Critic, Enrichment, Fork Resolution, Pipeline,
-plus the in‑process sweepers), seven background sweepers, a plugin framework,
-an LLM abstraction layer with three providers, and a CRDT adapter (ADR‑013).
-It provides LLMs with a verifiable, self‑maintaining knowledge backbone that
-runs entirely on local infrastructure (SQLite/Postgres, fastembed, optional
-Ollama/Anthropic/OpenAI‑compatible). See [README](README.md#available-tools)
-for the full tool list.
+CKS MCP has matured into a **64-tool, 1 750+ test autonomous knowledge platform** with:
+
+- Five persistent agents (Critic, Enrichment, Fork Resolution, Pipeline, and in-process sweepers).
+- Seven background sweepers.
+- Plugin framework.
+- LLM abstraction layer (Ollama, Anthropic, OpenAI-compatible).
+- CRDT adapter (ADR-013 Stage 1–3).
+- Phase 1 safety infrastructure.
+- Start Pipeline MCP tool (`start_pipeline`) for graph-driven pipeline runs.
 
 ## ✅ Completed Milestones
 
@@ -103,42 +104,33 @@ for the full tool list.
 
 ---
 
-# Next Up — Visualization, Graph Gallery
+# Next Up
 
-## Visualization & Dashboard (🟡 P1)
+## Real MCP Session Presence (🟡 P0)
 
-**Goal:** An interactive web dashboard for exploring the knowledge graph,
-inference chains, and fork resolution. `cks-studio` already covers parts of
-this (session graph view, LLM settings); this tracks the remaining pieces.
+- WebSocket/SSE endpoint publishing `SessionCreated`, `VersionCreated`, `TransactionCommitted`, `GossipConflictDetected`, `CRDTForkDetected`, etc., so thin clients (cks-studio) can subscribe and update live.
 
-- [ ] **Fork & Conflict Diff View** – highlight parallel branches from the
-  LCA Arbiter's `extract_delta` output (arbiter itself is implemented, see
-  Completed Milestones).
-- [ ] **Inference Chain Inspector** – trace `depends_on` from conclusion to
-  base axioms in the UI.
-- [ ] **Real‑time Gossip Visualizer** – live updates via WebSocket/SSE.
-- [ ] **Color‑coded nodes** by type and status (stale, conflict, resolved).
+## Graph Gallery: Clone & Filters (🟡 P1)
 
-## Graph Gallery (🟡 P1)
+- `clone_graph` MCP tool to copy a public graph into the caller's session.
+- Graph gallery filters and health score integration.
 
-- [ ] **Public gallery UI** – browse graphs registered with `public: true`.
-- [ ] **Filters** by category, tags, date, popularity.
-- [ ] **Clone a public graph** into the user's own session.
+## Cross-Graph Analysis (🔵 P3)
+
+- `compare_graphs(graph_a, graph_b)` — shared objects and contradictions.
+- `merge_graphs(graph_a, graph_b)` — conflict-controlled merge.
+- `link_graphs(graph_a, graph_b, relation_type)` — cross-graph relations.
 
 ## Plugin Ecosystem Documentation (🟢 P2)
 
-- [ ] **"Creating your first plugin" tutorial** in `docs/plugins.md`.
-- [ ] **Template repository** `cks‑plugin‑template` with CI.
-- [ ] **Plugin discovery** in the gallery.
+- «Creating your first plugin» tutorial.
+- Template repository `cks-plugin-template`.
+- Plugin discovery in gallery.
 
-## Cross‑Graph Analysis (🔵 P3)
+## Visualization & Dashboard (🟡 P1)
 
-- [ ] **`compare_graphs(graph_a, graph_b)`** – find shared objects and
-  contradictions.
-- [ ] **`merge_graphs(graph_a, graph_b)`** – combine two graphs with
-  conflict‑controlled merge.
-- [ ] **`link_graphs(graph_a, graph_b, relation_type)`** – establish
-  cross‑graph relations.
+- Real-time Gossip Visualizer.
+- Color-coded nodes by status (stale, conflict, resolved).
 
 ---
 
