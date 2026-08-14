@@ -117,6 +117,17 @@ bound to already provides, so it should not be exposed on an untrusted
 network. All the SSRF and provenance guarantees above apply identically
 regardless of which transport a request arrived through.
 
+Alongside `POST /mcp` (JSON-RPC), the HTTP transport also exposes
+`GET /events` (and `GET /events/{session_id}`), a Server-Sent Events
+(SSE) stream of runtime lifecycle events — `SessionCreated`,
+`VersionCreated`, `TransactionCommitted`, `GossipConflictDetected`,
+`CRDTForkDetected`, and others — so a thin client like `cks-studio` can
+react to changes made by other users or agents without polling. See
+`src/cks_mcp/sse.py` (the EventBus-to-subscriber broadcaster) and
+`src/cks_mcp/http_events.py` (the aiohttp route). Same trust boundary as
+`/mcp`: no auth today (`CKS_MCP_HTTP_TOKEN` is a reserved extension
+point, not yet enforced).
+
 ## Trust Boundary Summary
 
 | Layer | Responsibility |

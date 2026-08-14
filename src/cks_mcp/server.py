@@ -20,6 +20,7 @@ from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
+from cks_mcp.http_events import register_sse_routes
 from cks_mcp.observability import setup_event_subscriptions
 from cks_mcp.paths import data_dir
 from cks_mcp.plugin import PluginRegistry
@@ -400,11 +401,16 @@ async def main() -> None:
 
     # --- HTTP transport (optional) ---
     http_runner = None
+    sse_broadcaster = None
     if http_port is not None:
         try:
             app = web.Application()
             app['runtime'] = runtime
             app.router.add_post('/mcp', _http_handler)
+            # Real-time session event streaming (SSE) -- see http_events.py
+            # and sse.py. Only available when the HTTP transport itself is
+            # enabled; there is no stdio equivalent.
+            sse_broadcaster = register_sse_routes(app, runtime)
 
             # CORS: разрешаем все источники для локальной разработки
             cors = aiohttp_cors.setup(app, defaults={
@@ -472,6 +478,8 @@ async def main() -> None:
     finally:
         if http_runner:
             await http_runner.cleanup()
+        if sse_broadcaster:
+            sse_broadcaster.stop()
         await registry.teardown_all(plugin_handles)
         await runtime.aclose()
 

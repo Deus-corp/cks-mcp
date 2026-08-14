@@ -106,9 +106,9 @@ CKS MCP has matured into a **64-tool, 1 750+ test autonomous knowledge platform*
 
 # Next Up
 
-## Real MCP Session Presence (🟡 P0)
+## Real MCP Session Presence (🟢 in progress)
 
-- WebSocket/SSE endpoint publishing `SessionCreated`, `VersionCreated`, `TransactionCommitted`, `GossipConflictDetected`, `CRDTForkDetected`, etc., so thin clients (cks-studio) can subscribe and update live.
+- SSE endpoint (`GET /events`, `GET /events/{session_id}`) publishing `SessionCreated`, `VersionCreated`, `TransactionCommitted`, `GossipConflictDetected`, `CRDTForkDetected`, etc., so thin clients (cks-studio) can subscribe and update live. Implemented in `src/cks_mcp/sse.py` + `src/cks_mcp/http_events.py`, wired into the optional HTTP transport (`CKS_MCP_HTTP_PORT`); cks-studio now consumes it via `useSessionEvents`. WebSocket was considered and dropped in favor of SSE (one-way is sufficient, simpler to consume from the browser). Remaining: `CKS_MCP_HTTP_TOKEN` auth on the endpoint (extension point left in `http_events.py`, not yet implemented).
 
 ## Graph Gallery: Clone & Filters (🟡 P1)
 

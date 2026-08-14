@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-882%20passed%2C%206%20skipped-brightgreen)
+![Tests](https://img.shields.io/badge/tests-899%20passed%2C%206%20skipped-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 > 🚀 **[Live demo →](https://deus-corp.github.io/cks-website/demo/demo.html)** — explore the CKS ecosystem graph directly in your browser, no server required.
@@ -136,6 +136,31 @@ for the full list of environment variables and how to set them via a
 
 See [Getting Started](docs/getting-started.md) for a walkthrough of your
 first session once the server is connected.
+
+---
+
+# HTTP Transport & Real-Time Events
+
+Setting `CKS_MCP_HTTP_PORT` starts an optional `aiohttp` server
+alongside the default stdio transport (used e.g. by `cks-studio` running
+in a browser):
+
+```bash
+CKS_MCP_HTTP_PORT=8765 cks-mcp
+```
+
+- `POST /mcp` — the same JSON-RPC surface as stdio, over HTTP.
+- `GET /events` / `GET /events/{session_id}` — a Server-Sent Events
+  (SSE) stream of runtime lifecycle events (`SessionCreated`,
+  `VersionCreated`, `TransactionCommitted`, `GossipConflictDetected`,
+  `CRDTForkDetected`, and more), so a client can react live instead of
+  polling. Supports an optional `?event_types=A,B` filter. Each line is
+  `data: {"event": "...", "session_id": "...", "timestamp": "...", "detail": {...}}`.
+
+This transport has no authentication of its own yet and is meant for
+local development / trusted networks — see
+[HTTP Transport security notes](docs/security.md#optional-http-transport)
+for details.
 
 ---
 
@@ -348,7 +373,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-882+ tests: 882 passing, 6 skipped (require Postgres or optional providers not configured in a default environment).
+899+ tests: 893 passing, 6 skipped (require Postgres or optional providers not configured in a default environment).
 
 ---
 

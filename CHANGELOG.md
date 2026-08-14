@@ -3,6 +3,20 @@
 
 ---
 
+## [1.60.0] - 2026-08-14
+
+### Added
+- **SSE real-time event streaming** – new optional HTTP endpoint `GET /events` and `GET /events/{session_id}` over Server-Sent Events, broadcasting runtime lifecycle events (`SessionCreated`, `VersionCreated`, `TransactionCommitted`, `GossipConflictDetected`, `CRDTForkDetected`, etc.) so thin clients like cks-studio can react live instead of polling.
+- **SSE filtering** – supports optional `?event_types=A,B` query param and path/query `session_id` filtering.
+- **SSEBroadcaster** – internal bridge between `Runtime` EventBus and HTTP subscribers with bounded queues and slow-consumer drop-oldest policy.
+- **Documentation** – README and security docs updated for HTTP transport and SSE endpoint.
+
+### Changed
+- `pytest-aiohttp` added to dev dependencies for SSE integration tests.
+- ROADMAP updated: Real MCP Session Presence marked in progress.
+
+---
+
 ## [1.59.0] - 2026-08-13
 
 ### Added
