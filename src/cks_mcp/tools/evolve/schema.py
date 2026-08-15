@@ -85,10 +85,13 @@ EVOLVE_KNOWLEDGE_SCHEMA = {
                     "(same names as validate_knowledge's 'extensions', e.g. "
                     "'inference_referential_integrity', 'confidence_bounds', "
                     "'supersession_chain', 'inference_confidence_conflict', "
-                    "'stale_premise'). Without this, evolving InferenceStep fields "
-                    "(directly via 'update_object', or via "
+                    "'stale_premise', 'claim_integrity'). Without this, evolving "
+                    "InferenceStep fields (directly via 'update_object', or via "
                     "'resolve_inference_conflict') is only checked against the always-on "
-                    "built-in constraints, not the reasoning-domain ones."
+                    "built-in constraints, not the reasoning-domain ones. Likewise, "
+                    "adding or editing a Claim object (e.g. via 'add_object') is only "
+                    "checked for shape/consistency at commit time if 'claim_integrity' "
+                    "is included here."
                 ),
             },
         },

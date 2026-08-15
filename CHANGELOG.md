@@ -3,6 +3,18 @@
 
 ---
 
+## [1.67.0] - 2026-08-15
+
+### Added
+- **`claim_integrity` extension alias** – `validate_knowledge` and `evolve_knowledge` now resolve the extension name `claim_integrity` to `CKS-EXT-CLAIM-INTEGRITY`, enabling Claim shape/consistency validation on demand.
+- **Claim validation docs** – `validate_knowledge` schema now includes a valid Claim example, and `evolve_knowledge` schema notes that adding/editing Claim objects is only checked when `claim_integrity` is requested.
+- **Tests** – integration coverage for valid/invalid Claims through both `validate_knowledge` and `evolve_knowledge`, with and without the extension.
+
+### Changed
+- No production behavior change unless `claim_integrity` is explicitly passed in `extensions`.
+
+---
+
 ## [1.66.0] - 2026-08-15
 
 ### Added

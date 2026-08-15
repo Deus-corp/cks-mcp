@@ -42,6 +42,9 @@ EXTENSION_ALIASES: dict[str, str] = {
     # never added here -- so callers (e.g. resolve_temporal_conflict)
     # could not opt into it by name at commit time until now.
     "temporal_validity": "CKS-EXT-TEMPORAL-VALIDITY",
+    # Claim domain (asserted statements + support/contradiction graph,
+    # see cks-core cks/constraints/claim.py).
+    "claim_integrity": "CKS-EXT-CLAIM-INTEGRITY",
 }
 
 # Trust-bearing types are enforced unconditionally the moment they

@@ -38,7 +38,8 @@ VALIDATE_KNOWLEDGE_SCHEMA = {
                     "'embedding_projection', 'verification_record', 'type_hierarchy', "
                     "'relation_type', 'mutual_exclusion', 'functional_relation', "
                     "'inference_referential_integrity', 'confidence_bounds', "
-                    "'supersession_chain', 'inference_confidence_conflict' (see ADR-001: "
+                    "'supersession_chain', 'inference_confidence_conflict', "
+                    "'claim_integrity' (see ADR-001: "
                     "these apply to 'InferenceStep' objects -- "
                     "{'identity': {'id': ..., 'type': 'InferenceStep', 'name': ...}, "
                     "'structure': {'premises': [...], 'conclusion': <object_id>, "
@@ -59,6 +60,13 @@ VALIDATE_KNOWLEDGE_SCHEMA = {
                     '{"objects": ['
                     '{"identity": {"id": "td-1", "type": "TypeDefinition", "name": "Planet"}, "structure": {"type_name": "Planet", "parent_type": "CelestialBody"}}, '
                     '{"identity": {"id": "tr-1", "type": "TypeRule", "name": "orbits rule"}, "structure": {"relation_type": "orbits", "allowed_source_types": ["Planet", "Moon"], "allowed_target_types": ["Star", "Planet"]}}'
+                    "]}."
+                    " Example of a valid Claim ('claim_integrity'): "
+                    '{"objects": ['
+                    '{"identity": {"id": "claim-1", "type": "Claim", "name": "Earth orbits Sun"}, '
+                    '"structure": {"statement": "The Earth orbits the Sun.", "confidence": 0.97, '
+                    '"author": "researcher-agent", "created_at": "2026-08-15T00:00:00Z", '
+                    '"status": "accepted", "supporting_claims": [], "contradicting_claims": []}}'
                     "]}."
                 ),
             },
