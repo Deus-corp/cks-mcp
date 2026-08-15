@@ -10,7 +10,7 @@
 > 🚀 **[Live demo →](https://deus-corp.github.io/cks-website/demo/demo.html)** — explore the CKS ecosystem graph directly in your browser, no server required.
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
-that gives LLMs a **canonical knowledge backbone**. It exposes **65
+that gives LLMs a **canonical knowledge backbone**. It exposes **68
 tools** (listed under *Available Tools* below) for validation, evolution,
 branching, merging, semantic search, contradiction detection, sandboxing,
 and more, backed by the deterministic, immutable semantics of `cks-core`
@@ -47,7 +47,7 @@ are available at the **[CKS Documentation Site](https://deus-corp.github.io/cks-
    models instead, set `CKS_EMBEDDING_PROVIDER=huggingface` and
    `export HF_TOKEN=hf_...`. See [Getting Started](docs/getting-started.md).
 3. In the chat, start your message with **"Use cks-mcp to…"**.
-4. Claude automatically picks the right tool from the 65 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
+4. Claude automatically picks the right tool from the 68 available — validation, evolution, branching, merging, source verification, contradiction detection, semantic search, subgraph queries, sandboxing, and more.
 5. Every operation is logged, versioned, and stored in a persistent SQLite database.
 
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
@@ -55,7 +55,7 @@ are available at the **[CKS Documentation Site](https://deus-corp.github.io/cks-
 
 ![CKS Demo](https://github.com/Deus-corp/cks-mcp/releases/download/v1.10.2/demo.gif)
 
-*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. All 65 tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, gossip conflict resolution, and more — all triggered by plain English.*
+*In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. All 68 tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, gossip conflict resolution, and more — all triggered by plain English.*
 
 ---
 
@@ -132,7 +132,7 @@ for the full list of environment variables and how to set them via a
    ```
 
 3. Save the file and fully restart Claude Desktop (Cmd+Q, then reopen).
-   After restart, a connector icon will appear – `cks-mcp` with 65 tools is ready to use.
+   After restart, a connector icon will appear – `cks-mcp` with 68 tools is ready to use.
 
 See [Getting Started](docs/getting-started.md) for a walkthrough of your
 first session once the server is connected.
@@ -146,7 +146,7 @@ alongside the default stdio transport (used e.g. by `cks-studio` running
 in a browser):
 
 ```bash
-CKS_MCP_HTTP_PORT=8765 cks-mcp
+CKS_MCP_HTTP_PORT=8768 cks-mcp
 ```
 
 - `POST /mcp` — the same JSON-RPC surface as stdio, over HTTP.
@@ -165,7 +165,7 @@ either as `Authorization: Bearer <token>` or, for browser
 `?token=<token>` query parameter:
 
 ```bash
-CKS_MCP_HTTP_PORT=8765 CKS_MCP_HTTP_TOKEN=change-me cks-mcp
+CKS_MCP_HTTP_PORT=8768 CKS_MCP_HTTP_TOKEN=change-me cks-mcp
 ```
 
 ```
@@ -179,7 +179,7 @@ for details.
 
 # Available Tools
 
-65 tools, grouped by function. Full reference with parameters and
+68 tools, grouped by function. Full reference with parameters and
 real request/response examples: [`docs/tools/`](docs/tools/index.md).
 
 | Group | Tools |
@@ -260,7 +260,7 @@ CKS_MCP_DB_PATH=~/.cks-mcp/cks_mcp.db cks-fork-agent
 Env vars: `CKS_MCP_DB_PATH` (shared storage path), `CKS_FORK_AGENT_POLL_INTERVAL`
 (seconds between polls, default 30), `CKS_FORK_AGENT_MAX_RETRIES` (attempts
 before dead‑lettering, default 3), `CKS_FORK_AGENT_HEARTBEAT_INTERVAL` (lease
-renewal interval, default 65). See `cks_mcp/fork_resolution_agent.py` for the
+renewal interval, default 68). See `cks_mcp/fork_resolution_agent.py` for the
 resolution policy in full.
 
 > **Note:** `critic_agent.py` also claims `crdt_fork` tasks from the same
