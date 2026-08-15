@@ -36,6 +36,19 @@ async def register_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
     tags = arguments.get("tags") or ""
     public = bool(arguments.get("public", False))
     source_graph_name = arguments.get("source_graph_name") or None
+    visibility = arguments.get("visibility") or None
+    team = arguments.get("team") or None
+
+    if visibility is not None and visibility not in ("private", "team", "public"):
+        return {
+            "error": "invalid_parameter",
+            "message": "visibility must be one of 'private', 'team', 'public'.",
+        }
+    if visibility == "team" and not team:
+        return {
+            "error": "missing_parameter",
+            "message": "visibility='team' requires a `team` name.",
+        }
 
     await runtime.storage.register_graph(
         name=name,
@@ -44,6 +57,15 @@ async def register_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
         tags=tags,
         public=public,
         source_graph_name=source_graph_name,
+        visibility=visibility,
+        team=team,
     )
 
-    return {"registered": True, "name": name, "public": public}
+    resolved_visibility = visibility or ("public" if public else "private")
+    return {
+        "registered": True,
+        "name": name,
+        "public": resolved_visibility == "public",
+        "visibility": resolved_visibility,
+        "team": team,
+    }

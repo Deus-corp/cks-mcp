@@ -15,7 +15,8 @@ from cks_runtime.runtime import Runtime
 async def list_graphs(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     tag = arguments.get("tag") or None
     public_only = bool(arguments.get("public_only", False))
+    team = arguments.get("team") or None
 
-    graphs = await runtime.storage.list_graphs(tag, public_only)
+    graphs = await runtime.storage.list_graphs(tag, public_only, team=team)
 
     return {"graphs": graphs}

@@ -81,9 +81,14 @@ async def test_no_match(mock_runtime):
 
 async def test_passes_tag_and_public_only_through_to_list_graphs(mock_runtime):
     await search_graphs(mock_runtime, {"query": "alpha", "tag": "demo", "public_only": True})
-    mock_runtime.storage.list_graphs.assert_awaited_once_with("demo", True)
+    mock_runtime.storage.list_graphs.assert_awaited_once_with("demo", True, team=None)
 
 
 async def test_defaults_tag_none_and_public_only_false(mock_runtime):
     await search_graphs(mock_runtime, {"query": "alpha"})
-    mock_runtime.storage.list_graphs.assert_awaited_once_with(None, False)
+    mock_runtime.storage.list_graphs.assert_awaited_once_with(None, False, team=None)
+
+
+async def test_team_passed_through(mock_runtime):
+    await search_graphs(mock_runtime, {"query": "alpha", "team": "acme-eng"})
+    mock_runtime.storage.list_graphs.assert_awaited_once_with(None, False, team="acme-eng")

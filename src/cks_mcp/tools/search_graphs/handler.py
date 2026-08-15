@@ -27,8 +27,9 @@ async def search_graphs(runtime: Runtime, arguments: dict[str, Any]) -> dict[str
 
     tag = arguments.get("tag") or None
     public_only = bool(arguments.get("public_only", False))
+    team = arguments.get("team") or None
 
-    candidates = await runtime.storage.list_graphs(tag, public_only)
+    candidates = await runtime.storage.list_graphs(tag, public_only, team=team)
 
     needle = query.strip().lower()
     matches = [

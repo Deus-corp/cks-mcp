@@ -25,6 +25,17 @@ LIST_GRAPHS_SCHEMA = {
                     "public and private)."
                 ),
             },
+            "team": {
+                "type": "string",
+                "description": (
+                    "Optional team namespace. When given (and public_only is "
+                    "false), also includes graphs registered with "
+                    "visibility='team' and this same team, in addition to "
+                    "public graphs. There is no authentication behind this -- "
+                    "it's a caller-supplied namespace, like the registry "
+                    "name itself."
+                ),
+            },
         },
         "required": [],
     },

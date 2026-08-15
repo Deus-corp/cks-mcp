@@ -236,6 +236,8 @@ async def test_successful_update(mock_runtime, monkeypatch):
             "description": "desc",
             "tags": "t1,t2",
             "public": False,
+            "visibility": None,
+            "team": None,
         },
     )
 

@@ -33,10 +33,33 @@ REGISTER_GRAPH_SCHEMA = {
             "public": {
                 "type": "boolean",
                 "description": (
-                    "Whether this graph is discoverable in the gallery by other "
-                    "callers, via list_graphs(public_only=true) or search_graphs. "
-                    "Defaults to false (private, discoverable only by name via "
-                    "get_graph)."
+                    "Legacy shorthand for visibility='public' (true) / "
+                    "visibility='private' (false). Ignored if `visibility` is "
+                    "also given. Defaults to false (private, discoverable only "
+                    "by name via get_graph)."
+                ),
+            },
+            "visibility": {
+                "type": "string",
+                "enum": ["private", "team", "public"],
+                "description": (
+                    "Who can discover this graph via list_graphs/search_graphs "
+                    "(get_graph by exact name always works regardless). "
+                    "'private' (default): nobody but a caller who already knows "
+                    "the name. 'team': callers who pass this same `team` name to "
+                    "list_graphs/search_graphs. 'public': everyone, via "
+                    "list_graphs(public_only=true) or search_graphs. Takes "
+                    "precedence over the legacy `public` boolean when given."
+                ),
+            },
+            "team": {
+                "type": "string",
+                "description": (
+                    "Required when visibility='team': the team namespace this "
+                    "graph is scoped to. There is no authentication behind this "
+                    "-- it's a caller-supplied namespace, like the registry name "
+                    "itself, so treat it as shared-secret-ish rather than a real "
+                    "access control boundary."
                 ),
             },
             "source_graph_name": {

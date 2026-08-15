@@ -199,6 +199,8 @@ async def update_registered_graph(
             "description": record.get("description", ""),
             "tags": record.get("tags", ""),
             "public": bool(record.get("public", False)),
+            "visibility": record.get("visibility"),
+            "team": record.get("team"),
         },
     )
     if "error" in register_result:

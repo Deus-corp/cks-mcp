@@ -3,6 +3,22 @@
 
 ---
 
+## [1.64.0] - 2026-08-15
+
+### Added
+- **Graph visibility and team scoping** – `register_graph`, `list_graphs`, `search_graphs`, and `update_registered_graph` now support `visibility` (`private` | `team` | `public`) and an optional `team` namespace. The old `public` flag remains supported for backward compatibility.
+- **Team filter** – `list_graphs` and `search_graphs` can filter by `team`.
+- **Schema propagation** – storage backends from `cks-runtime` now persist `visibility` and `team`.
+
+### Changed
+- `update_registered_graph` preserves visibility/team when re-registering graphs.
+- Tool schemas and handlers updated to accept and return the new fields.
+
+### Tests
+- Full test suite is green (`922 passed / 6 skipped`), including new tests for team registration, invalid visibility rejection, and re-register lineage/visibility preservation.
+
+---
+
 ## [1.63.0] - 2026-08-15
 
 ### Added
