@@ -3,6 +3,24 @@
 
 ---
 
+## [1.65.0] - 2026-08-15
+
+### Added
+- **`compare_graphs`** – read-only diff between two registered graphs or sessions, reporting shared object ids, unique-to-each-side ids, and structural differences for shared objects.
+- **`merge_graphs`** – three-way merge of two graphs into a new session using `KnowledgeStructure.merge()`. Supports an optional common ancestor, per-object resolutions, and optional registration of the merged result.
+- **`link_graphs`** – creates a deterministic cross-graph relation between an object in graph A and an object in graph B, writing the relation to both source sessions and adding local copies of remote participants when needed for referential integrity.
+- **Graph resolution helper** – shared `graph_resolution.py` for resolving graph names or session ids consistently across the new tools.
+- **Documentation** – updated README and tool docs for the new tools and tool count (68 tools).
+
+### Changed
+- Tool count increased from 65 to 68.
+- `test_server.py` updated to assert 68 tools.
+
+### Tests
+- Added integration tests for `compare_graphs`, `merge_graphs`, and `link_graphs` covering resolution by name/session, diff shape, merge success/conflict, link creation, missing objects, duplicate relations, and source graph immutability.
+
+---
+
 ## [1.64.0] - 2026-08-15
 
 ### Added

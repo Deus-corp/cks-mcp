@@ -159,6 +159,59 @@ accessible to any LLM or person without parsing raw JSON.
 
 **Response:** `{"found": true, "name": "cks-ecosystem", "session_id": "...", "report": "<markdown text>"}`.
 
+## `compare_graphs`
+
+Read-only diff of two graphs (registered or bare sessions): which
+objects/relations they share by identity id, which are unique to
+each side, and structural differences between shared objects.
+
+**Parameters:** `graph_a_name` / `graph_a_session_id` (one required for
+side A — session id takes precedence), `graph_b_name` /
+`graph_b_session_id` (one required for side B), `include_relations`
+(optional boolean, default `true`).
+
+**Response:** `{"graph_a": "...", "graph_b": "...", "shared_object_count": 5, "only_in_a_count": 3, "only_in_b_count": 2, "shared_object_ids": [...], "only_in_a": [...], "only_in_b": [...], "differences": [{"id": "obj-1", "action": "modified", "type": "...", "name": "...", "changes": {"field": {"from": ..., "to": ...}}}, ...]}` — `differences` only lists shared objects whose structure actually diverges.
+
+## `merge_graphs`
+
+Three-way merges two graphs into a **new** session using
+`KnowledgeStructure.merge()`, the same primitive `merge_knowledge`
+uses. Neither source session is modified. Without a
+`base_graph_name`/`base_session_id`, the merge base is an empty
+structure — every object present in both sides will surface as a
+conflict candidate unless a `resolutions` mapping resolves it.
+
+**Parameters:** `graph_a_name` / `graph_a_session_id` (side A),
+`graph_b_name` / `graph_b_session_id` (side B), `base_graph_name` /
+`base_session_id` (optional common ancestor), `resolutions` (optional
+per-object resolution mapping, same shape as `merge_knowledge`),
+`register_as` (optional name to register the merged result under).
+
+**Response on success:** `{"merged": true, "session_id": "...", "version_id": "...", "registered_as": "..."}`.
+**Response on conflict:** `{"merged": false, "conflicts": [...]}` — no
+new session is created.
+
+## `link_graphs`
+
+Creates a relation between an object in graph A and an object in
+graph B, writing it to **both** source sessions so the link is
+discoverable from either graph. Because a relation's participants
+must exist in the same structure, a copy of each remote participant
+is added alongside the relation on the side it's missing from (skipped
+if already present, e.g. from a prior link between the same graphs).
+
+**Parameters:** `graph_a_name` / `graph_a_session_id`, `graph_b_name` /
+`graph_b_session_id`, `object_a_id` (required), `object_b_id`
+(required), `relation_type` (required), `relation_name` (optional).
+
+**Response:** `{"linked": true, "relation_id": "cross-link:<a>:<objA>:<b>:<objB>:<type>", "graph_a_version": "...", "graph_b_version": "..."}`.
+Errors: `object_not_found`, `relation_already_exists` (the derived id
+is deterministic, so re-linking the same pair/type is a no-op error),
+`duplicate_object_conflict` (an id collision with different content),
+or `partial_failure: true` if graph A's write committed but graph B's
+did not (the id scheme makes a retry idempotent on the already-written
+side).
+
 ## `export_storage`
 
 Exports a complete dump of all sessions, versions, graph registry entries,
