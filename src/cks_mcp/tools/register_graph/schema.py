@@ -39,6 +39,17 @@ REGISTER_GRAPH_SCHEMA = {
                     "get_graph)."
                 ),
             },
+            "source_graph_name": {
+                "type": "string",
+                "description": (
+                    "Optional: the registered name of the graph this one was "
+                    "cloned/forked from (clone lineage), so the gallery can show "
+                    "'forked from X' and link back to the original. Normally set "
+                    "automatically by clone_graph(copy_name=...) rather than "
+                    "passed directly. Omitting it leaves any existing lineage on "
+                    "this name untouched (it does not clear it)."
+                ),
+            },
         },
         "required": ["name", "session_id"],
     },

@@ -204,6 +204,7 @@ async def clone_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, 
             description=description,
             tags=arguments.get("tags") or "",
             public=bool(arguments.get("public", False)),
+            source_graph_name=source_graph_name,
         )
         response["registered_as"] = copy_name
 

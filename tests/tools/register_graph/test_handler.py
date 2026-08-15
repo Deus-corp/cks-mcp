@@ -54,7 +54,7 @@ async def test_registers_graph(mock_runtime):
     assert result == {"registered": True, "name": "proj-a", "public": False}
     mock_runtime.storage.register_graph.assert_awaited_once_with(
         name="proj-a", session_id="s1", description="my graph", tags="demo,test",
-        public=False,
+        public=False, source_graph_name=None,
     )
 
 
@@ -63,7 +63,8 @@ async def test_registers_graph_with_defaults(mock_runtime):
 
     assert result == {"registered": True, "name": "proj-a", "public": False}
     mock_runtime.storage.register_graph.assert_awaited_once_with(
-        name="proj-a", session_id="s1", description="", tags="", public=False
+        name="proj-a", session_id="s1", description="", tags="", public=False,
+        source_graph_name=None,
     )
 
 
@@ -74,5 +75,19 @@ async def test_registers_public_graph(mock_runtime):
 
     assert result == {"registered": True, "name": "proj-a", "public": True}
     mock_runtime.storage.register_graph.assert_awaited_once_with(
-        name="proj-a", session_id="s1", description="", tags="", public=True
+        name="proj-a", session_id="s1", description="", tags="", public=True,
+        source_graph_name=None,
+    )
+
+
+async def test_registers_graph_with_source_graph_name(mock_runtime):
+    result = await register_graph(
+        mock_runtime,
+        {"name": "proj-a-copy", "session_id": "s2", "source_graph_name": "proj-a"},
+    )
+
+    assert result == {"registered": True, "name": "proj-a-copy", "public": False}
+    mock_runtime.storage.register_graph.assert_awaited_once_with(
+        name="proj-a-copy", session_id="s2", description="", tags="", public=False,
+        source_graph_name="proj-a",
     )

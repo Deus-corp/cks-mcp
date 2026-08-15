@@ -165,6 +165,45 @@ async def test_clone_with_copy_name_registers_new_graph():
     assert record is not None
     assert record["session_id"] == result["session_id"]
     assert record["public"] is True
+    # Cloned via source_session_id (not graph_name), so there's no
+    # registry name to record as lineage.
+    assert record["source_graph_name"] is None
+
+
+async def test_clone_by_graph_name_records_lineage_on_the_copy():
+    runtime = make_runtime()
+    source = await make_source_session(runtime)
+    await register_graph(runtime, {"name": "proj-a", "session_id": source.session_id})
+
+    result = await clone_graph(
+        runtime,
+        {"graph_name": "proj-a", "copy_name": "proj-a-fork"},
+    )
+
+    assert result["registered_as"] == "proj-a-fork"
+    assert result["source_graph_name"] == "proj-a"
+    record = await runtime.storage.get_graph("proj-a-fork")
+    assert record is not None
+    assert record["source_graph_name"] == "proj-a"
+
+
+async def test_re_registering_a_clone_preserves_its_lineage():
+    runtime = make_runtime()
+    source = await make_source_session(runtime)
+    await register_graph(runtime, {"name": "proj-a", "session_id": source.session_id})
+    result = await clone_graph(runtime, {"graph_name": "proj-a", "copy_name": "proj-a-fork"})
+
+    # A plain re-register (e.g. via update_registered_graph editing the
+    # description) doesn't pass source_graph_name and must not erase the
+    # lineage recorded above.
+    await register_graph(
+        runtime,
+        {"name": "proj-a-fork", "session_id": result["session_id"], "description": "updated"},
+    )
+
+    record = await runtime.storage.get_graph("proj-a-fork")
+    assert record["description"] == "updated"
+    assert record["source_graph_name"] == "proj-a"
 
 
 async def test_copy_name_ignored_when_target_session_id_given():

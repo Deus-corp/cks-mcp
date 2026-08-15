@@ -35,6 +35,7 @@ async def register_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
     description = arguments.get("description") or ""
     tags = arguments.get("tags") or ""
     public = bool(arguments.get("public", False))
+    source_graph_name = arguments.get("source_graph_name") or None
 
     await runtime.storage.register_graph(
         name=name,
@@ -42,6 +43,7 @@ async def register_graph(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
         description=description,
         tags=tags,
         public=public,
+        source_graph_name=source_graph_name,
     )
 
     return {"registered": True, "name": name, "public": public}

@@ -3,6 +3,20 @@
 
 ---
 
+## [1.63.0] - 2026-08-15
+
+### Added
+- **Graph clone lineage** – `clone_graph` and `register_graph` now support `source_graph_name`, recording the registered name of the graph a clone was forked from. This enables “forked from X” lineage in the graph registry and gallery.
+
+### Changed
+- `register_graph` accepts an optional `source_graph_name` argument and passes it through to storage backends that support it (SQLite, Postgres, InMemory).
+- `clone_graph` now records lineage when cloning by `graph_name` and registering under `copy_name`.
+
+### Tests
+- Added coverage for lineage recording in clone, re-register preservation, and `source_graph_name` argument in `register_graph`.
+
+---
+
 ## [1.62.0] - 2026-08-15
 
 ### Added
