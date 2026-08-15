@@ -45,6 +45,8 @@ from cks_mcp.tools.clone_graph import clone_graph
 from cks_mcp.tools.clone_graph.schema import CLONE_GRAPH_SCHEMA
 from cks_mcp.tools.compare import compare_versions
 from cks_mcp.tools.compare.schema import COMPARE_VERSIONS_SCHEMA
+from cks_mcp.tools.compare_graphs import compare_graphs
+from cks_mcp.tools.compare_graphs.schema import COMPARE_GRAPHS_SCHEMA
 from cks_mcp.tools.complete_conflict_task import complete_conflict_task
 from cks_mcp.tools.complete_conflict_task.schema import COMPLETE_CONFLICT_TASK_SCHEMA
 from cks_mcp.tools.construct_knowledge import construct_knowledge
@@ -83,6 +85,8 @@ from cks_mcp.tools.import_storage import import_storage
 from cks_mcp.tools.import_storage.schema import IMPORT_STORAGE_SCHEMA
 from cks_mcp.tools.ingest_document import ingest_document
 from cks_mcp.tools.ingest_document.schema import INGEST_DOCUMENT_SCHEMA
+from cks_mcp.tools.link_graphs import link_graphs
+from cks_mcp.tools.link_graphs.schema import LINK_GRAPHS_SCHEMA
 from cks_mcp.tools.list_agents import list_agents
 from cks_mcp.tools.list_agents.schema import LIST_AGENTS_SCHEMA
 from cks_mcp.tools.list_dead_lettered_conflicts import list_dead_lettered_conflicts
@@ -105,6 +109,8 @@ from cks_mcp.tools.list_processes import list_processes
 from cks_mcp.tools.list_processes.schema import LIST_PROCESSES_SCHEMA
 from cks_mcp.tools.merge import merge_branch, merge_knowledge
 from cks_mcp.tools.merge.schema import MERGE_BRANCH_SCHEMA, MERGE_KNOWLEDGE_SCHEMA
+from cks_mcp.tools.merge_graphs import merge_graphs
+from cks_mcp.tools.merge_graphs.schema import MERGE_GRAPHS_SCHEMA
 from cks_mcp.tools.migrate_storage import migrate_storage
 from cks_mcp.tools.migrate_storage.schema import MIGRATE_STORAGE_SCHEMA
 from cks_mcp.tools.process_status import process_status
@@ -461,6 +467,26 @@ TOOLS = {
         "handler": _wrap_open_session(
             "clone_graph", "source_session_id", "target_session_id"
         )(clone_graph),
+    },
+    "compare_graphs": {
+        **COMPARE_GRAPHS_SCHEMA,
+        "handler": _wrap_open_session(
+            "compare_graphs", "graph_a_session_id", "graph_b_session_id"
+        )(compare_graphs),
+    },
+    "merge_graphs": {
+        **MERGE_GRAPHS_SCHEMA,
+        "handler": _wrap_open_session(
+            "merge_graphs", "graph_a_session_id", "graph_b_session_id"
+        )(merge_graphs),
+    },
+    "link_graphs": {
+        **LINK_GRAPHS_SCHEMA,
+        "handler": _wrap_open_session(
+            "link_graphs",
+            "graph_a_session_id",
+            "graph_b_session_id",
+        )(link_graphs),
     },
     "list_graphs": {
         **LIST_GRAPHS_SCHEMA,

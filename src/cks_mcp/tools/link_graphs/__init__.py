@@ -1,0 +1,1 @@
+from .handler import link_graphs as link_graphs

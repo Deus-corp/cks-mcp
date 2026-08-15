@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-928%20passed%2C%206%20skipped-brightgreen)
+![Tests](https://img.shields.io/badge/tests-949%20passed%2C%206%20skipped-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 > 🚀 **[Live demo →](https://deus-corp.github.io/cks-website/demo/demo.html)** — explore the CKS ecosystem graph directly in your browser, no server required.
@@ -386,7 +386,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-928+ tests: 922 passing, 6 skipped (require Postgres or optional providers not configured in a default environment).
+943+ tests: 943 passing, 6 skipped (require Postgres or optional providers not configured in a default environment).
 
 ---
 

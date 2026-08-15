@@ -1,0 +1,1 @@
+from .handler import merge_graphs as merge_graphs
