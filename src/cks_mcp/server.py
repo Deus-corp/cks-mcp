@@ -20,6 +20,7 @@ from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
+from cks_mcp.http_auth import is_request_authorized
 from cks_mcp.http_events import register_sse_routes
 from cks_mcp.observability import setup_event_subscriptions
 from cks_mcp.paths import data_dir
@@ -272,6 +273,23 @@ async def _http_handler(request: Request) -> Response:
         return web.json_response({})
 
 
+@web.middleware
+async def _auth_middleware(request: Request, handler):
+    """
+    Enforce ``CKS_MCP_HTTP_TOKEN`` (if set) on the HTTP transport's
+    routes (``/mcp`` and ``/events*``). No-op if the token is unset,
+    preserving the historical no-auth behavior. Only ever installed on
+    the HTTP transport's aiohttp app -- stdio transport has no
+    ``web.Application`` and is unaffected.
+    """
+    if not is_request_authorized(request):
+        return web.json_response(
+            {"error": "Unauthorized"},
+            status=401,
+        )
+    return await handler(request)
+
+
 def _resolve_db_path() -> tuple[str, str, str | None]:
     explicit_db_path = os.environ.get("CKS_MCP_DB_PATH")
     if explicit_db_path:
@@ -404,7 +422,7 @@ async def main() -> None:
     sse_broadcaster = None
     if http_port is not None:
         try:
-            app = web.Application()
+            app = web.Application(middlewares=[_auth_middleware])
             app['runtime'] = runtime
             app.router.add_post('/mcp', _http_handler)
             # Real-time session event streaming (SSE) -- see http_events.py

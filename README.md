@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-899%20passed%2C%206%20skipped-brightgreen)
+![Tests](https://img.shields.io/badge/tests-903%20passed%2C%206%20skipped-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 > 🚀 **[Live demo →](https://deus-corp.github.io/cks-website/demo/demo.html)** — explore the CKS ecosystem graph directly in your browser, no server required.
@@ -157,9 +157,22 @@ CKS_MCP_HTTP_PORT=8765 cks-mcp
   polling. Supports an optional `?event_types=A,B` filter. Each line is
   `data: {"event": "...", "session_id": "...", "timestamp": "...", "detail": {...}}`.
 
-This transport has no authentication of its own yet and is meant for
-local development / trusted networks — see
-[HTTP Transport security notes](docs/security.md#optional-http-transport)
+By default this transport has no authentication and is meant for
+local development / trusted networks. Setting `CKS_MCP_HTTP_TOKEN`
+requires a matching token on every request to `/mcp` and `/events`,
+either as `Authorization: Bearer <token>` or, for browser
+`EventSource` clients (which can't set custom headers), as a
+`?token=<token>` query parameter:
+
+```bash
+CKS_MCP_HTTP_PORT=8765 CKS_MCP_HTTP_TOKEN=change-me cks-mcp
+```
+
+```
+GET /events?token=change-me
+```
+
+See [HTTP Transport security notes](docs/security.md#optional-http-transport)
 for details.
 
 ---
@@ -373,7 +386,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-899+ tests: 893 passing, 6 skipped (require Postgres or optional providers not configured in a default environment).
+903+ tests: 903 passing, 6 skipped (require Postgres or optional providers not configured in a default environment).
 
 ---
 

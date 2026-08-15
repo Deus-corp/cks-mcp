@@ -110,11 +110,11 @@ trustworthy, so nothing becomes a version unless it's already known-good.
 
 When `CKS_MCP_HTTP_PORT` is set, `server.py` starts an `aiohttp` server
 alongside the default stdio transport, with CORS enabled for local
-development (e.g. `cks-studio` running in a browser). This transport is
-meant for local development and trusted-network integration — it carries
-no additional authentication of its own beyond whatever the network it's
-bound to already provides, so it should not be exposed on an untrusted
-network. All the SSRF and provenance guarantees above apply identically
+development (e.g. `cks-studio` running in a browser). By default this
+transport carries no authentication of its own beyond whatever the
+network it's bound to already provides, so it should not be exposed on
+an untrusted network without enabling the token auth described below.
+All the SSRF and provenance guarantees above apply identically
 regardless of which transport a request arrived through.
 
 Alongside `POST /mcp` (JSON-RPC), the HTTP transport also exposes
@@ -125,8 +125,29 @@ Alongside `POST /mcp` (JSON-RPC), the HTTP transport also exposes
 react to changes made by other users or agents without polling. See
 `src/cks_mcp/sse.py` (the EventBus-to-subscriber broadcaster) and
 `src/cks_mcp/http_events.py` (the aiohttp route). Same trust boundary as
-`/mcp`: no auth today (`CKS_MCP_HTTP_TOKEN` is a reserved extension
-point, not yet enforced).
+`/mcp`.
+
+### Token authentication
+
+Setting `CKS_MCP_HTTP_TOKEN` turns on bearer-token auth for both
+`/mcp` and `/events*`, enforced by an `aiohttp` middleware
+(`_auth_middleware` in `server.py`, backed by `src/cks_mcp/http_auth.py`)
+that runs before any route handler and rejects unauthenticated
+requests with `401` before the JSON-RPC dispatcher or SSE stream ever
+starts. The token can be supplied two ways:
+
+- `Authorization: Bearer <token>` — for `fetch`/JSON-RPC clients hitting
+  `/mcp`.
+- `?token=<token>` query parameter — for browser `EventSource` clients
+  consuming `/events`, since `EventSource` cannot set custom request
+  headers.
+
+Token comparison uses `hmac.compare_digest` to avoid leaking the
+token's value through response-timing differences. If
+`CKS_MCP_HTTP_TOKEN` is unset (the default), auth is disabled and
+behavior is unchanged from before this option existed. This setting
+only affects the HTTP transport; the stdio transport has no concept of
+requests to authenticate.
 
 ## Trust Boundary Summary
 

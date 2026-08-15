@@ -3,6 +3,20 @@
 
 ---
 
+## [1.61.0] - 2026-08-15
+
+### Added
+- **HTTP token authentication** – optional `CKS_MCP_HTTP_TOKEN` for the HTTP transport. When set, both `POST /mcp` and `GET /events`/`GET /events/{session_id}` require a matching token, either via `Authorization: Bearer <token>` or `?token=<token>` (needed for browser `EventSource`).
+- **`http_auth.py`** – constant-time token comparison using `hmac.compare_digest` to avoid timing leaks.
+- **Tests** – unit/integration coverage for enabled/disabled auth, bearer header and query token paths, missing/invalid token rejection.
+
+### Changed
+- `server.py` now installs an `aiohttp` auth middleware on the HTTP application.
+- `http_events.py` performs a defensive auth check as well as relying on middleware.
+- Documentation updated in README and `docs/security.md` for HTTP transport security.
+
+---
+
 ## [1.60.0] - 2026-08-14
 
 ### Added

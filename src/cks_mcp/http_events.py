@@ -14,16 +14,8 @@ import json
 from aiohttp import web
 from aiohttp.web import Request, StreamResponse
 
+from cks_mcp.http_auth import is_request_authorized
 from cks_mcp.sse import SSEBroadcaster
-
-# Extension point for future auth: if CKS_MCP_HTTP_TOKEN is set, callers
-# would be expected to send it (e.g. as an `Authorization: Bearer <token>`
-# header or `?token=` query param) and this handler would reject
-# mismatches with 401 before opening the stream. Not implemented yet --
-# today CKS_MCP_HTTP_TOKEN, if set, has no effect. Left as a named
-# constant (rather than inlining the env var lookup) so the extension
-# point is easy to find later.
-_AUTH_TOKEN_ENV_VAR = "CKS_MCP_HTTP_TOKEN"
 
 
 async def handle_sse(request: Request) -> StreamResponse:
@@ -39,9 +31,15 @@ async def handle_sse(request: Request) -> StreamResponse:
         (e.g. ``VersionCreated,TransactionCommitted``) to filter to.
         If omitted, all event types are streamed.
 
-    Auth: none yet -- see ``_AUTH_TOKEN_ENV_VAR`` above for the planned
-    extension point.
+    Auth: if ``CKS_MCP_HTTP_TOKEN`` is set, requires a matching token
+    via ``Authorization: Bearer <token>`` or ``?token=``. Normally
+    enforced by the auth middleware in ``server.py``, but this handler
+    checks defensively too in case it's ever wired up without it (e.g.
+    directly in a test app, as ``tests/test_http_events.py`` does).
     """
+    if not is_request_authorized(request):
+        return web.Response(status=401, text="Unauthorized")
+
     broadcaster: SSEBroadcaster = request.app["sse_broadcaster"]
 
     session_id = request.match_info.get("session_id") or request.query.get("session_id")
