@@ -3,6 +3,18 @@
 
 ---
 
+## [1.62.0] - 2026-08-15
+
+### Added
+- **`clone_graph` tool** – creates a new session containing a copy of an existing registered graph (or any live session). Supports `graph_name` or `source_session_id`, optional `target_session_id` for merging into an existing session, and optional `copy_name`/`description`/`tags`/`public` to register the clone. The source session is never modified.
+- **Tests** – integration coverage for cloning by name/session, merging into target, copy registration, missing source errors, and source immutability.
+
+### Changed
+- Tool count increased from 64 to 65.
+- Documentation updated (`docs/tools/index.md`, README).
+
+---
+
 ## [1.61.0] - 2026-08-15
 
 ### Added

@@ -41,6 +41,8 @@ from cks_mcp.tools.check_graph_health import check_graph_health
 from cks_mcp.tools.check_graph_health.schema import CHECK_GRAPH_HEALTH_SCHEMA
 from cks_mcp.tools.claim_conflict_task import claim_conflict_task
 from cks_mcp.tools.claim_conflict_task.schema import CLAIM_CONFLICT_TASK_SCHEMA
+from cks_mcp.tools.clone_graph import clone_graph
+from cks_mcp.tools.clone_graph.schema import CLONE_GRAPH_SCHEMA
 from cks_mcp.tools.compare import compare_versions
 from cks_mcp.tools.compare.schema import COMPARE_VERSIONS_SCHEMA
 from cks_mcp.tools.complete_conflict_task import complete_conflict_task
@@ -453,6 +455,12 @@ TOOLS = {
     "get_graph": {
         **GET_GRAPH_SCHEMA,
         "handler": _wrap("get_graph", "name")(get_graph),
+    },
+    "clone_graph": {
+        **CLONE_GRAPH_SCHEMA,
+        "handler": _wrap_open_session(
+            "clone_graph", "source_session_id", "target_session_id"
+        )(clone_graph),
     },
     "list_graphs": {
         **LIST_GRAPHS_SCHEMA,

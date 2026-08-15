@@ -60,6 +60,13 @@ def session_not_found(session_id: str) -> dict:
     }
 
 
+def graph_not_found(name: str) -> dict:
+    return {
+        "error": "graph_not_found",
+        "message": f"No graph is registered under name '{name}'.",
+    }
+
+
 def empty_query() -> dict:
     return {
         "error": "empty_query",
