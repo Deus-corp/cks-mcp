@@ -137,7 +137,7 @@ async def start_pipeline(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
         await runtime.storage.enqueue_task(
             task_type=_RESEARCH_TASK_TYPE,
             session_id=target_session_id,
-            payload=json.dumps({"object_id": object_id}),
+            payload=json.dumps({"object_id": object_id, "run_id": run_id}),
         )
 
     response: dict[str, Any] = {

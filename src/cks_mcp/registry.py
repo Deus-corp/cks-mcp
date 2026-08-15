@@ -103,6 +103,8 @@ from cks_mcp.tools.list_inference_conflicts.schema import (
 )
 from cks_mcp.tools.list_llm_models import list_llm_models
 from cks_mcp.tools.list_llm_models.schema import LIST_LLM_MODELS_SCHEMA
+from cks_mcp.tools.list_pipeline_runs import list_pipeline_runs
+from cks_mcp.tools.list_pipeline_runs.schema import LIST_PIPELINE_RUNS_SCHEMA
 from cks_mcp.tools.list_plugins import list_plugins
 from cks_mcp.tools.list_plugins.schema import LIST_PLUGINS_SCHEMA
 from cks_mcp.tools.list_processes import list_processes
@@ -309,6 +311,10 @@ TOOLS = {
     "start_pipeline": {
         **START_PIPELINE_SCHEMA,
         "handler": _wrap_open_session("start_pipeline", "session_id")(start_pipeline),
+    },
+    "list_pipeline_runs": {
+        **LIST_PIPELINE_RUNS_SCHEMA,
+        "handler": _wrap_session("list_pipeline_runs", "session_id")(list_pipeline_runs),
     },
     "request_process_stop": {
         **REQUEST_PROCESS_STOP_SCHEMA,

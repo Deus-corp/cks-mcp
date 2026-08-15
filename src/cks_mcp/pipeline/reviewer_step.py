@@ -86,6 +86,7 @@ async def resolve_pipeline_review_request(
     session_id = task["session_id"]
     payload = task.get("payload") or {}
     object_id = payload.get("object_id")
+    run_id = payload.get("run_id")
     if not object_id:
         return Resolution(False, "task payload is missing 'object_id'")
 
@@ -110,7 +111,7 @@ async def resolve_pipeline_review_request(
         for entry in reversed(current_log):
             if entry.get("agent") == AGENT_NAME and entry.get("content_hash") == content_hash:
                 prior_status = entry.get("transitioned_to", PipelineStatus.RESOLVED)
-                await _route_next_stage(runtime, session_id, object_id, prior_status)
+                await _route_next_stage(runtime, session_id, object_id, prior_status, run_id)
                 return Resolution(True, prior_status)
         return Resolution(True, PipelineStatus.RESOLVED)
 
@@ -178,6 +179,7 @@ async def resolve_pipeline_review_request(
             current_log=current_log,
             reasoning_node_id=verdict_id,
             content_hash=content_hash,
+            run_id=run_id,
         ),
     ]
 
@@ -185,13 +187,17 @@ async def resolve_pipeline_review_request(
     if evolve_result.get("error"):
         return Resolution(False, f"evolve_knowledge failed: {evolve_result}")
 
-    await _route_next_stage(runtime, session_id, object_id, new_status)
+    await _route_next_stage(runtime, session_id, object_id, new_status, run_id)
 
     return Resolution(True, new_status)
 
 
 async def _route_next_stage(
-    runtime: Runtime, session_id: str, object_id: str, new_status: str
+    runtime: Runtime,
+    session_id: str,
+    object_id: str,
+    new_status: str,
+    run_id: str | None = None,
 ) -> None:
     """Put ``object_id`` back on a queue matching its post-review status.
 
@@ -206,7 +212,7 @@ async def _route_next_stage(
         await runtime.storage.enqueue_task(
             task_type=_RESEARCH_TASK_TYPE,
             session_id=session_id,
-            payload=json.dumps({"object_id": object_id}),
+            payload=json.dumps({"object_id": object_id, "run_id": run_id}),
         )
 
 

@@ -3,6 +3,23 @@
 
 ---
 
+## [1.66.0] - 2026-08-15
+
+### Added
+- **`list_pipeline_runs` tool** – read-only reconstruction of ADR-007 pipeline runs for a session, grouped by `run_id`. Returns per-run status, timestamps, object ids, and per-step details (Researcher → Synthesizer → Reviewer → Arbiter) with step status, timestamps, errors, and dead-letter task ids.
+- **Pipeline run tracking** – `start_pipeline` now stamps `run_id` into outbox payloads; `ResearcherStep` and `ReviewerStep` thread it through transition logs and subsequent outbox tasks, enabling reconstruction of runs from existing persisted data.
+- **Transition schema extension** – `append_transition` and `TransitionEntry` now support an optional `run_id` field.
+
+### Changed
+- `start_pipeline` payload format now includes `run_id` (backward-compatible: absent run_id is treated as no run lineage).
+- `README` updated to reflect 69 tools.
+
+### Tests
+- Added integration tests for `list_pipeline_runs` covering empty sessions, runs derived from transition logs, queued runs from pending outbox tasks, failed runs from dead-letter tasks, session filtering, limit, contract shape, and unsupported-outbox backends.
+- Updated `start_pipeline` tests for run_id in payloads.
+
+---
+
 ## [1.65.0] - 2026-08-15
 
 ### Added

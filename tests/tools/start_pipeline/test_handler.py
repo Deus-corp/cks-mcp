@@ -83,7 +83,7 @@ async def test_explicit_object_ids(mock_runtime):
     kwargs = mock_runtime.storage.enqueue_task.await_args.kwargs
     assert kwargs["task_type"] == RESEARCH_TASK_TYPE
     assert kwargs["session_id"] == "s1"
-    assert json.loads(kwargs["payload"]) == {"object_id": "obj-2"}
+    assert json.loads(kwargs["payload"]) == {"object_id": "obj-2", "run_id": result["run_id"]}
 
 
 async def test_all_objects_when_object_ids_omitted(mock_runtime):
@@ -97,6 +97,11 @@ async def test_all_objects_when_object_ids_omitted(mock_runtime):
         for call in mock_runtime.storage.enqueue_task.await_args_list
     }
     assert enqueued_ids == {"obj-1", "obj-2", "obj-3"}
+    enqueued_run_ids = {
+        json.loads(call.kwargs["payload"])["run_id"]
+        for call in mock_runtime.storage.enqueue_task.await_args_list
+    }
+    assert enqueued_run_ids == {result["run_id"]}
 
 
 async def test_no_objects_in_session(mock_runtime):

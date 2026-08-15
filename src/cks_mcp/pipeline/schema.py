@@ -61,6 +61,14 @@ class TransitionEntry:
     transitioned_to: str
     reasoning_node_id: str | None = None
     timestamp: str | None = None
+    #: Phase 1 run tracking: the ``pipeline_run_hash`` (see
+    #: ``cks_mcp.orchestrator.pipeline_run_hash``) this transition was
+    #: made as part of, if any. ``None`` for transitions made outside a
+    #: ``start_pipeline`` run (e.g. a hand-written ``evolve_knowledge``
+    #: call, or an older run predating this field) -- see
+    #: ``list_pipeline_runs``, which groups transition_log entries by
+    #: this field to reconstruct a run's per-step status.
+    run_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -69,6 +77,7 @@ class TransitionEntry:
             "action": self.action,
             "transitioned_to": self.transitioned_to,
             "reasoning_node_id": self.reasoning_node_id,
+            "run_id": self.run_id,
         }
 
 
@@ -138,6 +147,7 @@ def append_transition(
     current_log: list[dict[str, Any]] | None = None,
     reasoning_node_id: str | None = None,
     content_hash: str | None = None,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Build an ``evolve_knowledge`` ``update_object`` operation that
@@ -157,6 +167,7 @@ def append_transition(
         action=action,
         transitioned_to=transitioned_to,
         reasoning_node_id=reasoning_node_id,
+        run_id=run_id,
     ).to_dict()
     if content_hash is not None:
         entry["content_hash"] = content_hash

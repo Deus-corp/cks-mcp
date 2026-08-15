@@ -69,6 +69,7 @@ async def resolve_pipeline_research_request(
     session_id = task["session_id"]
     payload = task.get("payload") or {}
     object_id = payload.get("object_id")
+    run_id = payload.get("run_id")
     if not object_id:
         return Resolution(False, "task payload is missing 'object_id'")
 
@@ -100,7 +101,7 @@ async def resolve_pipeline_research_request(
             ),
             None,
         )
-        await _enqueue_review(runtime, session_id, object_id, existing_finding_id)
+        await _enqueue_review(runtime, session_id, object_id, existing_finding_id, run_id)
         return Resolution(True, PipelineStatus.AWAITING_REVIEW)
 
     prompt = (
@@ -157,6 +158,7 @@ async def resolve_pipeline_research_request(
             current_log=current_log,
             reasoning_node_id=finding_id,
             content_hash=content_hash,
+            run_id=run_id,
         ),
     ]
 
@@ -164,22 +166,35 @@ async def resolve_pipeline_research_request(
     if evolve_result.get("error"):
         return Resolution(False, f"evolve_knowledge failed: {evolve_result}")
 
-    await _enqueue_review(runtime, session_id, object_id, finding_id)
+    await _enqueue_review(runtime, session_id, object_id, finding_id, run_id)
 
     return Resolution(True, PipelineStatus.AWAITING_REVIEW)
 
 
 async def _enqueue_review(
-    runtime: Runtime, session_id: str, object_id: str, reasoning_node_id: str | None
+    runtime: Runtime,
+    session_id: str,
+    object_id: str,
+    reasoning_node_id: str | None,
+    run_id: str | None = None,
 ) -> None:
     """Enqueue the ``pipeline_review_request`` task that hands ``object_id``
     to the Reviewer step. Called from both the "did fresh work" path and
     the idempotent-skip path above -- see the comment there for why the
-    skip path must not be allowed to drop this."""
+    skip path must not be allowed to drop this. ``run_id`` (Phase 1 run
+    tracking, see ``list_pipeline_runs``) is threaded through from the
+    originating ``start_pipeline`` task so the Reviewer step's own
+    transitions can still be attributed to the same run."""
     await runtime.storage.enqueue_task(
         task_type=_NEXT_TASK_TYPE,
         session_id=session_id,
-        payload=json.dumps({"object_id": object_id, "reasoning_node_id": reasoning_node_id}),
+        payload=json.dumps(
+            {
+                "object_id": object_id,
+                "reasoning_node_id": reasoning_node_id,
+                "run_id": run_id,
+            }
+        ),
     )
 
 
