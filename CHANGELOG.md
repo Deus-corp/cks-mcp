@@ -3,6 +3,13 @@
 
 ---
 
+## [1.68.2] - 2026-08-16
+
+### Fixed
+- **Claim integrity alias** – restored `claim_integrity` mapping in `EXTENSION_ALIASES` if it was missing, ensuring `validate_knowledge` and `evolve_knowledge` correctly resolve the extension.
+
+---
+
 ## [1.68.1] - 2026-08-16
 
 ### Fixed
