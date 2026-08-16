@@ -16,10 +16,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from typing import Any
 
-from cks_mcp import llm_providers
+from cks_mcp.llm.client import LLMClient, LLMProviderUnavailable
+from cks_mcp.llm_providers import (
+    call_anthropic,
+    call_ollama,
+    call_openai_compatible_single_shot,
+    ollama_available,
+)
 
 # Structure fields every step's idempotency hash excludes -- these are
 # the pipeline's own bookkeeping (see pipeline.schema's module
@@ -66,38 +71,42 @@ def call_llm(
     model: str | None,
     max_tokens: int,
 ) -> tuple[str, str]:
-    """Same 'auto'/'ollama'/'anthropic' dispatch used throughout
-    cks_mcp.tools -- see ``arbitrate_inference_conflict.handler._call_llm``.
-    Returns ``(response_text, model_used)``."""
-    provider = os.environ.get("CKS_LLM_PROVIDER", "auto").lower()
-    default_model = os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
+    """Provider dispatch for pipeline steps -- routes through the same
+    ``LLMClient`` (``cks_mcp.llm.client``) ``construct_knowledge`` and
+    ``ai_chat`` already use, so ``CKS_LLM_PROVIDER=auto|ollama|anthropic|
+    openai_compatible`` behaves identically everywhere in cks-mcp
+    instead of pipeline steps maintaining their own, easily-drifting
+    copy of the same routing logic (this previously hand-rolled
+    'ollama'/'anthropic'/'auto'-only dispatch was exactly that: it never
+    got updated when 'openai_compatible' was added elsewhere, so an
+    explicit ``CKS_LLM_PROVIDER=openai_compatible`` would raise
+    "Unknown CKS_LLM_PROVIDER" here even though ``get_llm_status`` and
+    ``construct_knowledge`` both recognized it fine).
 
-    if provider == "ollama" or (provider == "auto" and llm_providers.ollama_available()):
-        m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
-        return (
-            llm_providers.call_ollama(
-                prompt,
-                system_prompt=system_prompt,
-                model=m,
-                max_tokens=max_tokens,
-                tool_name=tool_name,
-            ),
-            m,
-        )
-
-    if provider not in ("auto", "anthropic"):
-        raise RuntimeError(
-            f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', or 'anthropic'."
-        )
-
-    m = model or default_model
-    return (
-        llm_providers.call_anthropic(
+    Returns ``(response_text, model_used)``. Raises ``RuntimeError`` on
+    any failure -- including ``LLMProviderUnavailable`` (no provider
+    configured/reachable at all), which callers here don't need to
+    distinguish from any other provider failure; every existing caller
+    already just catches ``RuntimeError`` and turns it into a failed
+    ``Resolution``.
+    """
+    client = LLMClient(
+        # Built fresh per call (not module-level) so it always picks up
+        # the current provider functions -- including ones a test has
+        # patched onto this module by name, same convention
+        # cks_mcp.tools.ai_chat.handler uses.
+        single_shot_ollama_fn=call_ollama,
+        single_shot_anthropic_fn=call_anthropic,
+        single_shot_openai_compatible_fn=call_openai_compatible_single_shot,
+        ollama_available_fn=ollama_available,
+    )
+    try:
+        return client.call_single_shot(
             prompt,
             system_prompt=system_prompt,
-            model=m,
+            model=model,
             max_tokens=max_tokens,
             tool_name=tool_name,
-        ),
-        m,
-    )
+        )
+    except LLMProviderUnavailable as exc:
+        raise RuntimeError(str(exc)) from exc

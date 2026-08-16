@@ -3,6 +3,17 @@
 
 ---
 
+## [1.68.1] - 2026-08-16
+
+### Fixed
+- **Pipeline LLM provider dispatch** – `pipeline/common.py` now routes through the shared `LLMClient` instead of its own hand-rolled `ollama`/`anthropic`/`auto`-only dispatch. This fixes `CKS_LLM_PROVIDER=openai_compatible` being rejected as “Unknown CKS_LLM_PROVIDER” inside Researcher/Reviewer/Synthesizer/Arbiter pipeline steps, while `get_llm_status` and `construct_knowledge` already recognized it.
+- **Pipeline provider consistency** – all pipeline LLM calls now behave like the rest of cks-mcp: `auto`, `ollama`, `anthropic`, and `openai_compatible` all work the same way.
+
+### Added
+- Regression test for `openai_compatible` dispatch from pipeline `call_llm`.
+
+---
+
 ## [1.68.0] - 2026-08-15
 
 ### Added

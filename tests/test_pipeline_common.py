@@ -69,9 +69,9 @@ async def test_content_hash_changes_with_real_content():
 
 
 async def test_call_llm_dispatches_to_anthropic_by_default(monkeypatch):
-    monkeypatch.setattr("cks_mcp.pipeline.common.llm_providers.ollama_available", lambda: False)
+    monkeypatch.setattr("cks_mcp.pipeline.common.ollama_available", lambda: False)
     fake_call = MagicMock(return_value="the response")
-    monkeypatch.setattr("cks_mcp.pipeline.common.llm_providers.call_anthropic", fake_call)
+    monkeypatch.setattr("cks_mcp.pipeline.common.call_anthropic", fake_call)
 
     text, _model = call_llm(
         "a prompt",
@@ -92,7 +92,7 @@ async def test_call_llm_dispatches_to_anthropic_by_default(monkeypatch):
 async def test_call_llm_dispatches_to_ollama_when_provider_env_set(monkeypatch):
     monkeypatch.setenv("CKS_LLM_PROVIDER", "ollama")
     fake_call = MagicMock(return_value="local response")
-    monkeypatch.setattr("cks_mcp.pipeline.common.llm_providers.call_ollama", fake_call)
+    monkeypatch.setattr("cks_mcp.pipeline.common.call_ollama", fake_call)
 
     text, _model = call_llm(
         "a prompt",
@@ -106,9 +106,42 @@ async def test_call_llm_dispatches_to_ollama_when_provider_env_set(monkeypatch):
     fake_call.assert_called_once()
 
 
+async def test_call_llm_dispatches_to_openai_compatible_when_provider_env_set(monkeypatch):
+    """Regression test: pipeline steps (Researcher/Reviewer/Synthesizer/
+    Arbiter) previously had their own hand-rolled 'ollama'/'anthropic'/
+    'auto'-only dispatch that never learned about 'openai_compatible',
+    so CKS_LLM_PROVIDER=openai_compatible raised "Unknown
+    CKS_LLM_PROVIDER" here even though get_llm_status and
+    construct_knowledge both already recognized it. call_llm now routes
+    through the shared LLMClient (cks_mcp.llm.client), same as every
+    other tool."""
+    monkeypatch.setenv("CKS_LLM_PROVIDER", "openai_compatible")
+    monkeypatch.setenv("CKS_OPENAI_API_KEY", "sk-fake")
+    fake_call = MagicMock(return_value="openai-compatible response")
+    monkeypatch.setattr(
+        "cks_mcp.pipeline.common.call_openai_compatible_single_shot", fake_call
+    )
+
+    text, model = call_llm(
+        "a prompt",
+        system_prompt="sys",
+        tool_name="pipeline_test_step",
+        model=None,
+        max_tokens=64,
+    )
+
+    assert text == "openai-compatible response"
+    assert model == "gpt-4o"
+    fake_call.assert_called_once()
+    _, kwargs = fake_call.call_args
+    assert kwargs["system_prompt"] == "sys"
+    assert kwargs["tool_name"] == "pipeline_test_step"
+    assert kwargs["max_tokens"] == 64
+
+
 async def test_call_llm_rejects_unknown_provider(monkeypatch):
     monkeypatch.setenv("CKS_LLM_PROVIDER", "not-a-real-provider")
-    monkeypatch.setattr("cks_mcp.pipeline.common.llm_providers.ollama_available", lambda: False)
+    monkeypatch.setattr("cks_mcp.pipeline.common.ollama_available", lambda: False)
 
     with pytest.raises(RuntimeError, match="Unknown CKS_LLM_PROVIDER"):
         call_llm(
