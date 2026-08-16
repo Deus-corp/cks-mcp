@@ -3,6 +3,21 @@
 
 ---
 
+## [1.68.0] - 2026-08-15
+
+### Added
+- **`update_graph_lifecycle` tool** – transitions a registered graph’s lifecycle state (`draft`, `published`, `active`, `stale`, `under_review`, `archived`) with a validated transition matrix.
+- **Lifecycle-aware registry** – `get_graph` / `list_graphs` now return `lifecycle_state`, defaulting to `published` for public graphs and `draft` otherwise.
+- **Transition validation** – disallowed transitions return a structured `invalid_state_transition` error with the allowed next states; requesting the current state is a no-op.
+- **Documentation** – updated tool count (70) and added a full section with the allowed-transition table.
+- **Tests** – 29 new cases covering missing/invalid params, not-found, full transition matrix, disallowed transitions, terminal `archived`, no-op same-state, and missing-lifecycle defaults.
+
+### Changed
+- Tool count increased from 69 to 70.
+- `registry.py` now registers `update_graph_lifecycle`.
+
+---
+
 ## [1.67.0] - 2026-08-15
 
 ### Added

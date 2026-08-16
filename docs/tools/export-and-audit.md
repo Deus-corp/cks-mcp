@@ -96,7 +96,35 @@ and metadata, or `{"found": false}` if no graph is registered under that name.
 
 **Parameters:** `name` (required).
 
-**Response:** `{"found": true, "name": "my-graph", "session_id": "...", "description": "...", "tags": "...", "public": false, "created_at": "...", "updated_at": "..."}`.
+**Response:** `{"found": true, "name": "my-graph", "session_id": "...", "description": "...", "tags": "...", "public": false, "lifecycle_state": "draft", "created_at": "...", "updated_at": "..."}`.
+
+## `update_graph_lifecycle`
+
+Transitions a registered graph's `lifecycle_state` -- one of `draft`,
+`published`, `active`, `stale`, `under_review`, `archived`. Only
+registered graphs have a lifecycle state; a first-time registration
+defaults to `published` if `public`/`visibility='public'` is set,
+otherwise `draft`. Not every transition is allowed:
+
+| From           | Allowed to                              |
+|----------------|------------------------------------------|
+| `draft`        | `published`, `archived`                   |
+| `published`    | `active`, `under_review`, `archived`      |
+| `active`       | `stale`, `under_review`, `archived`       |
+| `stale`        | `under_review`, `active`, `archived`      |
+| `under_review` | `active`, `published`, `archived`         |
+| `archived`     | *(none -- terminal)*                      |
+
+Requesting the state the graph is already in is a no-op (returns
+`{"updated": false, "reason": "already in requested state", ...}`
+rather than an error). Requesting a disallowed transition returns
+`{"error": "invalid_state_transition", "allowed": [...], ...}`
+without changing anything.
+
+**Parameters:** `name` (required), `state` (required, one of the six
+lifecycle states above).
+
+**Response:** `{"updated": true, "name": "my-graph", "previous_state": "draft", "new_state": "published"}`.
 
 ## `list_graphs`
 
