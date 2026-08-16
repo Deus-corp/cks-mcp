@@ -17,6 +17,10 @@ LIST_DEAD_LETTERED_CONFLICTS_SCHEMA = {
                 "enum": ["gossip_conflict", "inference_conflict"],
                 "description": "Only return dead-lettered tasks of this type. Omit for both.",
             },
+            "session_id": {
+                "type": "string",
+                "description": "Only return dead-lettered tasks belonging to this session. Omit for all sessions.",
+            },
         },
         "required": [],
     },

@@ -6,12 +6,24 @@ ADR-014, cks-mcp ADR-008).
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Any
 
 from cks_runtime.runtime import Runtime
 
+logger = logging.getLogger(__name__)
+
 _LIVENESS_TTL_MULTIPLIER = 3
+
+# cks_agent_liveness rows are upserted forever and never expire on their
+# own (see ADR-014) -- a process that dies without a clean shutdown
+# leaves a permanently "stopped" row behind. Opportunistically prune
+# anything whose heartbeat is older than this on every list_processes
+# call (cheap: a single indexed DELETE) rather than requiring a separate
+# cleanup job/cron. 7 days keeps recently-dead processes visible for
+# troubleshooting while still bounding table growth.
+_LIVENESS_PRUNE_AFTER_SECONDS = 7 * 24 * 60 * 60
 
 
 def _status_for(last_heartbeat_at: str, liveness_interval_s: float) -> str:
@@ -34,6 +46,13 @@ async def list_processes(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
     entry and the process-locality caveat (this reads a shared storage
     table, NOT this MCP server's own process state -- unlike
     list_agents)."""
+    if runtime.storage.supports_agent_liveness:
+        # Best-effort; a prune failure (e.g. a transient DB hiccup)
+        # should never break the read this tool exists to serve.
+        try:
+            await runtime.storage.prune_agent_liveness(_LIVENESS_PRUNE_AFTER_SECONDS)
+        except Exception as exc:
+            logger.warning("prune_agent_liveness failed: %s", exc)
     records = await runtime.storage.list_agent_liveness()
     processes = [
         {

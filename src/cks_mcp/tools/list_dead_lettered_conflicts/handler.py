@@ -16,11 +16,14 @@ from cks_runtime.runtime import Runtime
 async def list_dead_lettered_conflicts(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """Return every DEAD-lettered conflict task, oldest first."""
     task_type = arguments.get("task_type")
+    session_id = arguments.get("session_id")
 
     if not runtime.storage.supports_outbox:
         return {"tasks": [], "count": 0, "supported": False}
 
-    tasks = await runtime.storage.list_dead_letter_tasks(task_type=task_type)
+    tasks = await runtime.storage.list_dead_letter_tasks(
+        task_type=task_type, session_id=session_id
+    )
 
     result = []
     for task in tasks:

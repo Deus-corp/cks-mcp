@@ -3,6 +3,21 @@
 
 ---
 
+## [1.70.0] - 2026-08-16
+
+### Added
+- **Dead-letter session filter** – `list_dead_lettered_conflicts` now accepts an optional `session_id`, so cks-studio can show only dead-letter tasks for the current session.
+- **Agent liveness pruning hook** – `list_processes` now calls `prune_agent_liveness` on the storage backend, removing stale standalone-agent liveness rows (default 7 days) before returning the process list.
+
+### Changed
+- Tool schemas updated for dead-letter filtering.
+- Improved process listing to prune old process entries automatically.
+
+### Tests
+- Existing and newly added tests for dead-letter filtering and process pruning pass.
+
+---
+
 ## [1.69.1] - 2026-08-16
 
 ### Fixed
