@@ -43,6 +43,16 @@ require_open_session(*arg_names)
     when the session exists but is already closed.  Prevents mutations
     on archived sessions from silently succeeding.
 
+refresh_session_from_storage(*arg_names)
+    Reloads each named argument's session from persisted storage (when
+    already known in-memory) before the handler runs, so a session
+    mutated by a *different* process sharing the same storage backend
+    (e.g. a standalone ``cks-pipeline-agent``/Critic/Enrichment agent
+    process -- see ``cks_mcp.session_refresh`` for the full root-cause
+    writeup) is never served stale to this tool call. A no-op for a
+    session this process has never seen, so it never masks
+    ``require_session``'s own "does this even exist" check.
+
 catch_unhandled_errors
     Last-resort catcher that converts any unhandled exception into an
     ``internal_error`` response rather than surfacing a raw traceback to
@@ -55,6 +65,7 @@ from collections.abc import Callable
 from typing import Any
 
 from cks_mcp.errors import internal_error, missing_parameter, session_not_found
+from cks_mcp.session_refresh import reload_session_from_storage
 
 # ---------------------------------------------------------------------------
 # Types
@@ -144,6 +155,32 @@ def require_open_session(*arg_names: str) -> Middleware:
     return decorator
 
 
+def refresh_session_from_storage(*arg_names: str) -> Middleware:
+    """
+    Reload each named session from persisted storage, in place, before
+    the handler runs -- see this module's docstring and
+    ``cks_mcp.session_refresh`` for why this is needed.
+
+    Only refreshes a session this process already has an in-memory
+    copy of (``runtime.get_session(sid)`` is not None); a session id
+    unknown here is left for ``require_session``/``require_open_session``
+    to report as ``session_not_found`` rather than this middleware
+    silently swallowing that case.
+    """
+    def decorator(handler: Handler) -> Handler:
+        async def wrapper(runtime, arguments: dict[str, Any]) -> dict[str, Any]:
+            for arg in arg_names:
+                sid = arguments.get(arg)
+                if not sid:
+                    continue
+                session = runtime.get_session(sid)
+                if session is not None:
+                    await reload_session_from_storage(runtime, session)
+            return await handler(runtime, arguments)
+        return wrapper
+    return decorator
+
+
 def catch_unhandled_errors(handler: Handler) -> Handler:
     """
     Convert any unhandled exception into an ``internal_error`` response.
@@ -203,6 +240,7 @@ __all__ = [
     "Handler",
     "Middleware",
     "catch_unhandled_errors",
+    "refresh_session_from_storage",
     "require_fields",
     "require_open_session",
     "require_session",

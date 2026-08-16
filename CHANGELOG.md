@@ -3,6 +3,19 @@
 
 ---
 
+## [1.69.1] - 2026-08-16
+
+### Fixed
+- **Stale session reads in multi-process agent setups** – added `refresh_session_from_storage` middleware and a shared session-refresh helper. Session-scoped MCP tool calls now reload persisted session state before running, so the main cks-mcp process no longer serves stale in-memory snapshots when a standalone agent process (e.g. `cks-pipeline-agent`, Critic, Enrichment) has already committed changes to the same SQLite/Postgres backend.
+- **Research loop stuck on Queued** – `list_pipeline_runs` / `query_subgraph` / `serialize_knowledge` can now see transition-log updates written by a separate pipeline-agent process, so runs progress from `Queued` instead of appearing frozen.
+- **Evolve retry path** now reuses the shared `reload_session_from_storage` helper.
+
+### Added
+- `cks_mcp.session_refresh` module centralising in-place session reload from persisted storage.
+- Tests for middleware and session-refresh behavior.
+
+---
+
 ## [1.69.0] - 2026-08-16
 
 ### Added

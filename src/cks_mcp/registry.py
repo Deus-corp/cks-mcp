@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from cks_mcp.middleware import (
     catch_unhandled_errors,
+    refresh_session_from_storage,
     require_fields,
     require_open_session,
     require_session,
@@ -192,19 +193,32 @@ def _wrap(name: str, *required_fields: str):
 
 
 def _wrap_session(name: str, *session_args: str):
-    """Telemetry + unhandled-error catch + session existence check."""
+    """Telemetry + unhandled-error catch + fresh-from-storage reload +
+    session existence check.
+
+    ``refresh_session_from_storage`` runs first (outermost of the
+    session-related layers) so ``require_session``'s existence/open
+    checks -- and the handler itself -- always see this session as it
+    was most recently committed by *any* process sharing this
+    backend, not just this one (see ``cks_mcp.session_refresh`` for
+    why that matters: standalone agent processes like
+    ``cks-pipeline-agent`` commit through their own ``Runtime``).
+    """
     return with_middleware(
         catch_unhandled_errors,
         log_tool_call(name),
+        refresh_session_from_storage(*session_args),
         require_session(*session_args),
     )
 
 
 def _wrap_open_session(name: str, *session_args: str):
-    """Telemetry + unhandled-error catch + session must exist and be open."""
+    """Telemetry + unhandled-error catch + fresh-from-storage reload +
+    session must exist and be open."""
     return with_middleware(
         catch_unhandled_errors,
         log_tool_call(name),
+        refresh_session_from_storage(*session_args),
         require_open_session(*session_args),
     )
 
@@ -213,14 +227,16 @@ def _wrap_open_session_fields(name: str, session_arg: str, *required_fields: str
     """
     Telemetry + unhandled-error catch + required-field validation (for
     fields beyond the session id itself, e.g. arbitrate_inference_conflict's
-    'conclusion_id') + session must exist and be open. require_fields runs
-    before require_open_session so a missing conclusion_id is reported on
-    its own rather than as a session lookup failing on an unrelated arg.
+    'conclusion_id') + fresh-from-storage reload + session must exist
+    and be open. require_fields runs before require_open_session so a
+    missing conclusion_id is reported on its own rather than as a
+    session lookup failing on an unrelated arg.
     """
     return with_middleware(
         catch_unhandled_errors,
         log_tool_call(name),
         require_fields(*required_fields),
+        refresh_session_from_storage(session_arg),
         require_open_session(session_arg),
     )
 

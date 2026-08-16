@@ -10,6 +10,7 @@ from cks_runtime.storage.storage import ConcurrentModificationError
 
 from cks_mcp import provenance
 from cks_mcp.errors import invalid_json_error
+from cks_mcp.session_refresh import reload_session_from_storage
 from cks_mcp.tools.validate.handler import EXTENSION_ALIASES, resolve_extensions
 
 #: number of extra attempts (beyond the first) evolve_knowledge makes
@@ -72,19 +73,15 @@ async def _reload_session_from_storage(
     ``ConcurrentModificationError`` again or silently discard the
     other writer's committed change.
 
-    Mutates ``session`` in place (rather than returning a new object)
-    so every existing reference to it -- including the one the caller
-    of ``evolve_knowledge`` still holds -- observes the refreshed
-    state, matching ``SessionManager.restore``'s "same identity,
-    fresher content" contract used at startup.
+    Thin wrapper around
+    ``cks_mcp.session_refresh.reload_session_from_storage`` (moved
+    there so ``middleware.refresh_session_from_storage`` can apply the
+    same reload ahead of *every* session-scoped tool call, not just
+    this retry path -- see that module's docstring for the
+    cross-process-staleness root cause this also fixes for reads like
+    ``list_pipeline_runs``/``query_subgraph``/``serialize_knowledge``).
     """
-    fresh = await runtime.storage.load_session(session.session_id)
-    if fresh is not None:
-        session.knowledge_structure = fresh.knowledge_structure
-        session.version_history = fresh.version_history
-        session.metadata = fresh.metadata
-        session.closed = fresh.closed
-    return session
+    return await reload_session_from_storage(runtime, session)
 
 
 async def evolve_knowledge(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:

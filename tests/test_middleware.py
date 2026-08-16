@@ -10,12 +10,13 @@ Tests cover:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from cks_mcp.middleware import (
     catch_unhandled_errors,
+    refresh_session_from_storage,
     require_fields,
     require_open_session,
     require_session,
@@ -42,6 +43,10 @@ def _make_runtime(sessions: dict | None = None):
         return sessions.get(sid)
 
     runtime.get_session.side_effect = _get_session
+    # Default: storage has nothing newer to offer (see
+    # refresh_session_from_storage's tests below for the "storage has
+    # a fresher copy" case, which overrides this per-test).
+    runtime.storage.load_session = AsyncMock(return_value=None)
     return runtime
 
 
@@ -158,6 +163,102 @@ async def test_require_open_session_skips_when_arg_absent():
     runtime = _make_runtime({})
     handler = require_open_session("session_id")(_ok_handler)
     result = await handler(runtime, {})
+    assert result == {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# refresh_session_from_storage
+# ---------------------------------------------------------------------------
+
+async def test_refresh_session_reloads_known_session_from_storage():
+    """Root-cause regression test: a session mutated by a different
+    process (e.g. cks-pipeline-agent) sharing the same storage backend
+    must be visible to this process's handler, not the stale in-memory
+    copy -- see cks_mcp.session_refresh's docstring."""
+    session = _open_session("s1")
+    session.knowledge_structure = "stale"
+    runtime = _make_runtime({"s1": session})
+
+    fresh = MagicMock()
+    fresh.knowledge_structure = "fresh-from-another-process"
+    fresh.version_history = ["v2"]
+    fresh.metadata = {"updated": True}
+    fresh.closed = False
+    runtime.storage.load_session = AsyncMock(return_value=fresh)
+
+    seen_structure = {}
+
+    async def _capture(runtime, arguments):
+        seen_structure["value"] = runtime.get_session("s1").knowledge_structure
+        return {"ok": True}
+
+    handler = refresh_session_from_storage("session_id")(_capture)
+    result = await handler(runtime, {"session_id": "s1"})
+
+    assert result == {"ok": True}
+    runtime.storage.load_session.assert_awaited_once_with("s1")
+    assert seen_structure["value"] == "fresh-from-another-process"
+    assert session.metadata == {"updated": True}
+
+
+async def test_refresh_session_skips_unknown_session():
+    """A session this process has never seen is left for
+    require_session/require_open_session to report as not-found,
+    rather than this middleware calling storage for it."""
+    runtime = _make_runtime({})
+    handler = refresh_session_from_storage("session_id")(_ok_handler)
+
+    result = await handler(runtime, {"session_id": "ghost"})
+
+    assert result == {"ok": True}
+    runtime.storage.load_session.assert_not_called()
+
+
+async def test_refresh_session_skips_when_arg_absent():
+    runtime = _make_runtime({})
+    handler = refresh_session_from_storage("session_id")(_ok_handler)
+
+    result = await handler(runtime, {})
+
+    assert result == {"ok": True}
+    runtime.storage.load_session.assert_not_called()
+
+
+async def test_refresh_session_leaves_session_untouched_when_storage_has_nothing():
+    session = _open_session("s1")
+    session.knowledge_structure = "only-copy"
+    runtime = _make_runtime({"s1": session})
+    runtime.storage.load_session = AsyncMock(return_value=None)
+
+    handler = refresh_session_from_storage("session_id")(_ok_handler)
+    result = await handler(runtime, {"session_id": "s1"})
+
+    assert result == {"ok": True}
+    assert session.knowledge_structure == "only-copy"
+
+
+async def test_refresh_session_runs_ahead_of_require_session_in_full_stack():
+    """Integration: composed the way registry.py's _wrap_session does,
+    the refresh must happen before require_open_session's closed-check
+    reads session.closed -- otherwise a session another process just
+    reopened/closed would still read the stale flag here."""
+    session = _closed_session("s1")  # stale: this process last saw it closed
+    runtime = _make_runtime({"s1": session})
+    fresh = MagicMock()
+    fresh.knowledge_structure = "ks"
+    fresh.version_history = []
+    fresh.metadata = {}
+    fresh.closed = False  # another process reopened it since
+    runtime.storage.load_session = AsyncMock(return_value=fresh)
+
+    handler = with_middleware(
+        catch_unhandled_errors,
+        refresh_session_from_storage("session_id"),
+        require_open_session("session_id"),
+    )(_ok_handler)
+
+    result = await handler(runtime, {"session_id": "s1"})
+
     assert result == {"ok": True}
 
 
