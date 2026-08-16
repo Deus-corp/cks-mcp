@@ -3,6 +3,21 @@
 
 ---
 
+## [1.69.0] - 2026-08-16
+
+### Added
+- **`unregister_graph` tool** – removes a registered graph from the graph registry by name. The underlying session and knowledge structure are left untouched.
+- **Tool count** – increased from 70 to 71.
+
+### Changed
+- `registry.py` now registers `unregister_graph` under the Memory & Persistence group.
+- Documentation updated to reflect the new tool and total count.
+
+### Tests
+- Added handler tests for `unregister_graph`, covering success, missing name, and graph-not-found cases.
+
+---
+
 ## [1.68.2] - 2026-08-16
 
 ### Fixed

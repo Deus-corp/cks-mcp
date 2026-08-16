@@ -157,6 +157,8 @@ from cks_mcp.tools.stop_agent import stop_agent
 from cks_mcp.tools.stop_agent.schema import STOP_AGENT_SCHEMA
 from cks_mcp.tools.suggest_evolution import suggest_evolution
 from cks_mcp.tools.suggest_evolution.schema import SUGGEST_EVOLUTION_SCHEMA
+from cks_mcp.tools.unregister_graph import unregister_graph
+from cks_mcp.tools.unregister_graph.schema import UNREGISTER_GRAPH_SCHEMA
 from cks_mcp.tools.update_graph_lifecycle import update_graph_lifecycle
 from cks_mcp.tools.update_graph_lifecycle.schema import UPDATE_GRAPH_LIFECYCLE_SCHEMA
 from cks_mcp.tools.update_registered_graph import update_registered_graph
@@ -465,6 +467,10 @@ TOOLS = {
     "register_graph": {
         **REGISTER_GRAPH_SCHEMA,
         "handler": _wrap("register_graph", "name", "session_id")(register_graph),
+    },
+    "unregister_graph": {
+        **UNREGISTER_GRAPH_SCHEMA,
+        "handler": _wrap("unregister_graph", "name")(unregister_graph),
     },
     "get_graph": {
         **GET_GRAPH_SCHEMA,
