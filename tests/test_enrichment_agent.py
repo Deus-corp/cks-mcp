@@ -210,6 +210,90 @@ async def test_resolve_enrichment_request_skips_already_enriched_candidate(
     assert already_enriched_url in resolution.detail
 
 
+async def test_resolve_enrichment_request_reuses_existing_document_for_different_object(
+    mock_runtime, monkeypatch
+):
+    """Regression test for the 'Object ... already exists' retry loop
+    (see enrichment_agent._process_one docstring / the doc_id-collision
+    comment in resolve_enrichment_request).
+
+    ``ingest_document``'s Document id is a deterministic hash of the
+    URL. If the *same* URL was already ingested for a *different*
+    object (or the task retried after a crash between commit and
+    outbox completion), the doc_id already exists in the session even
+    though ``_already_enriched_urls`` (which only looks at relations
+    from *this* object_id) doesn't know that. Previously this made
+    evolve_knowledge's add_object fail every retry forever; now the
+    existing Document node should just be reused and linked.
+    """
+    shared_url = "https://en.wikipedia.org/wiki/Widget"
+
+    obj = _FakeObject("obj-2", "Widget")
+    # doc-shared already exists in the session (e.g. linked to a
+    # different object, obj-1), but NOT linked to obj-2 yet.
+    existing_doc = _FakeObject("doc-shared", "Widget - Wikipedia", {"url": shared_url})
+    unrelated_rel = _FakeRelation("enriched_by", ["obj-1", "doc-shared"])
+    session = _FakeSession([obj, existing_doc], [unrelated_rel])
+    mock_runtime.get_session = MagicMock(return_value=session)
+
+    candidate = EnrichmentCandidate(
+        url=shared_url, title="Widget", source_adapter="wikipedia", source_kind="wikipedia_article"
+    )
+    monkeypatch.setattr(
+        "cks_mcp.enrichment_agent.build_enrichment_candidates",
+        lambda *a, **k: ([candidate], {}),
+    )
+    monkeypatch.setattr("cks_mcp.enrichment_agent.robots_allows", lambda *_a, **_k: True)
+
+    async def _fake_ingest(_runtime, args):
+        # Deterministic id from the URL, same as the real
+        # ingest_document -- this is what collides.
+        return {
+            "knowledge_structure": {
+                "objects": [
+                    {
+                        "identity": {"id": "doc-shared", "type": "Document", "name": "Widget - Wikipedia"},
+                        "structure": {"url": args["url"]},
+                    }
+                ]
+            }
+        }
+
+    verify_calls = []
+
+    async def _fake_verify(_runtime, args):
+        verify_calls.append(args)
+        return {"objects": []}
+
+    committed_ops: list[dict] = []
+
+    async def _fake_evolve(_runtime, args):
+        committed_ops.extend(args["operations"])
+        return {"ok": True}
+
+    monkeypatch.setattr("cks_mcp.enrichment_agent.ingest_document", _fake_ingest)
+    monkeypatch.setattr("cks_mcp.enrichment_agent.verify_source", _fake_verify)
+    monkeypatch.setattr("cks_mcp.enrichment_agent.evolve_knowledge", _fake_evolve)
+
+    task = {"session_id": "s1", "payload": {"object_id": "obj-2"}}
+    resolution = await resolve_enrichment_request(mock_runtime, task, _settings())
+
+    assert resolution.resolved is True
+    assert "linked 1 source" in resolution.detail
+    # The already-existing document must NOT be re-added.
+    assert not any(
+        op["type"] == "add_object" and op["identity"]["id"] == "doc-shared" for op in committed_ops
+    )
+    # But it must still be linked to the new object.
+    assert any(
+        op["type"] == "add_relation" and set(op["participants"]) == {"obj-2", "doc-shared"}
+        for op in committed_ops
+    )
+    # verify_source is skipped for a reused document -- it was already
+    # verified (or attempted) the first time it was ingested.
+    assert verify_calls == []
+
+
 async def test_resolve_enrichment_request_still_processes_new_url_when_another_already_enriched(
     mock_runtime, monkeypatch
 ):

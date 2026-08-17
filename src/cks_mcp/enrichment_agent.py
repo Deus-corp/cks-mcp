@@ -336,12 +336,29 @@ async def resolve_enrichment_request(
             continue
         doc_id = doc_op["identity"]["id"]
 
-        verify_result = await verify_source(runtime, {"url": candidate.url, "subject_id": doc_id})
-        if not verify_result.get("error"):
-            ops.extend(_ops_from_structure(verify_result))
-        # A failed verify_source (e.g. unsafe_url on a redirect target)
-        # doesn't block linking the content itself -- provenance is
-        # best-effort here, not a hard requirement to enrich at all.
+        # Idempotency: ``ingest_document``'s Document id is a
+        # deterministic hash of the URL, so the *same* URL enriching
+        # two *different* objects (or a retry after the outbox task
+        # crashed post-commit but pre-complete) produces the same
+        # doc_id here. ``_already_enriched_urls`` only catches the
+        # "already linked to *this* object_id" case; it says nothing
+        # about the document already existing in the session unlinked
+        # to this object, which is exactly what happens the second
+        # time. Without this check, ``add_object`` for an id that
+        # already exists always fails ("Object '...' already exists"),
+        # turning a no-op into a permanent-retry failure. When the
+        # document is already present, skip re-adding it and just
+        # link the existing node.
+        if _find_object_by_id(session, doc_id) is not None:
+            ops = [op for op in ops if not (op["type"] == "add_object" and op["identity"]["id"] == doc_id)]
+        else:
+            verify_result = await verify_source(runtime, {"url": candidate.url, "subject_id": doc_id})
+            if not verify_result.get("error"):
+                ops.extend(_ops_from_structure(verify_result))
+            # A failed verify_source (e.g. unsafe_url on a redirect
+            # target) doesn't block linking the content itself --
+            # provenance is best-effort here, not a hard requirement
+            # to enrich at all.
 
         ops.append(
             {

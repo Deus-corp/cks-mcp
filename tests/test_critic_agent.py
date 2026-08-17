@@ -854,6 +854,47 @@ async def test_run_once_drains_all_queues(mock_runtime):
     assert contradiction_tasks == []
 
 
+async def test_run_once_respects_task_types_override(mock_runtime):
+    """Regression test for Priority 1.3: with a narrowed
+    ``task_types`` (e.g. crdt_fork carved out for a dedicated Fork
+    Resolution Agent, per the module docstring's "run one or the
+    other" note), run_once must only claim the configured queues --
+    not silently fall back to every _TASK_TYPES entry."""
+    seen_task_types: list[str] = []
+
+    async def _dequeue(task_type=None):
+        seen_task_types.append(task_type)
+
+    mock_runtime.storage.dequeue_next_outbox_task = AsyncMock(side_effect=_dequeue)
+
+    settings = _settings(task_types=("gossip_conflict", "inference_conflict"))
+    processed = await run_once(mock_runtime, settings)
+
+    assert processed == 0
+    assert seen_task_types == ["gossip_conflict", "inference_conflict"]
+    assert "crdt_fork" not in seen_task_types
+
+
+def test_settings_from_env_task_types_override(monkeypatch):
+    monkeypatch.setenv(
+        "CKS_CRITIC_TASK_TYPES", "gossip_conflict, provenance_conflict"
+    )
+    settings = CriticAgentSettings.from_env()
+    assert settings.task_types == ("gossip_conflict", "provenance_conflict")
+
+
+def test_settings_from_env_task_types_default_includes_crdt_fork(monkeypatch):
+    monkeypatch.delenv("CKS_CRITIC_TASK_TYPES", raising=False)
+    settings = CriticAgentSettings.from_env()
+    assert "crdt_fork" in settings.task_types
+
+
+def test_settings_from_env_task_types_rejects_unknown(monkeypatch):
+    monkeypatch.setenv("CKS_CRITIC_TASK_TYPES", "gossip_conflict,not_a_real_type")
+    with pytest.raises(ValueError, match="not_a_real_type"):
+        CriticAgentSettings.from_env()
+
+
 # ---------------------------------------------------------------------------
 # Heartbeat / lease renewal
 # ---------------------------------------------------------------------------

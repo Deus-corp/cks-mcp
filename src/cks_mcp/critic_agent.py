@@ -180,6 +180,10 @@ _TASK_TYPES = (
     "crdt_fork",
 )
 
+#: task types every deployment gets unless CKS_CRITIC_TASK_TYPES
+#: overrides them -- see CriticAgentSettings.task_types below.
+_DEFAULT_TASK_TYPES = _TASK_TYPES
+
 # Default "bump" extension applied by resolve_temporal_conflict below --
 # a safe default policy: if nobody has removed/superseded the fact, just
 # give it more time rather than guessing it should be archived.
@@ -197,13 +201,44 @@ class CriticAgentSettings:
     liveness_interval: float = _DEFAULT_LIVENESS_INTERVAL_SECONDS
     llm_breaker_threshold: int = _DEFAULT_LLM_BREAKER_THRESHOLD
     llm_breaker_cooldown: float = _DEFAULT_LLM_BREAKER_COOLDOWN_SECONDS
+    task_types: tuple[str, ...] = _DEFAULT_TASK_TYPES
 
     @classmethod
     def from_env(cls) -> CriticAgentSettings:
         storage_path = os.environ.get("CKS_MCP_DB_PATH") or str(
             data_dir() / "cks_mcp.db"
         )
+        # CKS_CRITIC_TASK_TYPES (Priority 1.3 / this module's own
+        # "Fork Resolution Agent" note above): both this agent's
+        # resolve_crdt_fork and cks_mcp.fork_resolution_agent's
+        # resolve_fork claim from the same crdt_fork outbox queue with
+        # different, non-deterministic-when-combined policies. There
+        # was previously no way to run the dedicated Fork Resolution
+        # Agent without the Critic Agent also racing it for the same
+        # tasks (or vice versa for any other task_type an operator
+        # wants to hand off to a different/updated resolver without
+        # restarting every agent). A comma-separated override here
+        # lets an operator carve a task_type out of this agent's own
+        # claim set -- e.g. CKS_CRITIC_TASK_TYPES=gossip_conflict,
+        # inference_conflict,provenance_conflict,temporal_conflict,
+        # contradiction_detected to run crdt_fork exclusively through
+        # cks-fork-agent. Unset/blank keeps the historical default
+        # (every _TASK_TYPES entry, including crdt_fork), so existing
+        # single-agent deployments are unaffected.
+        task_types_raw = os.environ.get("CKS_CRITIC_TASK_TYPES", "")
+        task_types = (
+            tuple(t.strip() for t in task_types_raw.split(",") if t.strip())
+            if task_types_raw.strip()
+            else _DEFAULT_TASK_TYPES
+        )
+        unknown = set(task_types) - set(_TASK_TYPES)
+        if unknown:
+            raise ValueError(
+                f"CKS_CRITIC_TASK_TYPES contains unknown task type(s): {sorted(unknown)}. "
+                f"Valid task types: {list(_TASK_TYPES)}."
+            )
         return cls(
+            task_types=task_types,
             poll_interval=float(
                 os.environ.get("CKS_CRITIC_POLL_INTERVAL", _DEFAULT_POLL_INTERVAL_SECONDS)
             ),
@@ -1065,7 +1100,7 @@ async def run_once(
         threshold=settings.llm_breaker_threshold, cooldown=settings.llm_breaker_cooldown
     )
     processed = 0
-    for task_type in _TASK_TYPES:
+    for task_type in settings.task_types:
         while await _process_one(runtime, task_type, settings, liveness):
             processed += 1
     return processed

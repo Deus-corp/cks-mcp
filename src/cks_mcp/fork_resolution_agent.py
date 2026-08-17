@@ -289,6 +289,20 @@ def _find_owning_session_id(runtime: Runtime, object_id_a: str, object_id_b: str
     return None
 
 
+def _resolution_object_exists(runtime: Runtime, session_id: str, resolution_id: str) -> bool:
+    """True if ``resolution_id`` (a deterministic id -- see
+    ``lca_arbiter._resolution_object_id``) is already present in
+    ``session_id``'s knowledge structure. Used to make re-recording an
+    LCA resolution object idempotent across retries of the same
+    ``crdt_fork`` task instead of relying on ``evolve_knowledge``
+    rejecting the duplicate ``add_object`` and that error going
+    unreported."""
+    session = runtime.get_session(session_id)
+    if session is None:
+        return False
+    return resolution_id in session.knowledge_structure
+
+
 async def _try_lca_resolution(
     runtime: Runtime, existing_ids: list[str]
 ) -> tuple[str | None, str | None]:
@@ -338,19 +352,41 @@ async def _try_lca_resolution(
                 continue
 
             if lca_resolution.resolution_object is not None:
-                await evolve_knowledge(
-                    runtime,
-                    {
-                        "session_id": session_id,
-                        "operations": [
-                            {
-                                "type": "add_object",
-                                "identity": lca_resolution.resolution_object["identity"],
-                                "structure": lca_resolution.resolution_object["structure"],
-                            }
-                        ],
-                    },
-                )
+                resolution_id = lca_resolution.resolution_object["identity"]["id"]
+                # Idempotency: _resolution_object_id is deterministic
+                # (same fork, same strategy -> same id every time), so
+                # a retried crdt_fork task -- e.g. resolve_pointer
+                # below failed transiently on a prior attempt, after
+                # this write already committed -- hits add_object for
+                # an id that already exists. Previously that error was
+                # silently discarded (no result check at all), which
+                # hid it well enough that it didn't loop, but also hid
+                # genuine failures (a bad session_id, a schema
+                # rejection) behind the same silence. Check for the
+                # object first: skip the redundant write when it's
+                # already there (this fork was already arbitrated),
+                # and log anything else instead of swallowing it.
+                already_recorded = _resolution_object_exists(runtime, session_id, resolution_id)
+                if not already_recorded:
+                    evolve_result = await evolve_knowledge(
+                        runtime,
+                        {
+                            "session_id": session_id,
+                            "operations": [
+                                {
+                                    "type": "add_object",
+                                    "identity": lca_resolution.resolution_object["identity"],
+                                    "structure": lca_resolution.resolution_object["structure"],
+                                }
+                            ],
+                        },
+                    )
+                    if evolve_result.get("error"):
+                        print(
+                            f"[cks-fork-agent] failed to record LCA resolution object "
+                            f"'{resolution_id}' in session '{session_id}': {evolve_result}",
+                            file=sys.stderr,
+                        )
 
             if lca_resolution.winner_object_id is not None:
                 return lca_resolution.winner_object_id, lca_resolution.detail

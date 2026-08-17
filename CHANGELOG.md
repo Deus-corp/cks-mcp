@@ -3,6 +3,22 @@
 
 ---
 
+## [1.71.0] - 2026-08-17
+
+### Fixed
+- **Enrichment agent idempotency** – when the same document URL is already present in the session (e.g. from a previous enrichment or retry), the agent now reuses the existing Document node instead of trying to `add_object` it again. This eliminates `Object '...' already exists` retry loops.
+- **Fork resolution agent idempotency** – LCA resolution objects are no longer re-written when they already exist in the session; deterministic resolution ids are checked before `evolve_knowledge`.
+- **Critic agent task overlap** – added `CKS_CRITIC_TASK_TYPES` environment override so `crdt_fork` (or any task type) can be carved out of the Critic Agent’s claim set, preventing it from racing the dedicated Fork Resolution Agent.
+
+### Added
+- `CKS_CRITIC_TASK_TYPES` env var for configuring which outbox task types the Critic Agent claims.
+- Regression tests for enrichment doc-id collision, LCA idempotency, and task-type narrowing.
+
+### Changed
+- `CriticAgentSettings` now stores `task_types`; `run_once` iterates only those types.
+
+---
+
 ## [1.70.1] - 2026-08-17
 
 ### Fixed

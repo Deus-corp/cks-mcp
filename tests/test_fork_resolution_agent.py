@@ -9,7 +9,9 @@ import pytest
 from cks_mcp.fork_resolution_agent import (
     ForkResolutionAgentSettings,
     _find_causally_newest,
+    _resolution_object_exists,
     _select_winner,
+    _try_lca_resolution,
     resolve_fork,
     run_once,
 )
@@ -37,6 +39,113 @@ def _make_crdt_store_mock():
     store.resolve_pointer = AsyncMock(return_value=True)
     store.mark_fork_resolved = AsyncMock(return_value=None)
     return store
+
+
+# ---------------------------------------------------------------------------
+# LCA resolution-object idempotency (Priority 1.1)
+# ---------------------------------------------------------------------------
+
+
+class _FakeStructure:
+    def __init__(self, ids: set[str]):
+        self._ids = ids
+
+    def __contains__(self, item: str) -> bool:
+        return item in self._ids
+
+
+class _FakeSession:
+    def __init__(self, ids: set[str]):
+        self.knowledge_structure = _FakeStructure(ids)
+
+
+def test_resolution_object_exists_true_when_present():
+    runtime = MagicMock()
+    runtime.get_session = MagicMock(return_value=_FakeSession({"resolution-abc123"}))
+    assert _resolution_object_exists(runtime, "s1", "resolution-abc123") is True
+
+
+def test_resolution_object_exists_false_when_absent():
+    runtime = MagicMock()
+    runtime.get_session = MagicMock(return_value=_FakeSession({"other-id"}))
+    assert _resolution_object_exists(runtime, "s1", "resolution-abc123") is False
+
+
+def test_resolution_object_exists_false_when_no_session():
+    runtime = MagicMock()
+    runtime.get_session = MagicMock(return_value=None)
+    assert _resolution_object_exists(runtime, "s1", "resolution-abc123") is False
+
+
+class TestLcaResolutionIdempotency:
+    """Regression tests for the 'Object ... already exists' class of
+    bug (Priority 1.1): _try_lca_resolution's resolution-object write
+    uses a deterministic id, so a retried fork task must not
+    re-attempt (and silently ignore an 'already exists' failure on) a
+    write that already succeeded."""
+
+    def _lca_resolution(self, *, resolution_object=None, winner="obj-a"):
+        result = MagicMock()
+        result.resolved = True
+        result.resolution_object = resolution_object
+        result.winner_object_id = winner
+        result.detail = "lca picked a winner"
+        return result
+
+    async def test_skips_evolve_when_resolution_object_already_recorded(self, monkeypatch):
+        resolution_object = {
+            "identity": {"id": "resolution-dup", "type": "Resolution", "name": "x"},
+            "structure": {},
+        }
+        runtime = MagicMock()
+        # session already contains resolution-dup -- e.g. this is a
+        # retry after the write committed but the outbox task crashed
+        # before being marked complete.
+        session = _FakeSession({"obj-a", "obj-b", "resolution-dup"})
+        runtime.get_session = MagicMock(return_value=session)
+        runtime.list_sessions = MagicMock(return_value=[])
+
+        monkeypatch.setattr(
+            "cks_mcp.fork_resolution_agent._find_owning_session_id",
+            lambda *_a, **_k: "s1",
+        )
+        evolve_mock = AsyncMock()
+        monkeypatch.setattr("cks_mcp.fork_resolution_agent.evolve_knowledge", evolve_mock)
+        monkeypatch.setattr(
+            "cks_mcp.fork_resolution_agent.resolve_with_lca",
+            AsyncMock(return_value=self._lca_resolution(resolution_object=resolution_object)),
+        )
+
+        winner, _detail = await _try_lca_resolution(runtime, ["obj-a", "obj-b"])
+
+        assert winner == "obj-a"
+        evolve_mock.assert_not_called()
+
+    async def test_writes_resolution_object_when_not_yet_recorded(self, monkeypatch):
+        resolution_object = {
+            "identity": {"id": "resolution-new", "type": "Resolution", "name": "x"},
+            "structure": {},
+        }
+        runtime = MagicMock()
+        session = _FakeSession({"obj-a", "obj-b"})  # resolution-new not present yet
+        runtime.get_session = MagicMock(return_value=session)
+        runtime.list_sessions = MagicMock(return_value=[])
+
+        monkeypatch.setattr(
+            "cks_mcp.fork_resolution_agent._find_owning_session_id",
+            lambda *_a, **_k: "s1",
+        )
+        evolve_mock = AsyncMock(return_value={"ok": True})
+        monkeypatch.setattr("cks_mcp.fork_resolution_agent.evolve_knowledge", evolve_mock)
+        monkeypatch.setattr(
+            "cks_mcp.fork_resolution_agent.resolve_with_lca",
+            AsyncMock(return_value=self._lca_resolution(resolution_object=resolution_object)),
+        )
+
+        winner, _detail = await _try_lca_resolution(runtime, ["obj-a", "obj-b"])
+
+        assert winner == "obj-a"
+        evolve_mock.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
