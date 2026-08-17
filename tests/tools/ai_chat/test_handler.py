@@ -146,6 +146,9 @@ async def test_iteration_cap_returns_clear_message_not_infinite_loop():
 
     assert mock_call.call_count == 8  # _MAX_ITERATIONS
     assert "iteration limit" in result["reply"]
+    # Structured flag so callers can detect this retriable condition
+    # without string-matching the reply text (see handler comment).
+    assert result["truncated"] is True
 
 
 def _ollama_tool_use_response(tool_name: str, tool_args: dict, call_id: str = "call_1") -> dict:

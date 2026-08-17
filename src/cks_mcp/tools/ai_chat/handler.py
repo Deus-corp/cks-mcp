@@ -179,4 +179,8 @@ async def ai_chat(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
         "reply": "Reached the tool-call iteration limit without a final answer.",
         "tool_calls": executed_calls,
         "messages": messages,
+        # Structured flag alongside the human-readable reply above, so
+        # callers (e.g. cks-studio's useAiChat) can detect this specific,
+        # retriable condition without string-matching the reply text.
+        "truncated": True,
     }

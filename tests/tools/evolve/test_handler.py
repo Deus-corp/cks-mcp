@@ -71,6 +71,37 @@ async def test_evolve_knowledge(mock_runtime):
     mock_runtime.commit_transaction.assert_awaited_once()
 
 
+async def test_evolve_knowledge_rejects_operations_given_as_a_json_string(
+    mock_runtime,
+):
+    # Regression test: passing a JSON-encoded string for 'operations'
+    # (e.g. a caller that serialized the list itself instead of passing
+    # the array) previously reached parse_operations and blew up with an
+    # unhandled AttributeError ('str' object has no attribute 'get'),
+    # surfaced to the client as an opaque internal_error. It must now be
+    # reported as a clear, structured validation error instead.
+    args = {
+        "json_data": VALID_KNOWLEDGE_JSON,
+        "operations": '[{"type": "add_object"}]',
+    }
+    result = await evolve_knowledge(mock_runtime, args)
+    assert result == {
+        "error": "invalid_operations",
+        "message": "Operations must be a JSON array.",
+    }
+    mock_runtime.create_session.assert_not_awaited()
+    mock_runtime.commit_transaction.assert_not_awaited()
+
+
+async def test_evolve_knowledge_rejects_operations_given_as_a_dict(mock_runtime):
+    args = {
+        "json_data": VALID_KNOWLEDGE_JSON,
+        "operations": {"type": "add_object"},
+    }
+    result = await evolve_knowledge(mock_runtime, args)
+    assert result["error"] == "invalid_operations"
+
+
 # ---------------------------------------------------------------------------
 # resolve_inference_conflict + 'extensions' opt-in (see cks-core ADR-001/
 # ADR-002 and validate_knowledge's own 'extensions' parameter). Uses a real

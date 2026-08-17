@@ -3,6 +3,19 @@
 
 ---
 
+## [1.70.1] - 2026-08-17
+
+### Fixed
+- **`ai_chat` iteration-limit flag** – when the tool-call iteration cap is reached, `ai_chat` now includes `"truncated": true` in its response alongside the human-readable message, so clients like cks-studio can detect and retry this specific, retriable condition without string-matching text.
+- **`evolve_knowledge` invalid operations** – passing `operations` as a JSON string or non-array now returns a structured `invalid_operations` error instead of an opaque `internal_error` from an unhandled `AttributeError`.
+
+### Added
+- Regression tests for:
+  - `truncated` flag on iteration-limit responses
+  - `evolve_knowledge` rejecting `operations` as a string or dict
+
+---
+
 ## [1.70.0] - 2026-08-16
 
 ### Added

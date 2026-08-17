@@ -118,9 +118,16 @@ async def _evolve_knowledge_locked(
         # session for the dry-run.
         session = RuntimeSession(knowledge_structure=structure)
 
+    raw_operations = arguments.get("operations", [])
+    if not isinstance(raw_operations, list):
+        return {
+            "error": "invalid_operations",
+            "message": "Operations must be a JSON array.",
+        }
+
     try:
-        operations = parse_operations(arguments.get("operations", []))
-    except ValueError as exc:
+        operations = parse_operations(raw_operations)
+    except (ValueError, AttributeError, TypeError) as exc:
         return {
             "error": "invalid_operations",
             "message": f"Could not parse 'operations': {exc}",
