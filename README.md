@@ -386,7 +386,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-1023+ tests: 1017 passing, 6 skipped (require Postgres or optional providers not configured in a default environment).
+1023+ tests: 1016 passing, 6 skipped (require Postgres or optional providers not configured in a default environment).
 
 ---
 
