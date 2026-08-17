@@ -33,7 +33,9 @@ AI_CHAT_SCHEMA = {
         "and served locally (CKS_OLLAMA_HOST, CKS_OLLAMA_MODEL); "
         "'anthropic' requires ANTHROPIC_API_KEY. If no provider is "
         "available, returns {'error': 'llm_provider_unavailable', "
-        "'message': ...} instead of raising (see ADR-011 §6)."
+        "'message': ...} instead of raising (see ADR-011 §6). An "
+        "optional 'model' argument overrides just the model name used "
+        "for this call, without changing which provider answers it."
     ),
     "inputSchema": {
         "type": "object",
@@ -63,6 +65,20 @@ AI_CHAT_SCHEMA = {
                     "Shorthand for starting a new conversation with a "
                     "single user message; ignored if 'messages' is set "
                     "and non-empty."
+                ),
+            },
+            "model": {
+                "type": "string",
+                "description": (
+                    "Optional per-call model override (e.g. "
+                    "'nvidia/nemotron-3-super-120b-a12b:free'). When set, "
+                    "it takes precedence over whichever "
+                    "CKS_OLLAMA_MODEL/CKS_ANTHROPIC_MODEL/CKS_OPENAI_MODEL "
+                    "the resolved provider would otherwise use, for this "
+                    "call only -- it never mutates server env and has no "
+                    "effect on which *provider* is selected (that's still "
+                    "controlled server-side by CKS_LLM_PROVIDER). Omit to "
+                    "use the provider's configured default model."
                 ),
             },
         },

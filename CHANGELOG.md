@@ -3,6 +3,21 @@
 
 ---
 
+## [1.73.0] - 2026-08-17
+
+### Added
+- **Per-call model override for `ai_chat`** – `ai_chat` now accepts an optional `model` argument that overrides the provider's configured model for that single call. This enables cks-studio's Settings "Preferred model" field to influence LLM calls without changing server environment variables.
+- **`LLMClient.call_with_tools` model override** – all provider routes (Ollama, Anthropic, OpenAI-compatible) now accept an explicit `model` parameter with precedence over env defaults.
+
+### Changed
+- `ai_chat` schema documents the new optional `model` field.
+- No change to provider selection; the new argument only affects the selected provider's model name.
+
+### Tests
+- Added unit tests for model override behavior across providers and fallback when omitted.
+
+---
+
 ## [1.72.0] - 2026-08-17
 
 ### Added

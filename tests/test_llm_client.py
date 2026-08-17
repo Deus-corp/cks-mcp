@@ -243,6 +243,82 @@ def test_openai_compatible_model_env_override_is_passed_through():
 
 
 # ---------------------------------------------------------------------------
+# call_with_tools: explicit per-call 'model' override (cks-studio Settings
+# -> AI & LLM "Preferred model" -> ai_chat's optional 'model' argument)
+# ---------------------------------------------------------------------------
+
+
+def test_call_with_tools_explicit_model_overrides_env_default_ollama():
+    ollama_fn = MagicMock(return_value={"content": [{"type": "text", "text": "ok"}]})
+    client = _client(ollama_fn=ollama_fn)
+
+    with patch.dict(
+        "os.environ", {"CKS_LLM_PROVIDER": "ollama", "CKS_OLLAMA_MODEL": "llama3.2"}
+    ):
+        client.call_with_tools(
+            messages=MESSAGES,
+            tools=TOOLS,
+            model="nvidia/nemotron-3-super-120b-a12b:free",
+        )
+
+    assert (
+        ollama_fn.call_args.kwargs["model"]
+        == "nvidia/nemotron-3-super-120b-a12b:free"
+    )
+
+
+def test_call_with_tools_explicit_model_overrides_env_default_anthropic():
+    anthropic_fn = MagicMock(return_value={"content": [{"type": "text", "text": "ok"}]})
+    client = _client(anthropic_fn=anthropic_fn)
+
+    with patch.dict(
+        "os.environ",
+        {"CKS_LLM_PROVIDER": "anthropic", "CKS_ANTHROPIC_MODEL": "claude-sonnet-4-6"},
+    ):
+        client.call_with_tools(messages=MESSAGES, tools=TOOLS, model="claude-opus-4-8")
+
+    assert anthropic_fn.call_args.kwargs["model"] == "claude-opus-4-8"
+
+
+def test_call_with_tools_explicit_model_overrides_env_default_openai_compatible():
+    openai_compatible_fn = MagicMock(
+        return_value={"content": [{"type": "text", "text": "ok"}]}
+    )
+    client = _client(openai_compatible_fn=openai_compatible_fn)
+
+    with patch.dict(
+        "os.environ",
+        {"CKS_LLM_PROVIDER": "openai_compatible", "CKS_OPENAI_MODEL": "gpt-4o"},
+    ):
+        client.call_with_tools(
+            messages=MESSAGES,
+            tools=TOOLS,
+            model="nvidia/nemotron-3-super-120b-a12b:free",
+        )
+
+    assert (
+        openai_compatible_fn.call_args.kwargs["model"]
+        == "nvidia/nemotron-3-super-120b-a12b:free"
+    )
+
+
+def test_call_with_tools_no_model_override_falls_back_to_env():
+    # Omitting 'model' (the default) must not change any existing
+    # behavior -- the env var still wins, same as before this argument
+    # existed.
+    anthropic_fn = MagicMock(return_value={"content": [{"type": "text", "text": "ok"}]})
+    client = _client(anthropic_fn=anthropic_fn)
+
+    with patch.dict(
+        "os.environ",
+        {"CKS_LLM_PROVIDER": "anthropic", "CKS_ANTHROPIC_MODEL": "claude-sonnet-4-6"},
+    ):
+        client.call_with_tools(messages=MESSAGES, tools=TOOLS)
+
+    assert anthropic_fn.call_args.kwargs["model"] == "claude-sonnet-4-6"
+
+
+# ---------------------------------------------------------------------------
 # call_single_shot: explicit provider selection
 # ---------------------------------------------------------------------------
 

@@ -82,8 +82,18 @@ class LLMClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
         tool_name: str | None = None,
+        model: str | None = None,
     ) -> dict[str, Any]:
         """Route to whichever provider ``CKS_LLM_PROVIDER`` selects.
+
+        ``model``, when given, overrides just the model name used for
+        this one call -- it takes precedence over whichever
+        ``CKS_OLLAMA_MODEL``/``CKS_ANTHROPIC_MODEL``/``CKS_OPENAI_MODEL``
+        the resolved provider would otherwise fall back to. It has no
+        effect on *provider* selection (still ``CKS_LLM_PROVIDER``) and
+        never mutates any server env var -- this is purely a per-call
+        argument passed straight to the provider function (see
+        cks-studio's Settings → AI & LLM "Preferred model" field).
 
         Returns ``{'content': [block, ...]}``, the same shape
         ``call_anthropic_with_tools`` already returns. Raises
@@ -97,13 +107,13 @@ class LLMClient:
         provider = os.environ.get("CKS_LLM_PROVIDER", "auto").lower()
 
         if provider == "ollama":
-            return self._call_ollama(messages, tools, tool_name)
+            return self._call_ollama(messages, tools, tool_name, model)
 
         if provider == "anthropic":
-            return self._call_anthropic(messages, tools, tool_name)
+            return self._call_anthropic(messages, tools, tool_name, model)
 
         if provider == "openai_compatible":
-            return self._call_openai_compatible(messages, tools, tool_name)
+            return self._call_openai_compatible(messages, tools, tool_name, model)
 
         if provider != "auto":
             raise RuntimeError(
@@ -119,10 +129,10 @@ class LLMClient:
         # safely, so it must be selected explicitly via
         # CKS_LLM_PROVIDER=openai_compatible.
         if self._ollama_available_fn():
-            return self._call_ollama(messages, tools, tool_name)
+            return self._call_ollama(messages, tools, tool_name, model)
 
         try:
-            return self._call_anthropic(messages, tools, tool_name)
+            return self._call_anthropic(messages, tools, tool_name, model)
         except RuntimeError as exc:
             if "ANTHROPIC_API_KEY" not in str(exc):
                 raise
@@ -141,8 +151,9 @@ class LLMClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
         tool_name: str | None,
+        model_override: str | None = None,
     ) -> dict[str, Any]:
-        model = os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
+        model = model_override or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
         return self._ollama_fn(messages=messages, tools=tools, model=model, tool_name=tool_name)
 
     def _call_anthropic(
@@ -150,8 +161,9 @@ class LLMClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
         tool_name: str | None,
+        model_override: str | None = None,
     ) -> dict[str, Any]:
-        model = os.environ.get("CKS_ANTHROPIC_MODEL")
+        model = model_override or os.environ.get("CKS_ANTHROPIC_MODEL")
         kwargs: dict[str, Any] = {"messages": messages, "tools": tools, "tool_name": tool_name}
         if model:
             kwargs["model"] = model
@@ -162,8 +174,9 @@ class LLMClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
         tool_name: str | None,
+        model_override: str | None = None,
     ) -> dict[str, Any]:
-        model = os.environ.get("CKS_OPENAI_MODEL")
+        model = model_override or os.environ.get("CKS_OPENAI_MODEL")
         kwargs: dict[str, Any] = {"messages": messages, "tools": tools, "tool_name": tool_name}
         if model:
             kwargs["model"] = model

@@ -255,3 +255,47 @@ async def test_no_provider_available_returns_llm_provider_unavailable():
     assert result["error"] == "llm_provider_unavailable"
     assert "ollama" in result["message"].lower()
     assert "anthropic" in result["message"].lower()
+
+
+async def test_model_argument_is_forwarded_to_the_provider_call():
+    # A caller-supplied 'model' (e.g. cks-studio's Settings -> AI & LLM
+    # "Preferred model" field) must reach the provider call as an
+    # explicit override, without needing any server env var changed.
+    runtime = MagicMock()
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "anthropic"}, clear=False), patch(
+        "cks_mcp.tools.ai_chat.handler.call_anthropic_with_tools",
+        return_value=_text_response("Hi from a custom model."),
+    ) as mock_call:
+        result = await ai_chat(
+            runtime,
+            {
+                "session_id": "s1",
+                "prompt": "hi",
+                "model": "nvidia/nemotron-3-super-120b-a12b:free",
+            },
+        )
+
+    assert result["reply"] == "Hi from a custom model."
+    assert (
+        mock_call.call_args.kwargs["model"]
+        == "nvidia/nemotron-3-super-120b-a12b:free"
+    )
+
+
+async def test_omitted_model_argument_falls_back_to_provider_default():
+    # No 'model' in arguments -- and no CKS_ANTHROPIC_MODEL env var --
+    # means the provider call gets no explicit 'model' kwarg at all,
+    # same behavior as before 'model' passthrough existed.
+    import os as _os
+
+    runtime = MagicMock()
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "anthropic"}, clear=False):
+        _os.environ.pop("CKS_ANTHROPIC_MODEL", None)
+        with patch(
+            "cks_mcp.tools.ai_chat.handler.call_anthropic_with_tools",
+            return_value=_text_response("Hi."),
+        ) as mock_call:
+            result = await ai_chat(runtime, {"session_id": "s1", "prompt": "hi"})
+
+    assert result["reply"] == "Hi."
+    assert "model" not in mock_call.call_args.kwargs

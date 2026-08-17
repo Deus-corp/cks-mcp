@@ -74,6 +74,7 @@ async def ai_chat(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
     from cks_mcp.registry import TOOLS
 
     session_id = arguments["session_id"]
+    model_override = arguments.get("model") or None
     messages: list[dict[str, Any]] = list(arguments.get("messages") or [])
     if not messages:
         prompt = arguments.get("prompt")
@@ -99,7 +100,10 @@ async def ai_chat(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
     for _ in range(_MAX_ITERATIONS):
         try:
             response = llm_client.call_with_tools(
-                messages=messages, tools=tool_specs, tool_name="ai_chat"
+                messages=messages,
+                tools=tool_specs,
+                tool_name="ai_chat",
+                model=model_override,
             )
         except LLMProviderUnavailable as exc:
             return {
