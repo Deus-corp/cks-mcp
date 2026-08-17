@@ -3,6 +3,22 @@
 
 ---
 
+## [1.72.0] - 2026-08-17
+
+### Added
+- **Embedded agents** – the four standalone agents (`pipeline`, `critic`, `enrichment`, `fork_resolution`) can now run as in-process background asyncio tasks inside the main cks-mcp server, controlled by `CKS_EMBEDDED_AGENTS=true` or individual `CKS_EMBED_*_AGENT` flags.
+- **`embedded_agents.py`** – manages agent startup/shutdown, passes each agent a shared `stop_event`, and gracefully stops them on server shutdown with a configurable timeout.
+- **ADR-012 Embedded Agents** – documents the decision to run agents in-process rather than spawning subprocesses.
+
+### Changed
+- `server.py` now starts/stops embedded agents as part of the main runtime lifecycle.
+- Each agent runner now accepts an optional external `stop_event` so it does not install its own SIGTERM/SIGINT handlers in embedded mode.
+
+### Tests
+- Existing agent and server tests remain green; new coverage added where practical for embedded-agent gating/startup.
+
+---
+
 ## [1.71.2] - 2026-08-17
 
 ### Fixed

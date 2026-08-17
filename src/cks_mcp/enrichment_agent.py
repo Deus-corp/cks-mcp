@@ -509,26 +509,35 @@ async def run_enrichment_agent(
     *,
     settings: EnrichmentAgentSettings | None = None,
     max_iterations: int | None = None,
+    stop_event: asyncio.Event | None = None,
 ) -> None:
     """See ``cks_mcp.critic_agent.run_critic_agent`` -- identical shape,
     own ``Runtime`` sharing storage with the main server, polling one
-    queue (``enrichment_request``) instead of two."""
+    queue (``enrichment_request``) instead of two.
+
+    ``stop_event``, when given, is used instead of creating a fresh
+    ``asyncio.Event``/installing signal handlers -- see
+    ``run_critic_agent``'s docstring for why (embedded-agents mode,
+    ADR-012)."""
     settings = settings or EnrichmentAgentSettings.from_env()
 
     config = RuntimeConfig(storage_path=settings.storage_path)
     runtime = await Runtime.create(core=CksCoreAdapter(), config=config)
 
-    stop = asyncio.Event()
+    owns_signals = stop_event is None
+    stop = stop_event if stop_event is not None else asyncio.Event()
 
-    def _handle_signal(*_: Any) -> None:
-        stop.set()
+    if owns_signals:
 
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        try:
-            loop.add_signal_handler(sig, _handle_signal)
-        except (NotImplementedError, RuntimeError):
-            pass
+        def _handle_signal(*_: Any) -> None:
+            stop.set()
+
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            try:
+                loop.add_signal_handler(sig, _handle_signal)
+            except (NotImplementedError, RuntimeError):
+                pass
 
     print(
         f"[cks-enrichment-agent] started (storage_path={settings.storage_path!r}, "

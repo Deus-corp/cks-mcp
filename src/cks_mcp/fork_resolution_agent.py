@@ -617,6 +617,7 @@ async def run_fork_agent(
     *,
     settings: ForkResolutionAgentSettings | None = None,
     max_iterations: int | None = None,
+    stop_event: asyncio.Event | None = None,
 ) -> None:
     """
     Construct this process' own ``Runtime`` (sharing storage with the
@@ -627,28 +628,36 @@ async def run_fork_agent(
     poll cycles instead of running forever -- used by tests and by a
     supervisor that wants to restart the process periodically rather
     than trust a single long-lived event loop.
+
+    ``stop_event``, when given, is used instead of creating a fresh
+    ``asyncio.Event``/installing signal handlers -- see
+    ``run_critic_agent``'s docstring for why (embedded-agents mode,
+    ADR-012).
     """
     settings = settings or ForkResolutionAgentSettings.from_env()
 
     config = RuntimeConfig(storage_path=settings.storage_path)
     runtime = await Runtime.create(core=CksCoreAdapter(), config=config)
 
-    stop = asyncio.Event()
+    owns_signals = stop_event is None
+    stop = stop_event if stop_event is not None else asyncio.Event()
 
-    def _handle_signal(*_: Any) -> None:
-        stop.set()
+    if owns_signals:
 
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        try:
-            loop.add_signal_handler(sig, _handle_signal)
-        except (NotImplementedError, RuntimeError):
-            # Signal handlers aren't available on every platform/thread
-            # (e.g. Windows, or when not running in the main thread of
-            # the main interpreter) -- the loop still exits cleanly via
-            # KeyboardInterrupt/task cancellation in that case, this is
-            # just a nicer shutdown path where it's supported.
-            pass
+        def _handle_signal(*_: Any) -> None:
+            stop.set()
+
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            try:
+                loop.add_signal_handler(sig, _handle_signal)
+            except (NotImplementedError, RuntimeError):
+                # Signal handlers aren't available on every platform/thread
+                # (e.g. Windows, or when not running in the main thread of
+                # the main interpreter) -- the loop still exits cleanly via
+                # KeyboardInterrupt/task cancellation in that case, this is
+                # just a nicer shutdown path where it's supported.
+                pass
 
     print(
         f"[cks-fork-agent] started (storage_path={settings.storage_path!r}, "

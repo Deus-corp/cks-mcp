@@ -20,6 +20,7 @@ from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
+from cks_mcp.embedded_agents import start_embedded_agents, stop_embedded_agents
 from cks_mcp.http_auth import is_request_authorized
 from cks_mcp.http_events import register_sse_routes
 from cks_mcp.observability import setup_event_subscriptions
@@ -417,6 +418,14 @@ async def main() -> None:
 
     plugin_handles = await registry.setup_all(runtime, config)
 
+    # --- Embedded agents (ADR-012, opt-in via CKS_EMBEDDED_AGENTS / CKS_EMBED_*)
+    # Only meaningful with a real persistent database file that a
+    # separately-constructed Runtime can also open -- an in-memory
+    # storage fallback has nothing for a second Runtime to share.
+    embedded_agent_handles: list[Any] = []
+    if storage is None and use_persistent:
+        embedded_agent_handles = start_embedded_agents(db_path)
+
     # --- HTTP transport (optional) ---
     http_runner = None
     sse_broadcaster = None
@@ -498,6 +507,7 @@ async def main() -> None:
             await http_runner.cleanup()
         if sse_broadcaster:
             sse_broadcaster.stop()
+        await stop_embedded_agents(embedded_agent_handles)
         await registry.teardown_all(plugin_handles)
         await runtime.aclose()
 

@@ -81,7 +81,7 @@ policy)"):
   re-runs the same real HTTP check ``verify_source`` performs and
   commits the fresh, signed record. A task whose subject carries no
   URL to re-check is dead-lettered for a human rather than retried.
-- ``temporal_conflict`` (ADR-011): an expired ``valid_until`` found by
+- ``temporal_conflict`` (ADR-012): an expired ``valid_until`` found by
   ``TemporalStalenessSweeper`` (cks-runtime) is resolved via a safe
   default policy -- ``resolve_temporal_conflict(action="bump",
   extend_by_days=30, commit=True)`` -- rather than guessing whether
@@ -525,7 +525,7 @@ async def resolve_provenance_conflict(runtime: Runtime, task: dict[str, Any]) ->
 
 async def resolve_temporal_conflict(runtime: Runtime, task: dict[str, Any]) -> Resolution:
     """
-    Attempt to resolve a ``temporal_conflict`` task (ADR-011,
+    Attempt to resolve a ``temporal_conflict`` task (ADR-012,
     ``TemporalStalenessSweeper`` in cks-runtime) via
     ``resolve_temporal_conflict(action="bump", extend_by_days=30,
     commit=True)``.
@@ -1115,6 +1115,7 @@ async def run_critic_agent(
     *,
     settings: CriticAgentSettings | None = None,
     max_iterations: int | None = None,
+    stop_event: asyncio.Event | None = None,
 ) -> None:
     """
     Construct this process' own ``Runtime`` (sharing storage with the
@@ -1125,28 +1126,40 @@ async def run_critic_agent(
     poll cycles instead of running forever -- used by tests and by a
     supervisor that wants to restart the process periodically rather
     than trust a single long-lived event loop.
+
+    ``stop_event``, when given, is used *instead of* creating a fresh
+    ``asyncio.Event`` and installing ``SIGTERM``/``SIGINT`` handlers for
+    it. This is what lets this same coroutine run either as its own OS
+    process (the standalone ``cks-critic-agent`` console script, no
+    ``stop_event`` passed -- owns the process' signals) or as an
+    embedded background task inside the main ``cks-mcp`` server
+    (``cks_mcp.embedded_agents``, ADR-012 -- the server owns process
+    signals and cancels this task on shutdown instead).
     """
     settings = settings or CriticAgentSettings.from_env()
 
     config = RuntimeConfig(storage_path=settings.storage_path)
     runtime = await Runtime.create(core=CksCoreAdapter(), config=config)
 
-    stop = asyncio.Event()
+    owns_signals = stop_event is None
+    stop = stop_event if stop_event is not None else asyncio.Event()
 
-    def _handle_signal(*_: Any) -> None:
-        stop.set()
+    if owns_signals:
 
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        try:
-            loop.add_signal_handler(sig, _handle_signal)
-        except (NotImplementedError, RuntimeError):
-            # Signal handlers aren't available on every platform/thread
-            # (e.g. Windows, or when not running in the main thread of
-            # the main interpreter) -- the loop still exits cleanly via
-            # KeyboardInterrupt/task cancellation in that case, this is
-            # just a nicer shutdown path where it's supported.
-            pass
+        def _handle_signal(*_: Any) -> None:
+            stop.set()
+
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            try:
+                loop.add_signal_handler(sig, _handle_signal)
+            except (NotImplementedError, RuntimeError):
+                # Signal handlers aren't available on every platform/thread
+                # (e.g. Windows, or when not running in the main thread of
+                # the main interpreter) -- the loop still exits cleanly via
+                # KeyboardInterrupt/task cancellation in that case, this is
+                # just a nicer shutdown path where it's supported.
+                pass
 
     print(
         f"[cks-critic-agent] started (storage_path={settings.storage_path!r}, "

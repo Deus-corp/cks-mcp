@@ -61,7 +61,12 @@ async def run_pipeline_agent(
     *,
     settings: PipelineAgentSettings | None = None,
     max_iterations: int | None = None,
+    stop_event: asyncio.Event | None = None,
 ) -> None:
+    """``stop_event``, when given, is used instead of creating a fresh
+    ``asyncio.Event``/installing signal handlers -- see
+    ``cks_mcp.critic_agent.run_critic_agent``'s docstring for why
+    (embedded-agents mode, ADR-012)."""
     settings = settings or PipelineAgentSettings.from_env()
 
     config = RuntimeConfig(storage_path=settings.storage_path)
@@ -77,17 +82,20 @@ async def run_pipeline_agent(
         ],
     )
 
-    stop = asyncio.Event()
+    owns_signals = stop_event is None
+    stop = stop_event if stop_event is not None else asyncio.Event()
 
-    def _handle_signal(*_: Any) -> None:
-        stop.set()
+    if owns_signals:
 
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        try:
-            loop.add_signal_handler(sig, _handle_signal)
-        except (NotImplementedError, RuntimeError):
-            pass
+        def _handle_signal(*_: Any) -> None:
+            stop.set()
+
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            try:
+                loop.add_signal_handler(sig, _handle_signal)
+            except (NotImplementedError, RuntimeError):
+                pass
 
     print(
         f"[cks-pipeline-agent] started (storage_path={settings.storage_path!r}, "

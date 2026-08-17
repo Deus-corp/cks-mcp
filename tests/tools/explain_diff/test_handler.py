@@ -210,15 +210,6 @@ async def test_explain_diff_recovers_from_transient_hash_mismatch():
     assert [o["id"] for o in result["details"]["added_objects"]] == ["obj-2"]
 
 
-async def _unused_placeholder():
-    result = await explain_diff(
-        runtime, {"session_id": session.session_id, "target_version_id": base_version}
-    )
-
-    assert "error" not in result
-    assert [o["id"] for o in result["details"]["added_objects"]] == ["obj-2"]
-
-
 async def test_explain_diff_recorded_inference_reported_as_reasoning():
     from cks import parse
 
