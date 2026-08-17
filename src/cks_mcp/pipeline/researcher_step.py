@@ -26,11 +26,17 @@ from cks_runtime.runtime import Runtime
 
 from cks_mcp.agent_loop import Resolution
 from cks_mcp.paths import data_dir
-from cks_mcp.pipeline.common import call_llm, find_object
+from cks_mcp.pipeline.common import (
+    call_llm,
+    find_object,
+    is_duplicate_object_error,
+    refresh_session,
+)
 from cks_mcp.pipeline.common import content_hash as compute_content_hash
 from cks_mcp.pipeline.schema import (
     PipelineStatus,
     append_transition,
+    find_transition,
     has_agent_transitioned,
     read_transition_log,
 )
@@ -76,6 +82,7 @@ async def resolve_pipeline_research_request(
     session = runtime.get_session(session_id)
     if session is None:
         return Resolution(False, f"session '{session_id}' not found")
+    await refresh_session(runtime, session)
 
     obj = find_object(session, object_id)
     if obj is None:
@@ -164,6 +171,29 @@ async def resolve_pipeline_research_request(
 
     evolve_result = await evolve_knowledge(runtime, {"session_id": session_id, "operations": ops})
     if evolve_result.get("error"):
+        if is_duplicate_object_error(evolve_result, finding_id):
+            # Lost a race to add `finding_id`: another writer (a
+            # different pipeline_agent process, or a retry of this
+            # same task that already completed) committed the
+            # identical research finding first -- see
+            # `is_duplicate_object_error`'s docstring. Reload and
+            # confirm the transition really did land before treating
+            # this as done; if it somehow didn't, fall through and
+            # surface the original error instead of silently dropping
+            # a real failure.
+            await refresh_session(runtime, session)
+            winner_obj = find_object(session, object_id)
+            winner_hash = compute_content_hash(winner_obj) if winner_obj is not None else None
+            winner_entry = (
+                find_transition(read_transition_log(winner_obj), AGENT_NAME, content_hash=winner_hash)
+                if winner_obj is not None
+                else None
+            )
+            if winner_entry is not None:
+                await _enqueue_review(
+                    runtime, session_id, object_id, winner_entry.get("reasoning_node_id"), run_id
+                )
+                return Resolution(True, PipelineStatus.AWAITING_REVIEW)
         return Resolution(False, f"evolve_knowledge failed: {evolve_result}")
 
     await _enqueue_review(runtime, session_id, object_id, finding_id, run_id)

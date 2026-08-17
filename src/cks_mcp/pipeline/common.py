@@ -25,6 +25,7 @@ from cks_mcp.llm_providers import (
     call_openai_compatible_single_shot,
     ollama_available,
 )
+from cks_mcp.session_refresh import reload_session_from_storage
 
 # Structure fields every step's idempotency hash excludes -- these are
 # the pipeline's own bookkeeping (see pipeline.schema's module
@@ -61,6 +62,63 @@ def content_hash(obj: Any) -> str:
         structure.pop(field, None)
     payload = json.dumps(structure, sort_keys=True, default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+async def refresh_session(runtime: Any, session: Any) -> Any:
+    """Sync ``session``'s in-memory knowledge_structure with storage
+    before a step reads it for its idempotency check.
+
+    Root cause of the ``Outbox task ... failed: Object '...' already
+    exists`` failures seen from ``ResearcherStep``/``ReviewerStep``:
+    each standalone agent process (``cks_mcp.pipeline_agent`` et al.,
+    see ``cks_mcp.session_refresh``'s module docstring) keeps its own
+    in-memory session cache that ``Runtime.get_session`` never
+    refreshes on its own. A step that reads a stale copy of
+    ``transition_log`` can conclude (wrongly) that it hasn't already
+    researched/reviewed this object, redo the LLM call, and then hit
+    ``evolve_knowledge``'s ``add_object`` for its deterministic node id
+    -- which some other process (or an earlier, crashed run of this
+    same task) already committed. Reloading right before the
+    idempotency check closes the common (non-racing) version of this
+    gap; ``is_duplicate_object_error`` below is the second half, for
+    the case where two writers still race past the reload.
+
+    Best-effort, same contract as ``reload_session_from_storage``
+    itself: a storage backend or test double that can't be reloaded
+    (no ``session_id``, no persisted record yet, an in-memory-only
+    fixture, ...) is left untouched rather than raising -- a step
+    whose session simply isn't reloadable should still run against
+    whatever ``get_session`` handed it, not fail the task outright.
+    """
+    try:
+        return await reload_session_from_storage(runtime, session)
+    except Exception:  # noqa: BLE001
+        return session
+
+
+def is_duplicate_object_error(evolve_result: dict[str, Any], object_id: str) -> bool:
+    """Did ``evolve_knowledge`` fail because ``object_id`` -- a
+    pipeline step's own deterministic (content-hash-derived) node id
+    -- already exists in the session?
+
+    This is the failure mode left over even after ``refresh_session``:
+    two writers (e.g. two ``cks_mcp.pipeline_agent`` processes, or a
+    retried outbox task racing the run that already completed it) both
+    pass the pre-``evolve_knowledge`` idempotency check on a stale-but
+    equally-fresh read, then both attempt to ``add_object`` the same
+    id. One wins; ``evolve_knowledge`` for the other returns an
+    ``Evolution failed`` error whose message names that id -- not the
+    retryable ``concurrent_modification`` error, since by the time the
+    loser's commit is retried the *reload* succeeds but the *dry-run
+    re-check* now fails on a genuine duplicate id rather than a stale
+    version. Callers use this to distinguish "I lost a race, my work
+    is already done" (fold into a no-op success) from every other
+    ``evolve_knowledge`` failure (a real error to surface).
+    """
+    if not evolve_result.get("error"):
+        return False
+    message = str(evolve_result.get("error") or evolve_result.get("message") or "")
+    return "already exists" in message and object_id in message
 
 
 def call_llm(

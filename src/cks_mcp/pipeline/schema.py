@@ -138,6 +138,31 @@ def has_agent_transitioned(
     return False
 
 
+def find_transition(
+    log: list[dict[str, Any]], agent: str, *, content_hash: str | None = None
+) -> dict[str, Any] | None:
+    """Return the most recent ``transition_log`` entry recorded by
+    ``agent`` (optionally restricted to one matching ``content_hash``),
+    or ``None`` if there isn't one.
+
+    Both the idempotency guard a pipeline step runs *before* calling
+    ``evolve_knowledge`` (skip re-running the LLM/write against
+    already-transitioned content) and the "lost the deterministic-id
+    race to another writer" recovery path a step runs *after*
+    ``evolve_knowledge`` fails with an ``already exists`` error (see
+    ``researcher_step``/``reviewer_step``) need the exact same lookup,
+    just at different points in the same function -- factored out here
+    so the two don't drift.
+    """
+    for entry in reversed(log):
+        if entry.get("agent") != agent:
+            continue
+        if content_hash is not None and entry.get("content_hash") != content_hash:
+            continue
+        return entry
+    return None
+
+
 def append_transition(
     object_id: str,
     *,

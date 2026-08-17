@@ -3,6 +3,22 @@
 
 ---
 
+## [1.71.1] - 2026-08-17
+
+### Fixed
+- **Pipeline step idempotency** – `ResearcherStep` and `ReviewerStep` now reload the session before checking idempotency, so a step already completed by another process is detected and skipped instead of failing with `Object '...' already exists`.
+- **Race handling after commit** – if an `evolve_knowledge` call still loses a race and returns “already exists”, pipeline steps now treat that as a completed transition and continue to the next stage instead of failing the outbox task.
+- **Blind exception handling** – added a targeted `# noqa: BLE001` for a defensive session-refresh fallback in `pipeline/common.py`.
+
+### Changed
+- Refactored shared idempotency helpers in `src/cks_mcp/pipeline/common.py`.
+- Extended transition-log metadata checks used by researcher/reviewer steps.
+
+### Tests
+- Added regression tests for researcher-step idempotency and race recovery.
+
+---
+
 ## [1.71.0] - 2026-08-17
 
 ### Fixed
