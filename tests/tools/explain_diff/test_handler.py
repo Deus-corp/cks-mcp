@@ -142,6 +142,83 @@ async def test_explain_diff_modified_object_reported_as_modified_not_delete_add(
     assert "Re-linked 1 relation" in result["summary"]
 
 
+async def test_explain_diff_recovers_from_transient_hash_mismatch():
+    """
+    A state-hash mismatch on the first reconstruction attempt (e.g. a
+    stale in-memory session read mid-write by a concurrent agent) is
+    retried once against a freshly-reloaded session instead of
+    immediately surfacing as an error -- see
+    cks_runtime.session.reconstruct.reconstruct_with_retry.
+    """
+    from cks import parse
+
+    from cks_mcp.tools.evolve.handler import evolve_knowledge
+    from cks_mcp.tools.explain_diff.handler import explain_diff
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "obj-1", "type": "Concept", "name": "A"}, "structure": {}}'
+        ']}'
+    )
+    session = await runtime.create_session(structure)
+    tx = runtime.begin_transaction(session)
+    await runtime.commit_transaction(tx)
+    base_version = session.version_history[-1].version_id
+
+    await evolve_knowledge(runtime, {
+        "session_id": session.session_id,
+        "operations": [
+            {"type": "add_object", "identity": {"id": "obj-2", "type": "Concept", "name": "B"}, "structure": {}},
+        ],
+    })
+
+    # Make the first reconstruction attempt on the *current* in-memory
+    # session object raise the hash-mismatch ValueError exactly once,
+    # simulating a stale read; the real get_version_state on the
+    # freshly-reloaded session (via runtime.storage.load_session)
+    # should succeed normally.
+    # RuntimeSession is a slots dataclass, so the flaky behavior is
+    # patched on the class (not the instance) and only triggers for
+    # this specific session object -- other RuntimeSession instances
+    # (e.g. the freshly-reloaded one from storage.load_session)
+    # behave normally.
+    from cks_runtime.session.session import RuntimeSession
+    real_get_version_state = RuntimeSession.get_version_state
+    call_count = {"n": 0}
+    flaky_session_id = session.session_id
+
+    def flaky_get_version_state(self, version_id, core_bridge=None):
+        if self.session_id == flaky_session_id:
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise ValueError(
+                    f"Reconstructed state for version {version_id!r} does not "
+                    f"match its recorded hash (expected 'x', got 'y')."
+                )
+        return real_get_version_state(self, version_id, core_bridge)
+
+    RuntimeSession.get_version_state = flaky_get_version_state
+    try:
+        result = await explain_diff(
+            runtime, {"session_id": session.session_id, "target_version_id": base_version}
+        )
+    finally:
+        RuntimeSession.get_version_state = real_get_version_state
+
+    assert "error" not in result
+    assert [o["id"] for o in result["details"]["added_objects"]] == ["obj-2"]
+
+
+async def _unused_placeholder():
+    result = await explain_diff(
+        runtime, {"session_id": session.session_id, "target_version_id": base_version}
+    )
+
+    assert "error" not in result
+    assert [o["id"] for o in result["details"]["added_objects"]] == ["obj-2"]
+
+
 async def test_explain_diff_recorded_inference_reported_as_reasoning():
     from cks import parse
 

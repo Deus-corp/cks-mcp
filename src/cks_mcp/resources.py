@@ -12,6 +12,7 @@ import json
 from typing import Any
 
 from cks_runtime.runtime import Runtime
+from cks_runtime.session.reconstruct import reconstruct_with_retry
 
 
 def list_resources(runtime: Runtime) -> list[dict[str, Any]]:
@@ -62,7 +63,7 @@ def list_resources(runtime: Runtime) -> list[dict[str, Any]]:
     return resources
 
 
-def read_resource(runtime: Runtime, uri: str) -> str | None:
+async def read_resource(runtime: Runtime, uri: str) -> str | None:
     """Return the JSON content for a CKS resource URI, or None if not found."""
 
     # Helper to serialize a Knowledge Structure
@@ -126,7 +127,14 @@ def read_resource(runtime: Runtime, uri: str) -> str | None:
             if session is None:
                 return None
             try:
-                state = session.get_version_state(vid, runtime.core_bridge)
+                # A state-hash mismatch here can be a transient
+                # snapshot-consistency race rather than genuine
+                # corruption, so reload the session once from storage
+                # and retry before giving up (see
+                # cks_runtime.session.reconstruct.reconstruct_with_retry).
+                state = await reconstruct_with_retry(
+                    runtime.storage, sid, session, vid, runtime.core_bridge
+                )
                 ks_json = serialize_ks(state)
                 if ks_json is None:
                     return json.dumps({"error": "serialization_failed"})

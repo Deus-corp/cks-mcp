@@ -7,6 +7,7 @@ from typing import Any
 from cks import AddObject, AddRelation, RemoveObject, RemoveRelation
 from cks.evolution import RenameObject
 from cks_runtime.runtime import Runtime
+from cks_runtime.session.reconstruct import reconstruct_with_retry
 
 from cks_mcp.diffing import field_level_diff
 from cks_mcp.errors import missing_parameter, session_not_found
@@ -26,10 +27,15 @@ async def explain_diff(runtime: Runtime, arguments: dict[str, Any]) -> dict[str,
     if not target_version_id:
         return missing_parameter("target_version_id")
 
-    # Reconstruct the base version's state
+    # Reconstruct the base version's state. A state-hash mismatch can
+    # be a transient snapshot-consistency race (this handler's session
+    # was read mid-write by a concurrent agent) rather than genuine
+    # corruption, so reload the session once from storage and retry
+    # before giving up -- same one-shot recovery as
+    # OutboxEmbeddingWorker uses for the same error.
     try:
-        base_structure = session.get_version_state(
-            target_version_id, runtime.core_bridge
+        base_structure = await reconstruct_with_retry(
+            runtime.storage, session_id, session, target_version_id, runtime.core_bridge
         )
     except ValueError as exc:
         return {

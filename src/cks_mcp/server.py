@@ -166,7 +166,7 @@ async def handle_request(
                     "message": "Missing required parameter: uri",
                 },
             )
-        content = read_resource(runtime, uri)
+        content = await read_resource(runtime, uri)
         if content is None:
             return _make_response(
                 req_id,

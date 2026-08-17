@@ -14,6 +14,7 @@ from cks.evolution import (
     RenameObject,
 )
 from cks_runtime.runtime import Runtime
+from cks_runtime.session.reconstruct import reconstruct_with_retry
 
 from cks_mcp.errors import missing_parameter
 
@@ -110,10 +111,13 @@ async def compare_versions(
     if session is None:
         return {"error": f"Session '{session_id}' not found."}
 
-    # Reconstruct the base version's structure using the new delta-aware method
+    # Reconstruct the base version's structure using the new delta-aware
+    # method. A state-hash mismatch can be a transient
+    # snapshot-consistency race rather than genuine corruption, so
+    # reload the session once from storage and retry before giving up.
     try:
-        base_structure = session.get_version_state(
-            target_version_id, runtime.core_bridge
+        base_structure = await reconstruct_with_retry(
+            runtime.storage, session_id, session, target_version_id, runtime.core_bridge
         )
     except ValueError as exc:
         return {

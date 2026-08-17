@@ -3,6 +3,15 @@
 
 ---
 
+## [1.71.2] - 2026-08-17
+
+### Fixed
+- **Shared hash-mismatch recovery in read handlers** – `compare_versions`, `explain_diff`, and MCP resource version reads now use `cks_runtime.session.reconstruct_with_retry` to recover from a stale session and retry version reconstruction once after a reload.
+- **`resources.py` version endpoint** – version resource reads are now async and use the shared retry path.
+- **Version reconstruction consistency** – tool handlers and resources now handle hash-mismatch `ValueError` the same way as `OutboxEmbeddingWorker`.
+
+---
+
 ## [1.71.1] - 2026-08-17
 
 ### Fixed
