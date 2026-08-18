@@ -7,9 +7,9 @@ versioned, verifiable place to put structured knowledge, instead of holding
 it — and quietly forgetting or hallucinating it — in a context window.
 
 It exposes **63 tools** over MCP, backed by the deterministic, immutable
-semantics of [`cks-core`](https://github.com/Deus-corp/cks-core) and the
+semantics of [`cks-core`](https://github.com/PunctumActus/cks-core) and the
 async operational management of
-[`cks-runtime`](https://github.com/Deus-corp/cks-runtime). Every tool call
+[`cks-runtime`](https://github.com/PunctumActus/cks-runtime). Every tool call
 that mutates state runs inside a Runtime **Session** and **Transaction**,
 producing an immutable **Version** — so every change is reproducible and
 auditable after the fact.

@@ -202,7 +202,7 @@ against the local database regardless of gossip's state.
 ## Running the Test Suite
 
 ```bash
-git clone https://github.com/Deus-corp/cks-mcp.git
+git clone https://github.com/PunctumActus/cks-mcp.git
 cd cks-mcp
 pip install -e ".[dev]"
 python -m pytest -v

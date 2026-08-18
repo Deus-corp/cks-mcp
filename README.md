@@ -7,7 +7,7 @@
 ![Tests](https://img.shields.io/badge/tests-1068%20passed%2C%206%20skipped-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
-> 🚀 **[Live demo →](https://deus-corp.github.io/cks-website/demo/demo.html)** — explore the CKS ecosystem graph directly in your browser, no server required.
+> 🚀 **[Live demo →](https://punctumactus.github.io/cks-website/demo/demo.html)** — explore the CKS ecosystem graph directly in your browser, no server required.
 
 `cks-mcp` is a fully asynchronous MCP (Model Context Protocol) server
 that gives LLMs a **canonical knowledge backbone**. It exposes **71
@@ -28,14 +28,14 @@ Other projects build upon it:
 
 | Project | Description | Repository |
 |---------|-------------|------------|
-| **cks-core** | Canonical semantic engine – the single source of canonical truth. | [Deus-corp/cks-core](https://github.com/Deus-corp/cks-core) |
-| **cks-runtime** | Operational environment – sessions, transactions, persistence. | [Deus-corp/cks-runtime](https://github.com/Deus-corp/cks-runtime) |
-| **cks-mcp** | MCP server – exposes CKS to LLMs and autonomous agents. | [Deus-corp/cks-mcp](https://github.com/Deus-corp/cks-mcp) |
-| **cks-studio** | Visual workspace – explore, monitor, and manage graphs. | [Deus-corp/cks-studio](https://github.com/Deus-corp/cks-studio) |
-| **cks-website** | Documentation & demo site. | [Deus-corp/cks-website](https://github.com/Deus-corp/cks-website) |
+| **cks-core** | Canonical semantic engine – the single source of canonical truth. | [cks-core](https://github.com/PunctumActus/cks-core) |
+| **cks-runtime** | Operational environment – sessions, transactions, persistence. | [cks-runtime](https://github.com/PunctumActus/cks-runtime) |
+| **cks-mcp** | MCP server – exposes CKS to LLMs and autonomous agents. | [cks-mcp](https://github.com/PunctumActus/cks-mcp) |
+| **cks-studio** | Visual workspace – explore, monitor, and manage graphs. | [cks-studio](https://github.com/PunctumActus/cks-studio) |
+| **cks-website** | Documentation & demo site. | [cks-website](https://github.com/PunctumActus/cks-website) |
 
 📖 **Full documentation, case studies, and an interactive demo**
-are available at the **[CKS Documentation Site](https://deus-corp.github.io/cks-website/)**.
+are available at the **[CKS Documentation Site](https://punctumactus.github.io/cks-website/)**.
 
 ---
 
@@ -53,7 +53,7 @@ are available at the **[CKS Documentation Site](https://deus-corp.github.io/cks-
 **Just type "Use cks-mcp to..." and Claude does the rest. That's it.**
 **No programming, no command line — just a conversation!**
 
-![CKS Demo](https://github.com/Deus-corp/cks-mcp/releases/download/v1.10.2/demo.gif)
+![CKS Demo](https://github.com/PunctumActus/cks-mcp/releases/download/v1.10.2/demo.gif)
 
 *In the video above, Claude creates a validated knowledge graph about the water cycle from a single sentence, using `validate_knowledge` and `explain_knowledge`. All 71 tools are ready for you: branching, merging, versioning, source verification, contradiction detection, subgraph queries, sandboxing, gossip conflict resolution, and more — all triggered by plain English.*
 

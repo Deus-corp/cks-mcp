@@ -797,7 +797,7 @@
 ## [1.32.2] - 2026-08-04
 
 ### Fixed
-- **User‑Agent header added to all outbound HTTP requests.** `_safe_request` (used by `ingest_document`, `verify_source`, and the Enrichment Agent's `robots.txt` check) now sends `cks-mcp/1.0 (+https://github.com/Deus-corp/cks-mcp)` instead of the default `python-requests/x.y`. Several major sites — notably Wikimedia — 403 generic default user agents. Without this, every enrichment attempt against wikipedia.org (the first default adapter) failed regardless of candidate relevance.
+- **User‑Agent header added to all outbound HTTP requests.** `_safe_request` (used by `ingest_document`, `verify_source`, and the Enrichment Agent's `robots.txt` check) now sends `cks-mcp/1.0 (+https://github.com/PunctumActus/cks-mcp)` instead of the default `python-requests/x.y`. Several major sites — notably Wikimedia — 403 generic default user agents. Without this, every enrichment attempt against wikipedia.org (the first default adapter) failed regardless of candidate relevance.
 
 ---
 
