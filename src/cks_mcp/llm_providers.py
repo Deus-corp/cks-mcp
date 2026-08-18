@@ -22,6 +22,8 @@ import logging
 import os
 import time
 
+from cks_mcp.llm.redact import scrub_secrets
+from cks_mcp.llm.retry import call_with_retry
 from cks_mcp.llm_telemetry import (
     estimate_anthropic_cost,
     estimate_tokens_from_chars,
@@ -117,12 +119,15 @@ def call_ollama(
         headers={"Content-Type": "application/json"},
         method="POST",
     )
+    def _do_request() -> dict:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read().decode())
+
     start = time.monotonic()
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            body = json.loads(resp.read().decode())
+        body = call_with_retry(_do_request, call_label=f"Ollama call ({model})")
     except urllib.error.HTTPError as exc:
-        raw = exc.read().decode(errors="replace")
+        raw = scrub_secrets(exc.read().decode(errors="replace"))
         if tool_name is not None:
             _record_llm_call(
                 provider="ollama",
@@ -236,12 +241,15 @@ def call_anthropic(
         method="POST",
     )
 
+    def _do_request() -> dict:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return json.loads(resp.read().decode())
+
     start = time.monotonic()
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            body = json.loads(resp.read().decode())
+        body = call_with_retry(_do_request, call_label=f"Anthropic call ({model})")
     except urllib.error.HTTPError as exc:
-        raw = exc.read().decode(errors="replace")
+        raw = scrub_secrets(exc.read().decode(errors="replace"))
         if tool_name is not None:
             _record_llm_call(
                 provider="anthropic",
@@ -372,12 +380,15 @@ def call_anthropic_with_tools(
         method="POST",
     )
 
+    def _do_request() -> dict:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read().decode())
+
     start = time.monotonic()
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            body = json.loads(resp.read().decode())
+        body = call_with_retry(_do_request, call_label=f"Anthropic call ({resolved_model})")
     except urllib.error.HTTPError as exc:
-        raw = exc.read().decode(errors="replace")
+        raw = scrub_secrets(exc.read().decode(errors="replace"))
         if tool_name is not None:
             _record_llm_call(
                 provider="anthropic",
@@ -583,12 +594,16 @@ def call_ollama_with_tools(
     )
 
     approx_input_text = json.dumps(ollama_messages)
+
+    def _do_request() -> dict:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read().decode())
+
     start = time.monotonic()
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            body = json.loads(resp.read().decode())
+        body = call_with_retry(_do_request, call_label=f"Ollama call ({resolved_model})")
     except urllib.error.HTTPError as exc:
-        raw = exc.read().decode(errors="replace")
+        raw = scrub_secrets(exc.read().decode(errors="replace"))
         if tool_name is not None:
             _record_llm_call(
                 provider="ollama",
@@ -833,12 +848,16 @@ def call_openai_compatible_with_tools(
     )
 
     approx_input_text = json.dumps(openai_messages)
+
+    def _do_request() -> dict:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read().decode())
+
     start = time.monotonic()
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            body = json.loads(resp.read().decode())
+        body = call_with_retry(_do_request, call_label=f"OpenAI-compatible call ({resolved_model})")
     except urllib.error.HTTPError as exc:
-        raw = exc.read().decode(errors="replace")
+        raw = scrub_secrets(exc.read().decode(errors="replace"))
         if tool_name is not None:
             _record_llm_call(
                 provider="openai_compatible",
@@ -961,12 +980,15 @@ def call_openai_compatible_single_shot(
         method="POST",
     )
 
+    def _do_request() -> dict:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read().decode())
+
     start = time.monotonic()
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            body = json.loads(resp.read().decode())
+        body = call_with_retry(_do_request, call_label=f"OpenAI-compatible call ({model})")
     except urllib.error.HTTPError as exc:
-        raw = exc.read().decode(errors="replace")
+        raw = scrub_secrets(exc.read().decode(errors="replace"))
         if tool_name is not None:
             _record_llm_call(
                 provider="openai_compatible",

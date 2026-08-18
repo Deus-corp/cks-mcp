@@ -26,6 +26,7 @@ from typing import Any
 from cks_runtime.runtime import Runtime
 
 from cks_mcp import llm_providers
+from cks_mcp.tools.list_llm_models.cache import list_llm_models_cache
 
 _logger = logging.getLogger(__name__)
 
@@ -73,6 +74,29 @@ def _fetch_ollama_models() -> list[dict[str, Any]]:
     return models
 
 
+def _cache_key() -> str:
+    """Fingerprint the provider config that determines what
+    ``list_llm_models`` returns -- provider selection plus whichever
+    endpoint URL each provider would be queried against -- so a
+    changed config (e.g. pointing at a different Ollama host, or
+    flipping CKS_LLM_PROVIDER) always misses the cache, while an
+    unchanged config reuses a recent result for
+    ``CKS_LLM_MODELS_TTL_SECONDS``. Deliberately excludes API key
+    *values* -- only whether each is set -- so a key rotation with
+    everything else unchanged still safely reuses the cached model
+    list (rotating a key doesn't change which models exist) and no
+    key material ever passes through the cache key.
+    """
+    parts = [
+        f"provider={os.environ.get('CKS_LLM_PROVIDER', '').strip().lower()}",
+        f"ollama_host={llm_providers.ollama_host()}",
+        f"openai_base_url={llm_providers.openai_base_url()}",
+        f"anthropic_key_set={bool(os.environ.get('ANTHROPIC_API_KEY', '').strip())}",
+        f"openai_key_set={bool(os.environ.get('CKS_OPENAI_API_KEY', '').strip())}",
+    ]
+    return "|".join(parts)
+
+
 async def list_llm_models(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
     """
     Returns::
@@ -93,7 +117,18 @@ async def list_llm_models(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
     ``"anthropic"`` and ``"openai_compatible"``, ``models`` is a short
     hardcoded list of current popular models. For ``"none"``, ``models``
     is empty.
+
+    Cached for ``CKS_LLM_MODELS_TTL_SECONDS`` (default 300s) per
+    provider-config fingerprint (see ``_cache_key``), so a client like
+    cks-studio's Settings page polling this on every render doesn't
+    hit the provider (or probe Ollama's reachability) on every single
+    call. Set ``CKS_LLM_MODELS_TTL_SECONDS=0`` to disable caching.
     """
+    cache_key = _cache_key()
+    cached = list_llm_models_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     ollama_reachable = llm_providers.ollama_available()
     anthropic_key_set = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
 
@@ -116,7 +151,14 @@ async def list_llm_models(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
     else:
         models = []
 
-    return {
+    result = {
         "provider": provider,
         "models": models,
     }
+    # "none" (no provider configured/reachable at all) is intentionally
+    # never cached -- it's cheap to recompute (no network call is made
+    # for it) and caching it would keep reporting "none" for the full
+    # TTL right after the user finishes configuring a provider.
+    if provider != "none":
+        list_llm_models_cache.set(cache_key, result)
+    return result

@@ -7,9 +7,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from cks_mcp.tools.list_llm_models.cache import list_llm_models_cache
 from cks_mcp.tools.list_llm_models.handler import list_llm_models
 
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture(autouse=True)
+def _reset_list_llm_models_cache():
+    list_llm_models_cache.clear()
+    yield
+    list_llm_models_cache.clear()
 
 
 @pytest.fixture

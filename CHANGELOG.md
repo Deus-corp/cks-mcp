@@ -3,6 +3,22 @@
 
 ---
 
+## [1.74.0] - 2026-08-18
+
+### Added
+- **Secret redaction** – new `cks_mcp.llm.redact` module with `redact_secret` and `scrub_secrets`; all provider error paths now scrub configured API keys/tokens before including response bodies in errors/logs.
+- **LLM retry/backoff** – new `cks_mcp.llm.retry.call_with_retry` shared helper, applied to `call_ollama`, `call_anthropic`, `call_anthropic_with_tools`, `call_ollama_with_tools`, `call_openai_compatible_with_tools`, and `call_openai_compatible_single_shot`. Retries HTTP 429/529 and network-level failures with exponential backoff + jitter; non-retryable HTTP errors propagate immediately.
+- **`list_llm_models` TTL cache** – new in-memory cache for model-list responses keyed by a provider-config fingerprint (excluding API keys). Default TTL 300s; `CKS_LLM_MODELS_TTL_SECONDS=0` disables caching. Repeated Studio polls now avoid re-querying the provider.
+
+### Changed
+- Provider error messages are now scrubbed of secret values before being logged or returned.
+- LLM provider functions now delegate HTTP request execution to the shared retry helper.
+
+### Tests
+- Added tests for secret redaction, retry behavior, and model-list caching.
+
+---
+
 ## [1.73.0] - 2026-08-17
 
 ### Added
