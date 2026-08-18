@@ -58,16 +58,40 @@ class LLMClient:
     def __init__(
         self,
         *,
-        anthropic_fn: _ProviderFn = llm_providers.call_anthropic_with_tools,
-        ollama_fn: _ProviderFn = llm_providers.call_ollama_with_tools,
-        openai_compatible_fn: _ProviderFn = llm_providers.call_openai_compatible_with_tools,
-        ollama_available_fn: Callable[[], bool] = llm_providers.ollama_available,
-        single_shot_ollama_fn: _SingleShotFn = llm_providers.call_ollama,
-        single_shot_anthropic_fn: _SingleShotFn = llm_providers.call_anthropic,
-        single_shot_openai_compatible_fn: _SingleShotFn = (
-            llm_providers.call_openai_compatible_single_shot
-        ),
+        anthropic_fn: _ProviderFn | None = None,
+        ollama_fn: _ProviderFn | None = None,
+        openai_compatible_fn: _ProviderFn | None = None,
+        ollama_available_fn: Callable[[], bool] | None = None,
+        single_shot_ollama_fn: _SingleShotFn | None = None,
+        single_shot_anthropic_fn: _SingleShotFn | None = None,
+        single_shot_openai_compatible_fn: _SingleShotFn | None = None,
     ) -> None:
+        # Resolve lazy defaults here instead of in the signature. We
+        # import `llm_providers` at module top, but `llm_providers`
+        # imports `llm.redact`, which triggers `llm.__init__`, which
+        # imports `llm.client`. If these defaults referenced
+        # `llm_providers` at class definition time, that circular chain
+        # would leave `llm_providers` only partially initialised when
+        # this class body ran -- and produce AttributeError before any
+        # instance was ever created. Deferring to __init__ avoids that
+        # cycle completely.
+        if anthropic_fn is None:
+            anthropic_fn = llm_providers.call_anthropic_with_tools
+        if ollama_fn is None:
+            ollama_fn = llm_providers.call_ollama_with_tools
+        if openai_compatible_fn is None:
+            openai_compatible_fn = llm_providers.call_openai_compatible_with_tools
+        if ollama_available_fn is None:
+            ollama_available_fn = llm_providers.ollama_available
+        if single_shot_ollama_fn is None:
+            single_shot_ollama_fn = llm_providers.call_ollama
+        if single_shot_anthropic_fn is None:
+            single_shot_anthropic_fn = llm_providers.call_anthropic
+        if single_shot_openai_compatible_fn is None:
+            single_shot_openai_compatible_fn = (
+                llm_providers.call_openai_compatible_single_shot
+            )
+
         self._anthropic_fn = anthropic_fn
         self._ollama_fn = ollama_fn
         self._openai_compatible_fn = openai_compatible_fn

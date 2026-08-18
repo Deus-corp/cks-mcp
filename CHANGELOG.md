@@ -3,6 +3,13 @@
 
 ---
 
+## [1.74.1] - 2026-08-18
+
+### Fixed
+- **Circular import in LLM client** – `LLMClient.__init__` no longer references `llm_providers` functions as default argument values at class-definition time. Defaults are now resolved lazily inside `__init__`, preventing an `AttributeError`/circular-import failure when importing `cks_mcp.server` after recent `llm.redact` changes.
+
+---
+
 ## [1.74.0] - 2026-08-18
 
 ### Added
