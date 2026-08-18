@@ -41,6 +41,7 @@ async def test_auto_prefers_ollama_when_reachable_even_with_anthropic_key(mock_r
         "ollama_available": True,
         "anthropic_configured": True,
         "openai_compatible_configured": False,
+        "google_configured": False,
         "model": "llama3.2",
     }
 
@@ -55,6 +56,7 @@ async def test_auto_falls_back_to_anthropic_when_ollama_unreachable(mock_runtime
         "ollama_available": False,
         "anthropic_configured": True,
         "openai_compatible_configured": False,
+        "google_configured": False,
         "model": "claude-sonnet-4-5-20250929",
     }
 
@@ -69,6 +71,7 @@ async def test_auto_reports_none_when_nothing_available_or_configured(mock_runti
         "ollama_available": False,
         "anthropic_configured": False,
         "openai_compatible_configured": False,
+        "google_configured": False,
         "model": None,
     }
 
@@ -187,6 +190,7 @@ async def test_explicit_openai_compatible_wins_even_when_ollama_reachable(mock_r
         "ollama_available": True,
         "anthropic_configured": False,
         "openai_compatible_configured": True,
+        "google_configured": False,
         "model": "gpt-4o",
     }
 

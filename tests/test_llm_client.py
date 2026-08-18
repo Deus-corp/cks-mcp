@@ -25,20 +25,24 @@ def _client(
     anthropic_fn=None,
     ollama_fn=None,
     openai_compatible_fn=None,
+    google_fn=None,
     single_shot_ollama_fn=None,
     single_shot_anthropic_fn=None,
     single_shot_openai_compatible_fn=None,
+    single_shot_google_fn=None,
 ) -> LLMClient:
     return LLMClient(
         anthropic_fn=anthropic_fn or MagicMock(return_value={"content": [{"type": "text", "text": "anthropic"}]}),
         ollama_fn=ollama_fn or MagicMock(return_value={"content": [{"type": "text", "text": "ollama"}]}),
         openai_compatible_fn=openai_compatible_fn
         or MagicMock(return_value={"content": [{"type": "text", "text": "openai_compatible"}]}),
+        google_fn=google_fn or MagicMock(return_value={"content": [{"type": "text", "text": "google"}]}),
         ollama_available_fn=MagicMock(return_value=ollama_available),
         single_shot_ollama_fn=single_shot_ollama_fn or MagicMock(return_value="ollama text"),
         single_shot_anthropic_fn=single_shot_anthropic_fn or MagicMock(return_value="anthropic text"),
         single_shot_openai_compatible_fn=single_shot_openai_compatible_fn
         or MagicMock(return_value="openai_compatible text"),
+        single_shot_google_fn=single_shot_google_fn or MagicMock(return_value="google text"),
     )
 
 
@@ -179,6 +183,8 @@ def test_default_construction_uses_real_llm_providers_functions():
         client._single_shot_openai_compatible_fn
         is llm_providers.call_openai_compatible_single_shot
     )
+    assert client._google_fn is llm_providers.call_google_with_tools
+    assert client._single_shot_google_fn is llm_providers.call_google
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +246,82 @@ def test_openai_compatible_model_env_override_is_passed_through():
         client.call_with_tools(messages=MESSAGES, tools=TOOLS)
 
     assert openai_compatible_fn.call_args.kwargs["model"] == "gpt-4o-mini"
+
+
+# ---------------------------------------------------------------------------
+# google provider
+# ---------------------------------------------------------------------------
+
+
+def test_explicit_google_calls_google_fn_only():
+    ollama_fn = MagicMock()
+    anthropic_fn = MagicMock()
+    google_fn = MagicMock(return_value={"content": [{"type": "text", "text": "google"}]})
+    client = _client(anthropic_fn=anthropic_fn, ollama_fn=ollama_fn, google_fn=google_fn)
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "google"}):
+        result = client.call_with_tools(messages=MESSAGES, tools=TOOLS, tool_name="ai_chat")
+
+    assert result["content"][0]["text"] == "google"
+    google_fn.assert_called_once()
+    ollama_fn.assert_not_called()
+    anthropic_fn.assert_not_called()
+
+
+def test_auto_never_selects_google_when_ollama_unavailable():
+    # Same rationale as openai_compatible: 'auto' must never silently
+    # pick google, since choosing it over an explicitly configured
+    # ANTHROPIC_API_KEY would be surprising.
+    ollama_fn = MagicMock()
+    anthropic_fn = MagicMock(return_value={"content": [{"type": "text", "text": "anthropic"}]})
+    google_fn = MagicMock()
+    client = _client(
+        ollama_available=False,
+        anthropic_fn=anthropic_fn,
+        ollama_fn=ollama_fn,
+        google_fn=google_fn,
+    )
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "auto"}):
+        result = client.call_with_tools(messages=MESSAGES, tools=TOOLS)
+
+    assert result["content"][0]["text"] == "anthropic"
+    google_fn.assert_not_called()
+
+
+def test_google_model_env_override_is_passed_through():
+    google_fn = MagicMock(return_value={"content": [{"type": "text", "text": "ok"}]})
+    client = _client(google_fn=google_fn)
+
+    with patch.dict(
+        "os.environ",
+        {"CKS_LLM_PROVIDER": "google", "CKS_GOOGLE_MODEL": "gemini-2.5-pro"},
+    ):
+        client.call_with_tools(messages=MESSAGES, tools=TOOLS)
+
+    assert google_fn.call_args.kwargs["model"] == "gemini-2.5-pro"
+
+
+def test_call_with_tools_explicit_model_overrides_env_default_google():
+    google_fn = MagicMock(return_value={"content": [{"type": "text", "text": "ok"}]})
+    client = _client(google_fn=google_fn)
+
+    with patch.dict(
+        "os.environ",
+        {"CKS_LLM_PROVIDER": "google", "CKS_GOOGLE_MODEL": "gemini-2.5-flash"},
+    ):
+        client.call_with_tools(messages=MESSAGES, tools=TOOLS, model="gemini-2.5-pro")
+
+    assert google_fn.call_args.kwargs["model"] == "gemini-2.5-pro"
+
+
+def test_unknown_provider_message_mentions_google():
+    client = _client()
+    with (
+        patch.dict("os.environ", {"CKS_LLM_PROVIDER": "bogus"}),
+        pytest.raises(RuntimeError, match="google"),
+    ):
+        client.call_with_tools(messages=MESSAGES, tools=TOOLS)
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +468,27 @@ def test_single_shot_explicit_openai_compatible_calls_openai_compatible_fn_only(
     anthropic_fn.assert_not_called()
 
 
+def test_single_shot_explicit_google_calls_google_fn_only():
+    ollama_fn = MagicMock()
+    anthropic_fn = MagicMock()
+    google_fn = MagicMock(return_value="google text")
+    client = _client(
+        single_shot_ollama_fn=ollama_fn,
+        single_shot_anthropic_fn=anthropic_fn,
+        single_shot_google_fn=google_fn,
+    )
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "google"}, clear=True):
+        text, model = client.call_single_shot("hi", system_prompt="sys", max_tokens=100)
+
+    assert (text, model) == ("google text", "gemini-2.5-flash")
+    google_fn.assert_called_once_with(
+        "hi", system_prompt="sys", model="gemini-2.5-flash", max_tokens=100, tool_name=None
+    )
+    ollama_fn.assert_not_called()
+    anthropic_fn.assert_not_called()
+
+
 def test_single_shot_unknown_provider_raises_plain_runtime_error():
     client = _client()
     with (
@@ -442,6 +545,22 @@ def test_single_shot_auto_never_selects_openai_compatible_when_ollama_unavailabl
 
     assert text == "anthropic text"
     openai_compatible_fn.assert_not_called()
+
+
+def test_single_shot_auto_never_selects_google_when_ollama_unavailable():
+    anthropic_fn = MagicMock(return_value="anthropic text")
+    google_fn = MagicMock()
+    client = _client(
+        ollama_available=False,
+        single_shot_anthropic_fn=anthropic_fn,
+        single_shot_google_fn=google_fn,
+    )
+
+    with patch.dict("os.environ", {"CKS_LLM_PROVIDER": "auto"}, clear=True):
+        text, _ = client.call_single_shot("hi", system_prompt="sys")
+
+    assert text == "anthropic text"
+    google_fn.assert_not_called()
 
 
 def test_single_shot_auto_raises_llm_provider_unavailable_when_nothing_works():
@@ -510,3 +629,17 @@ def test_single_shot_openai_compatible_model_env_override_is_passed_through():
         _, model = client.call_single_shot("hi", system_prompt="sys")
 
     assert model == "deepseek-chat"
+
+
+def test_single_shot_google_model_env_override_is_passed_through():
+    google_fn = MagicMock(return_value="ok")
+    client = _client(single_shot_google_fn=google_fn)
+
+    with patch.dict(
+        "os.environ",
+        {"CKS_LLM_PROVIDER": "google", "CKS_GOOGLE_MODEL": "gemini-2.5-pro"},
+        clear=True,
+    ):
+        _, model = client.call_single_shot("hi", system_prompt="sys")
+
+    assert model == "gemini-2.5-pro"

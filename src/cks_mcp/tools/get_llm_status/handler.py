@@ -25,7 +25,7 @@ from cks_mcp import llm_providers
 # "openai_compatible" is recognized when explicit but -- same as every
 # other provider router in cks-mcp -- is never selected by auto-detection,
 # since its base URL/model/key combination can't be guessed safely.
-_EXPLICIT_PROVIDERS = {"ollama", "anthropic", "openai_compatible"}
+_EXPLICIT_PROVIDERS = {"ollama", "anthropic", "openai_compatible", "google"}
 
 
 async def get_llm_status(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -33,10 +33,11 @@ async def get_llm_status(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
     Returns::
 
         {
-            "provider": "ollama" | "anthropic" | "openai_compatible" | "none",
+            "provider": "ollama" | "anthropic" | "openai_compatible" | "google" | "none",
             "ollama_available": bool,
             "anthropic_configured": bool,
             "openai_compatible_configured": bool,
+            "google_configured": bool,
             "model": str | None,
         }
 
@@ -65,6 +66,7 @@ async def get_llm_status(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
     ollama_reachable = llm_providers.ollama_available()
     anthropic_key_set = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
     openai_compatible_key_set = bool(os.environ.get("CKS_OPENAI_API_KEY", "").strip())
+    google_key_set = bool(llm_providers.google_api_key().strip())
 
     explicit = os.environ.get("CKS_LLM_PROVIDER", "").strip().lower()
     if explicit in _EXPLICIT_PROVIDERS:
@@ -84,6 +86,8 @@ async def get_llm_status(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
         )
     elif provider == "openai_compatible":
         model = os.environ.get("CKS_OPENAI_MODEL", "gpt-4o")
+    elif provider == "google":
+        model = os.environ.get("CKS_GOOGLE_MODEL", "gemini-2.5-flash")
     else:
         model = None
 
@@ -92,5 +96,6 @@ async def get_llm_status(runtime: Runtime, arguments: dict[str, Any]) -> dict[st
         "ollama_available": ollama_reachable,
         "anthropic_configured": anthropic_key_set,
         "openai_compatible_configured": openai_compatible_key_set,
+        "google_configured": google_key_set,
         "model": model,
     }

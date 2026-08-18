@@ -33,7 +33,7 @@ _logger = logging.getLogger(__name__)
 # Same explicit-provider set as get_llm_status; anything else (unset,
 # empty, "auto", or a typo) falls through to availability-based
 # detection below.
-_EXPLICIT_PROVIDERS = {"ollama", "anthropic", "openai_compatible"}
+_EXPLICIT_PROVIDERS = {"ollama", "anthropic", "openai_compatible", "google"}
 
 # Hardcoded model lists for providers with no safe model-list endpoint
 # to query without an API key. Kept in sync by hand with get_llm_status's
@@ -49,6 +49,12 @@ _OPENAI_COMPATIBLE_MODELS = [
     "gpt-4o-mini",
     "gpt-4-turbo",
     "gpt-3.5-turbo",
+]
+_GOOGLE_MODELS = [
+    "gemini-3.5-flash-lite",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
 ]
 
 
@@ -93,6 +99,7 @@ def _cache_key() -> str:
         f"openai_base_url={llm_providers.openai_base_url()}",
         f"anthropic_key_set={bool(os.environ.get('ANTHROPIC_API_KEY', '').strip())}",
         f"openai_key_set={bool(os.environ.get('CKS_OPENAI_API_KEY', '').strip())}",
+        f"google_key_set={bool(llm_providers.google_api_key().strip())}",
     ]
     return "|".join(parts)
 
@@ -148,6 +155,8 @@ async def list_llm_models(runtime: Runtime, arguments: dict[str, Any]) -> dict[s
         models = [{"name": name} for name in _ANTHROPIC_MODELS]
     elif provider == "openai_compatible":
         models = [{"name": name} for name in _OPENAI_COMPATIBLE_MODELS]
+    elif provider == "google":
+        models = [{"name": name} for name in _GOOGLE_MODELS]
     else:
         models = []
 

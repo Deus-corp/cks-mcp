@@ -3,6 +3,22 @@
 
 ---
 
+## [1.76.0] - 2026-08-18
+
+### Added
+- **Native Google Gemini provider** – `CKS_LLM_PROVIDER=google` now selects Google Gemini directly, using the official Gemini `generateContent` / function-calling API. Supports:
+  - `CKS_GOOGLE_API_KEY` or `GOOGLE_API_KEY`
+  - `CKS_GOOGLE_MODEL` (default `gemini-2.5-flash`)
+- **Tool calling for Google** – `LLMClient` now maps Anthropic-style tool calls to Gemini `functionDeclarations`/`functionCall` parts, including `thought_signature` handling.
+- **`get_llm_status` / `list_llm_models` Google support** – provider status now reports `google` and `google_configured`; model listing returns a curated Google/Gemini model list.
+- **Tests** – added coverage for Google provider dispatch, single-shot calls, tool calls, and provider status/model listing.
+
+### Changed
+- Provider routing now recognises `google` alongside `ollama`, `anthropic`, and `openai_compatible`.
+- Google provider implemented via REST/urllib, matching the existing provider style with no new heavy dependency.
+
+---
+
 ## [1.75.0] - 2026-08-18
 
 ### Fixed

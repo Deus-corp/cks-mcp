@@ -61,10 +61,12 @@ class LLMClient:
         anthropic_fn: _ProviderFn | None = None,
         ollama_fn: _ProviderFn | None = None,
         openai_compatible_fn: _ProviderFn | None = None,
+        google_fn: _ProviderFn | None = None,
         ollama_available_fn: Callable[[], bool] | None = None,
         single_shot_ollama_fn: _SingleShotFn | None = None,
         single_shot_anthropic_fn: _SingleShotFn | None = None,
         single_shot_openai_compatible_fn: _SingleShotFn | None = None,
+        single_shot_google_fn: _SingleShotFn | None = None,
     ) -> None:
         # Resolve lazy defaults here instead of in the signature. We
         # import `llm_providers` at module top, but `llm_providers`
@@ -81,6 +83,8 @@ class LLMClient:
             ollama_fn = llm_providers.call_ollama_with_tools
         if openai_compatible_fn is None:
             openai_compatible_fn = llm_providers.call_openai_compatible_with_tools
+        if google_fn is None:
+            google_fn = llm_providers.call_google_with_tools
         if ollama_available_fn is None:
             ollama_available_fn = llm_providers.ollama_available
         if single_shot_ollama_fn is None:
@@ -91,14 +95,18 @@ class LLMClient:
             single_shot_openai_compatible_fn = (
                 llm_providers.call_openai_compatible_single_shot
             )
+        if single_shot_google_fn is None:
+            single_shot_google_fn = llm_providers.call_google
 
         self._anthropic_fn = anthropic_fn
         self._ollama_fn = ollama_fn
         self._openai_compatible_fn = openai_compatible_fn
+        self._google_fn = google_fn
         self._ollama_available_fn = ollama_available_fn
         self._single_shot_ollama_fn = single_shot_ollama_fn
         self._single_shot_anthropic_fn = single_shot_anthropic_fn
         self._single_shot_openai_compatible_fn = single_shot_openai_compatible_fn
+        self._single_shot_google_fn = single_shot_google_fn
 
     def call_with_tools(
         self,
@@ -139,19 +147,24 @@ class LLMClient:
         if provider == "openai_compatible":
             return self._call_openai_compatible(messages, tools, tool_name, model)
 
+        if provider == "google":
+            return self._call_google(messages, tools, tool_name, model)
+
         if provider != "auto":
             raise RuntimeError(
                 f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', "
-                "'anthropic', or 'openai_compatible'."
+                "'anthropic', 'google', or 'openai_compatible'."
             )
 
         # auto: prefer a local, keyless model if one is already
         # running; otherwise fall through to Anthropic. Mirrors
         # construct_knowledge's _call_llm dispatch exactly.
-        # 'openai_compatible' is never picked automatically -- its
-        # base URL/model/key vary too much across providers to guess
-        # safely, so it must be selected explicitly via
-        # CKS_LLM_PROVIDER=openai_compatible.
+        # 'openai_compatible' and 'google' are never picked
+        # automatically -- their base URL/model/key vary too much (or,
+        # for google, would silently prefer it over an explicitly
+        # configured Anthropic key) to guess safely, so either must be
+        # selected explicitly via CKS_LLM_PROVIDER=openai_compatible /
+        # CKS_LLM_PROVIDER=google.
         if self._ollama_available_fn():
             return self._call_ollama(messages, tools, tool_name, model)
 
@@ -206,6 +219,19 @@ class LLMClient:
             kwargs["model"] = model
         return self._openai_compatible_fn(**kwargs)
 
+    def _call_google(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        tool_name: str | None,
+        model_override: str | None = None,
+    ) -> dict[str, Any]:
+        model = model_override or os.environ.get("CKS_GOOGLE_MODEL")
+        kwargs: dict[str, Any] = {"messages": messages, "tools": tools, "tool_name": tool_name}
+        if model:
+            kwargs["model"] = model
+        return self._google_fn(**kwargs)
+
     # -----------------------------------------------------------------
     # Single-shot (no tools) text-in/text-out -- for tools like
     # construct_knowledge that just need a plain completion, not a
@@ -249,10 +275,13 @@ class LLMClient:
                 prompt, system_prompt, model, max_tokens, tool_name
             )
 
+        if provider == "google":
+            return self._single_shot_google(prompt, system_prompt, model, max_tokens, tool_name)
+
         if provider != "auto":
             raise RuntimeError(
                 f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', "
-                "'anthropic', or 'openai_compatible'."
+                "'anthropic', 'google', or 'openai_compatible'."
             )
 
         # auto: prefer a local, keyless model if one is already
@@ -271,7 +300,8 @@ class LLMClient:
                 "this auto-detects it on localhost:11434 (set "
                 "CKS_LLM_PROVIDER=ollama to force it); "
                 "(2) set ANTHROPIC_API_KEY and CKS_LLM_PROVIDER=anthropic; "
-                "(3) set CKS_OPENAI_API_KEY and CKS_LLM_PROVIDER=openai_compatible."
+                "(3) set CKS_OPENAI_API_KEY and CKS_LLM_PROVIDER=openai_compatible; "
+                "(4) set CKS_GOOGLE_API_KEY and CKS_LLM_PROVIDER=google."
             ) from exc
 
     def _single_shot_ollama(
@@ -320,6 +350,24 @@ class LLMClient:
     ) -> tuple[str, str]:
         resolved_model = model or os.environ.get("CKS_OPENAI_MODEL", "gpt-4o")
         text = self._single_shot_openai_compatible_fn(
+            prompt,
+            system_prompt=system_prompt,
+            model=resolved_model,
+            max_tokens=max_tokens,
+            tool_name=tool_name,
+        )
+        return text, resolved_model
+
+    def _single_shot_google(
+        self,
+        prompt: str,
+        system_prompt: str,
+        model: str | None,
+        max_tokens: int,
+        tool_name: str | None,
+    ) -> tuple[str, str]:
+        resolved_model = model or os.environ.get("CKS_GOOGLE_MODEL", "gemini-2.5-flash")
+        text = self._single_shot_google_fn(
             prompt,
             system_prompt=system_prompt,
             model=resolved_model,
