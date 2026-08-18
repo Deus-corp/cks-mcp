@@ -91,6 +91,8 @@ async def test_evolve_knowledge_gives_up_after_max_retries(mock_runtime, monkeyp
     monkeypatch.setattr(
         "cks_mcp.provenance.verify_structure_provenance", lambda structure: []
     )
+    # Don't actually sleep through the backoff between retries in tests.
+    monkeypatch.setattr("cks_mcp.tools.evolve.handler.asyncio.sleep", AsyncMock())
 
     runtime.commit_transaction = AsyncMock(
         side_effect=ConcurrentModificationError("s1")
@@ -102,9 +104,10 @@ async def test_evolve_knowledge_gives_up_after_max_retries(mock_runtime, monkeyp
     )
 
     assert result["error"] == "concurrent_modification"
-    # 1 initial attempt + 2 retries = 3 total commit attempts.
-    assert runtime.commit_transaction.await_count == 3
-    assert runtime.transactions.abort.call_count == 3
+    # 1 initial attempt + 5 retries = 6 total commit attempts (raised
+    # from 2 retries -- see _MAX_COMMIT_RETRIES's docstring for why).
+    assert runtime.commit_transaction.await_count == 6
+    assert runtime.transactions.abort.call_count == 6
 
 
 async def test_evolve_knowledge_serializes_same_session_calls(mock_runtime, monkeypatch):
@@ -139,3 +142,51 @@ async def test_evolve_knowledge_serializes_same_session_calls(mock_runtime, monk
     )
 
     assert max_concurrent == 1
+
+
+async def test_evolve_knowledge_no_ops_when_already_applied_by_concurrent_writer(
+    mock_runtime, monkeypatch
+):
+    """If a concurrent writer's commit already added the exact object
+    this call was trying to add (visible after the post-conflict
+    reload), evolve_knowledge should report a successful no-op instead
+    of endlessly retrying a commit that would only fail again with
+    'already exists' -- see `_operations_already_applied`."""
+    runtime, _session = mock_runtime
+
+    monkeypatch.setattr(
+        "cks_mcp.provenance.verify_structure_provenance", lambda structure: []
+    )
+    monkeypatch.setattr("cks_mcp.tools.evolve.handler.asyncio.sleep", AsyncMock())
+
+    runtime.commit_transaction = AsyncMock(
+        side_effect=ConcurrentModificationError("s1")
+    )
+
+    # After the (single) reload, storage now reflects a structure that
+    # already contains the object this evolution was trying to add --
+    # simulating a concurrent writer having committed it first.
+    already_applied_obj = MagicMock()
+    already_applied_obj.identity.id = "obj-2"
+    fresh_structure = _make_structure()
+    fresh_structure.objects = [already_applied_obj]
+    fresh_session = MagicMock(
+        session_id="s1",
+        knowledge_structure=fresh_structure,
+        version_history=[MagicMock(version_id="v-concurrent")],
+        metadata={},
+        closed=False,
+    )
+    runtime.storage.load_session = AsyncMock(return_value=fresh_session)
+
+    result = await evolve_knowledge(
+        runtime,
+        {"session_id": "s1", "operations": VALID_OPERATIONS},
+    )
+
+    assert result.get("no_op") is True
+    assert result["version"] == "v-concurrent"
+    assert "error" not in result
+    # Only the first (failed) commit attempt should have happened --
+    # the no-op short-circuits before a second commit_transaction call.
+    assert runtime.commit_transaction.await_count == 1

@@ -1,8 +1,15 @@
 import asyncio
+import random
 from typing import Any
 
 import cks
-from cks.evolution import RemoveObject, parse_operations
+from cks.evolution import (
+    AddObject,
+    AddRelation,
+    RemoveObject,
+    RemoveRelation,
+    parse_operations,
+)
 from cks_runtime.operations.operation_types import EvolveOperation
 from cks_runtime.runtime import Runtime
 from cks_runtime.session.session import RuntimeSession
@@ -17,7 +24,81 @@ from cks_mcp.tools.validate.handler import EXTENSION_ALIASES, resolve_extensions
 #: when committing races another writer -- see
 #: ``_reload_session_from_storage``/the retry loop around
 #: begin_transaction/commit_transaction below.
-_MAX_COMMIT_RETRIES = 2
+#:
+#: Raised from 2 to 5: with embedded agents (ResearcherStep/
+#: ReviewerStep/etc, see cks_mcp.pipeline) and AI Chat's own
+#: back-to-back evolve_knowledge calls now routinely running
+#: concurrently against the same sandbox session (see
+#: CKSAgentOrchestrator.run_concurrent), 2 retries under sustained,
+#: multi-writer contention exhausted far too easily even though each
+#: individual commit attempt is cheap and each writer's operations are
+#: usually still valid against the freshly-reloaded state.
+_MAX_COMMIT_RETRIES = 5
+
+#: Base delay (seconds) for the jittered backoff between commit
+#: retries -- see the retry loop below. Previously retried
+#: immediately with no delay at all, which under sustained
+#: contention from another writer that commits frequently tends to
+#: keep landing back-to-back with that writer's own next commit
+#: (effectively a livelock rather than a transient, rare collision).
+#: A small randomized backoff spreads retries out so two contending
+#: callers converge instead of repeatedly colliding in lockstep.
+_RETRY_BASE_DELAY_SECONDS = 0.05
+_RETRY_MAX_DELAY_SECONDS = 0.5
+
+
+def _retry_backoff_seconds(attempt: int) -> float:
+    """Full-jitter exponential backoff delay for retry `attempt`
+    (0-indexed: the delay taken *before* attempt+1's commit try).
+    """
+    ceiling = min(_RETRY_MAX_DELAY_SECONDS, _RETRY_BASE_DELAY_SECONDS * (2**attempt))
+    return random.uniform(0, ceiling)
+
+
+#: Operation types whose *effect* on a structure can be checked
+#: directly against a freshly-reloaded structure -- see
+#: `_operations_already_applied` below. UpdateObject is deliberately
+#: excluded: confirming "already applied" for it would mean comparing
+#: the object's current fields against the patch, which for a
+#: "merge" patch can't be distinguished from "some other writer set
+#: the same fields to the same values coincidentally" -- not worth
+#: the false-positive risk, so an UpdateObject in the batch always
+#: falls through to a real retry.
+_IDEMPOTENCY_CHECKABLE_OPS = (AddObject, AddRelation, RemoveObject, RemoveRelation)
+
+
+def _operations_already_applied(structure: "cks.KnowledgeStructure", operations: list) -> bool:
+    """True if every operation in `operations` is already reflected in
+    `structure` (e.g. this exact evolution already committed under a
+    concurrent writer's call, or another retry of the same logical
+    request already landed) -- so retrying the commit would either
+    fail again for the *same* reason (AddObject: "already exists",
+    the ADR-007 outbox idempotency issue this also helps with -- see
+    researcher_step.py et al) or be a genuine no-op.
+
+    Conservative by design: returns False (i.e. "not confirmed
+    already applied, do a real retry") for anything it can't check
+    positively, including any UpdateObject in the batch and any
+    operation type it doesn't recognize -- a false "already applied"
+    would silently drop a write, which is far worse than one extra
+    (harmless) retry attempt.
+    """
+    ids = {obj.identity.id: obj for obj in structure.objects}
+    for op in operations:
+        if not isinstance(op, _IDEMPOTENCY_CHECKABLE_OPS):
+            return False
+        if isinstance(op, AddObject):
+            if op.obj.identity.id not in ids:
+                return False
+        elif isinstance(op, AddRelation):
+            if op.relation.identity.id not in ids:
+                return False
+        elif isinstance(op, RemoveObject):
+            if op.object_id in ids:
+                return False
+        elif isinstance(op, RemoveRelation) and op.relation_id in ids:
+            return False
+    return True
 
 #: session_id -> the asyncio.Lock serializing evolve_knowledge calls
 #: against that session within this process. Same pattern and same
@@ -282,7 +363,38 @@ async def _evolve_knowledge_locked(
                         "Reload the session and retry."
                     ),
                 }
+            # Small randomized backoff before reloading/retrying, so a
+            # sustained flurry of concurrent writers (embedded agents +
+            # AI Chat's own back-to-back calls, see `_MAX_COMMIT_RETRIES`
+            # above) doesn't keep colliding in lockstep with zero delay
+            # between attempts.
+            await asyncio.sleep(_retry_backoff_seconds(attempt))
             await _reload_session_from_storage(runtime, session)
+            # If every operation in this evolution is already reflected
+            # in the freshly-reloaded structure -- e.g. another
+            # concurrent call (or a duplicate retry from an outbox-style
+            # caller like researcher_step.py) already committed this
+            # exact change -- treat this as a successful no-op instead
+            # of re-attempting a commit that would either fail again
+            # (AddObject: "already exists") or be redundant. See
+            # `_operations_already_applied`'s docstring for how
+            # conservative this check is.
+            if _operations_already_applied(session.knowledge_structure, operations):
+                latest_version_id = (
+                    session.version_history[-1].version_id
+                    if session.version_history
+                    else None
+                )
+                return {
+                    "session_id": session.session_id,
+                    "version": latest_version_id,
+                    "no_op": True,
+                    "message": (
+                        "Evolution already applied by a concurrent writer; "
+                        "no new commit was needed."
+                    ),
+                    "diagnostics": [],
+                }
             # The operation's own EvolveOperation was built against a
             # structure snapshot; the dry-run/provenance/validation
             # checks above already ran against that snapshot, not the

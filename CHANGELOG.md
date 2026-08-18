@@ -3,6 +3,25 @@
 
 ---
 
+## [1.75.0] - 2026-08-18
+
+### Fixed
+- **`evolve_knowledge` resilience under concurrent writers** – increased commit retries from 2 to 5, added exponential backoff with jitter between retries, and added a conservative “already applied” idempotency check. If a concurrent writer has already committed the same Add/Remove operation, `evolve_knowledge` now returns a successful no-op instead of exhausting retries with `concurrent_modification`.
+- **`list_processes` latency** – liveness pruning now runs as a background asyncio task with a 5-minute throttle instead of blocking every `list_processes` call. This eliminates occasional 10–30+ second stalls in `process_status`/`list_processes` polling.
+
+### Added
+- Regression tests for:
+  - concurrent modification retry count and no-op behavior
+  - non-blocking/throttled liveness pruning
+  - prune re-run after the throttle window
+
+### Changed
+- `_MAX_COMMIT_RETRIES` raised to 5.
+- `_IDEMPOTENCY_CHECKABLE_OPS` supports `AddObject`, `AddRelation`, `RemoveObject`, `RemoveRelation`.
+- `prune_agent_liveness` call moved out of the hot request path.
+
+---
+
 ## [1.74.1] - 2026-08-18
 
 ### Fixed

@@ -2,15 +2,30 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from cks_runtime.storage.storage import AgentLivenessRecord
 
+from cks_mcp.tools import list_processes as list_processes_module
 from cks_mcp.tools.list_processes.handler import list_processes
 
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture(autouse=True)
+def _reset_prune_throttle_state():
+    """Each test gets a clean slate for the module-level throttle/task
+    globals (see _maybe_schedule_prune) so tests don't leak state into
+    each other via real wall-clock time."""
+    list_processes_module.handler._last_prune_attempt_monotonic = float("-inf")
+    list_processes_module.handler._prune_task = None
+    yield
+    list_processes_module.handler._last_prune_attempt_monotonic = float("-inf")
+    list_processes_module.handler._prune_task = None
 
 
 def _record(
@@ -116,3 +131,83 @@ async def test_naive_timestamp_treated_as_utc(mock_runtime):
     result = await list_processes(mock_runtime, {})
 
     assert result["processes"][0]["status"] == "alive"
+
+
+async def test_list_processes_does_not_await_prune_inline(mock_runtime):
+    """Regression test for issue #8 (process_status/list_processes
+    sometimes taking 30+ seconds): the prune must be scheduled as a
+    background task, never awaited directly inside list_processes, so
+    a slow/blocked prune can't delay the read."""
+    mock_runtime.storage.supports_agent_liveness = True
+    prune_started = asyncio.Event()
+    release_prune = asyncio.Event()
+
+    async def slow_prune(_ttl):
+        prune_started.set()
+        await release_prune.wait()
+
+    mock_runtime.storage.prune_agent_liveness = AsyncMock(side_effect=slow_prune)
+
+    result = await asyncio.wait_for(list_processes(mock_runtime, {}), timeout=1.0)
+
+    assert result == {"processes": []}
+    # The prune may or may not have started yet (it's a fire-and-forget
+    # task), but list_processes itself must already have returned.
+    release_prune.set()
+    await asyncio.wait_for(prune_started.wait(), timeout=1.0)
+    # Let the background task actually finish so it doesn't leak
+    # across tests / trigger "Task was destroyed but it is pending".
+    task = list_processes_module.handler._prune_task
+    if task is not None:
+        await task
+
+
+async def test_list_processes_throttles_repeated_prune_attempts(mock_runtime):
+    """Back-to-back polls (studio's Agent Control Panel polls every
+    few seconds) must not each reissue the prune DELETE -- only the
+    first call within the throttle window should schedule one."""
+    mock_runtime.storage.supports_agent_liveness = True
+    mock_runtime.storage.prune_agent_liveness = AsyncMock(return_value=None)
+
+    await list_processes(mock_runtime, {})
+    first_task = list_processes_module.handler._prune_task
+    assert first_task is not None
+    await first_task
+
+    await list_processes(mock_runtime, {})
+    second_task = list_processes_module.handler._prune_task
+
+    # Still within the throttle window -- no new prune task scheduled.
+    assert second_task is first_task
+    mock_runtime.storage.prune_agent_liveness.assert_awaited_once()
+
+
+async def test_list_processes_reprunes_after_throttle_window(mock_runtime):
+    mock_runtime.storage.supports_agent_liveness = True
+    mock_runtime.storage.prune_agent_liveness = AsyncMock(return_value=None)
+
+    await list_processes(mock_runtime, {})
+    first_task = list_processes_module.handler._prune_task
+    await first_task
+
+    # Simulate the throttle window having elapsed.
+    list_processes_module.handler._last_prune_attempt_monotonic = (
+        time.monotonic() - list_processes_module.handler._PRUNE_THROTTLE_SECONDS - 1
+    )
+
+    await list_processes(mock_runtime, {})
+    second_task = list_processes_module.handler._prune_task
+    assert second_task is not first_task
+    await second_task
+
+    assert mock_runtime.storage.prune_agent_liveness.await_count == 2
+
+
+async def test_list_processes_skips_prune_when_unsupported(mock_runtime):
+    mock_runtime.storage.supports_agent_liveness = False
+    mock_runtime.storage.prune_agent_liveness = AsyncMock(return_value=None)
+
+    await list_processes(mock_runtime, {})
+
+    mock_runtime.storage.prune_agent_liveness.assert_not_awaited()
+    assert list_processes_module.handler._prune_task is None
