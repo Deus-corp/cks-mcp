@@ -40,9 +40,46 @@ def google_base_url() -> str:
     ).rstrip("/")
 
 
+# JSON Schema / OpenAPI keywords that Google's Gemini function-calling
+# schema subset does not understand. Gemini returns HTTP 400 ("Unknown
+# name ... Cannot find field") if any of these appear anywhere in a
+# function declaration's `parameters`, even nested. These are stripped
+# on the way out to Google only -- the source schemas (registry.TOOLS,
+# MCP `inputSchema`) are left untouched, since other providers and
+# strict-JSON-Schema consumers rely on them.
+_GOOGLE_UNSUPPORTED_KEYWORDS = frozenset(
+    {
+        "additionalProperties",
+        "$schema",
+        "$ref",
+        "default",
+        "examples",
+        "const",
+        "readOnly",
+        "writeOnly",
+        "deprecated",
+    }
+)
+
+# Keywords Gemini's schema subset does understand and that we pass
+# through as-is (after recursive normalization of their values).
+_GOOGLE_SUPPORTED_KEYWORDS = frozenset(
+    {
+        "type",
+        "description",
+        "enum",
+        "properties",
+        "items",
+        "required",
+        "nullable",
+    }
+)
+
+
 def _normalize_schema_for_google(schema: Any) -> Any:
     """Recursively normalize a JSON Schema fragment so it satisfies
-    Gemini's (stricter-than-JSON-Schema) function-declaration validator.
+    Gemini's (stricter-than-JSON-Schema, and narrower-than-JSON-Schema)
+    function-declaration validator.
 
     Known Gemini requirements this enforces:
       - Every ``"type": "array"`` node must have an ``"items"`` field,
@@ -55,12 +92,41 @@ def _normalize_schema_for_google(schema: Any) -> Any:
         ``properties: {}`` rather than left absent, since some Gemini
         versions reject an object type with neither ``properties`` nor
         ``additionalProperties`` set.
+      - Keywords Gemini's schema subset doesn't recognize --
+        ``additionalProperties``, ``$schema``, ``$ref``, ``default``,
+        ``examples``, ``const``, ``readOnly``, ``writeOnly``,
+        ``deprecated`` -- are dropped entirely (see
+        ``_GOOGLE_UNSUPPORTED_KEYWORDS``). Gemini rejects the *whole*
+        ``tools`` payload with HTTP 400 if even one function
+        declaration contains an unrecognized field name, so this has
+        to be thorough, not best-effort.
+      - ``anyOf`` / ``oneOf`` / ``allOf`` compositions aren't supported
+        by Gemini's schema subset either. Rather than trying to
+        losslessly translate a union/intersection into Gemini's
+        vocabulary, each is collapsed to the most permissive safe
+        equivalent: an empty object schema (``{}``, i.e. "accept
+        anything here"). This trades precision for validity -- Gemini
+        will happily pass through a value that a stricter schema would
+        have rejected, but that's preferable to the tool being
+        unusable at all.
 
     Only dict/list structures are walked; anything else is returned
     unchanged. The input is not mutated -- a new structure is returned.
     """
     if isinstance(schema, dict):
-        result = {k: _normalize_schema_for_google(v) for k, v in schema.items()}
+        if any(k in schema for k in ("anyOf", "oneOf", "allOf")):
+            # Most permissive safe equivalent: accept anything. We
+            # still preserve a description if one was present, since
+            # that's free-text documentation Gemini does support and
+            # dropping it would lose useful context for the model.
+            description = schema.get("description")
+            return {"description": description} if description else {}
+
+        result = {
+            k: _normalize_schema_for_google(v)
+            for k, v in schema.items()
+            if k not in _GOOGLE_UNSUPPORTED_KEYWORDS
+        }
         if result.get("type") == "array":
             items = result.get("items")
             if not isinstance(items, dict) or not items.get("type"):

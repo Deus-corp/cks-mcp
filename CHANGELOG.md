@@ -3,6 +3,20 @@
 
 ---
 
+## [1.76.6] - 2026-08-19
+
+### Fixed
+- **Google Gemini unsupported schema keywords** – `additionalProperties`, `$schema`, `$ref`, `anyOf`, `oneOf`, `allOf`, `default`, `examples`, `const`, `readOnly`, `writeOnly`, and `deprecated` are now stripped during Google provider schema normalization.
+- **Google provider schema normalization** – `_normalize_schema_for_google()` now recursively removes unsupported keywords and collapses `anyOf`/`oneOf`/`allOf` to an empty object schema before building Gemini `functionDeclarations`. Source `inputSchema` objects remain unchanged.
+
+### Added
+- Regression tests verifying every registered tool schema normalizes to a Google-compatible shape and that source schemas remain untouched.
+
+### Changed
+- No changes to public MCP tool schemas or parameter semantics.
+
+---
+
 ## [1.76.5] - 2026-08-19
 
 ### Fixed
