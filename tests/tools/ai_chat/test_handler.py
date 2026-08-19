@@ -90,6 +90,33 @@ async def test_session_id_is_pinned_even_if_llm_supplies_another():
     assert called_args["session_id"] == "s1"
 
 
+async def test_tool_result_message_carries_google_tool_name():
+    """Regression test: the tool_result block appended to message
+    history after a tool call must carry _google_tool_name so
+    _to_google_contents (google.py) can populate functionResponse.name.
+    Without this, Google's API returns HTTP 400 'Name cannot be empty'
+    on the next turn."""
+    runtime = MagicMock()
+    responses = [
+        _tool_use_response("query_subgraph", {}, tool_use_id="toolu_9"),
+        _text_response("Done."),
+    ]
+    with patch(
+        "cks_mcp.tools.ai_chat.handler.call_anthropic_with_tools",
+        side_effect=responses,
+    ):
+        result = await ai_chat(
+            runtime, {"session_id": "s1", "prompt": "read the graph"}
+        )
+
+    tool_result_message = result["messages"][2]
+    assert tool_result_message["role"] == "user"
+    tool_result_block = tool_result_message["content"][0]
+    assert tool_result_block["type"] == "tool_result"
+    assert tool_result_block["tool_use_id"] == "toolu_9"
+    assert tool_result_block["_google_tool_name"] == "query_subgraph"
+
+
 async def test_disallowed_tool_is_reported_as_error_not_executed():
     runtime = MagicMock()
     responses = [

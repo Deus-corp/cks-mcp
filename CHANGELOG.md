@@ -3,6 +3,21 @@
 
 ---
 
+## [1.76.5] - 2026-08-19
+
+### Fixed
+- **Google `functionResponse.name`** – `ai_chat` now stamps `_google_tool_name` on `tool_result` blocks, and `_to_google_contents()` falls back to resolving the tool name from prior `tool_use` blocks by `tool_use_id`. This prevents Google Gemini from returning HTTP 400 `Name cannot be empty`.
+- **Tool schema audit** – all registered tool schemas now pass strict JSON Schema validation: arrays declare `items` with `type`, simple object properties declare `type`, and zero-argument tools explicitly set `additionalProperties: false`.
+
+### Added
+- `tests/test_tool_schema_compliance.py` walks every registered tool schema and fails on missing `items`, missing property `type`, or ambiguous empty-object schemas.
+- Regression tests for `functionResponse.name` resolution in Google tool calling.
+
+### Changed
+- No public API or parameter semantics changed.
+
+---
+
 ## [1.76.4] - 2026-08-19
 
 ### Fixed

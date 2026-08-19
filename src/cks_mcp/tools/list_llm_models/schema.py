@@ -29,5 +29,9 @@ LIST_LLM_MODELS_SCHEMA = {
         "type": "object",
         "properties": {},
         "required": [],
+        # No accepted parameters -- explicit for strict JSON Schema
+        # validators (e.g. Google Gemini function-calling) so an empty
+        # object isn't ambiguous with "any object shape allowed".
+        "additionalProperties": False,
     },
 }

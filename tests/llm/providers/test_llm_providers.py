@@ -913,6 +913,68 @@ def test_to_google_contents_tool_result_becomes_function_response():
     assert part["functionResponse"]["response"] == {"objects": []}
 
 
+def test_to_google_contents_tool_result_resolves_name_from_prior_tool_use():
+    """Regression test for the bug where ai_chat's tool loop appended a
+    tool_result block without ``_google_tool_name``, producing a Google
+    payload with an empty functionResponse.name (HTTP 400 "Name cannot
+    be empty"). _to_google_contents must fall back to the matching
+    tool_use block's name via tool_use_id."""
+    messages = [
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "call_1",
+                    "name": "query_subgraph",
+                    "input": {"seed_ids": ["a"]},
+                }
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "call_1",
+                    "content": '{"objects": []}',
+                    "is_error": False,
+                    # No _google_tool_name -- this is what ai_chat's
+                    # loop produced before the fix.
+                }
+            ],
+        },
+    ]
+    contents, _ = _google._to_google_contents(messages)
+    fn_response_parts = [
+        p for c in contents for p in c["parts"] if "functionResponse" in p
+    ]
+    assert len(fn_response_parts) == 1
+    assert fn_response_parts[0]["functionResponse"]["name"] == "query_subgraph"
+    assert fn_response_parts[0]["functionResponse"]["name"] != ""
+
+
+def test_to_google_contents_tool_result_missing_name_and_no_match_is_empty_not_crash():
+    """If the name genuinely can't be resolved, we degrade to an empty
+    string rather than raising -- callers/HTTP layer surface the actual
+    Google error -- but this should be a rare/defensive path, not the
+    common one exercised by ai_chat."""
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "unknown_call",
+                    "content": "{}",
+                }
+            ],
+        }
+    ]
+    contents, _ = _google._to_google_contents(messages)
+    assert contents[0]["parts"][0]["functionResponse"]["name"] == ""
+
+
 # ---------------------------------------------------------------------------
 # _from_google_response
 # ---------------------------------------------------------------------------

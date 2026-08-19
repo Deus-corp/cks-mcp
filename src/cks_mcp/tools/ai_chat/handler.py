@@ -174,6 +174,14 @@ async def ai_chat(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]
                     "tool_use_id": block["id"],
                     "content": json.dumps(result, ensure_ascii=False),
                     "is_error": is_error,
+                    # Internal bookkeeping field (mirrors the one stashed
+                    # on tool_use blocks by _from_google_response), not
+                    # part of the public Anthropic block shape. Needed so
+                    # _to_google_contents can populate
+                    # functionResponse.name -- Google rejects a
+                    # functionResponse with an empty name (see ADR-011
+                    # and the Google provider's docstrings).
+                    "_google_tool_name": tool_name,
                 }
             )
 

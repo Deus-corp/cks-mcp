@@ -115,9 +115,27 @@ def _to_google_contents(messages: list[dict]) -> tuple[list[dict], str]:
     alongside a function call when it reappears in history, or the next
     turn fails with the same "missing a thought_signature" error this
     provider exists to fix.
+
+    ``tool_result`` blocks are expected to carry ``_google_tool_name``
+    (stashed by the caller, e.g. ai_chat's tool loop, or round-tripped
+    from a prior ``_from_google_response``). If a block is missing it --
+    a caller-side bug, or a Anthropic-shaped history built without
+    Google in mind -- the name is resolved by scanning back through
+    earlier ``tool_use`` blocks in this same message list for one whose
+    ``id`` matches the result's ``tool_use_id``. Google's API returns
+    HTTP 400 ("Name cannot be empty") for a functionResponse with an
+    empty name, so this lookup is a hard requirement, not a nicety.
     """
     system_parts: list[str] = []
     contents: list[dict] = []
+
+    # tool_use_id -> tool name, gathered as we walk the messages so the
+    # fallback lookup below always has everything seen so far available.
+    tool_name_by_use_id: dict[str, str] = {}
+    for m in messages:
+        for block in (m.get("content") or []) if not isinstance(m.get("content"), str) else []:
+            if block.get("type") == "tool_use" and block.get("id"):
+                tool_name_by_use_id[block["id"]] = block.get("name", "")
 
     for m in messages:
         role = m.get("role", "user")
@@ -159,10 +177,13 @@ def _to_google_contents(messages: list[dict]) -> tuple[list[dict], str]:
                         result_content = {"result": result_content}
                 if not isinstance(result_content, dict):
                     result_content = {"result": result_content}
+                fn_name = block.get("_google_tool_name") or tool_name_by_use_id.get(
+                    block.get("tool_use_id", ""), ""
+                )
                 parts.append(
                     {
                         "functionResponse": {
-                            "name": block.get("_google_tool_name", ""),
+                            "name": fn_name,
                             "response": result_content,
                         }
                     }
