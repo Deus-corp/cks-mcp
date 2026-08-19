@@ -50,6 +50,37 @@ def mock_runtime():
 
 
 
+async def test_compare_versions_returns_structured_error_on_reconstruction_failure(
+    mock_runtime, monkeypatch
+):
+    """
+    A reconstruction failure (e.g. cks-core's AddObject raising "Object
+    ... already exists." while replaying a patch chain) must surface as
+    a structured {"error": ...} dict, not an unhandled exception -- the
+    same contract explain_diff provides.
+    """
+    from cks_mcp.tools.compare.handler import compare_versions
+
+    session = MagicMock(session_id="s1")
+    session.version_history = []
+    mock_runtime.get_session.return_value = session
+
+    async def _raise_already_exists(*args, **kwargs):
+        raise ValueError("Object 'infer-rose-test-final' already exists.")
+
+    monkeypatch.setattr(
+        "cks_mcp.tools.compare.handler.reconstruct_with_retry",
+        _raise_already_exists,
+    )
+
+    args = {"session_id": "s1", "target_version_id": "v1"}
+    result = await compare_versions(mock_runtime, args)
+
+    assert "error" in result
+    assert "already exists" in result["error"]
+    assert "v1" in result["error"]
+
+
 async def test_compare_versions(mock_runtime):
     from cks_runtime.versioning.version import RuntimeVersion
 

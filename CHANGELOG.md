@@ -3,6 +3,16 @@
 
 ---
 
+## [1.76.7] - 2026-08-19
+
+### Added
+- **Regression tests for version reconstruction errors** – `compare_versions` and `explain_diff` now have explicit coverage proving that reconstruction failures (e.g. `Object '...' already exists` during patch replay) surface as structured `{"error": ...}` responses rather than unhandled exceptions.
+
+### Notes
+- No production code changes; test coverage only.
+
+---
+
 ## [1.76.6] - 2026-08-19
 
 ### Fixed

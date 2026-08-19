@@ -210,6 +210,61 @@ async def test_explain_diff_recovers_from_transient_hash_mismatch():
     assert [o["id"] for o in result["details"]["added_objects"]] == ["obj-2"]
 
 
+async def test_explain_diff_returns_structured_error_on_reconstruction_failure():
+    """
+    If version reconstruction fails for a reason reconstruct_with_retry
+    doesn't retry away (e.g. cks-core's AddObject raising "Object ...
+    already exists." while replaying a patch chain -- see cks-runtime's
+    CksCoreAdapter.evolve dedupe, which handles the common replay case,
+    but a residual/unexpected ValueError could still occur), explain_diff
+    must surface a structured {"error": ...} dict rather than letting the
+    exception propagate as an unhandled failure.
+    """
+    from cks import parse
+
+    from cks_mcp.tools.evolve.handler import evolve_knowledge
+    from cks_mcp.tools.explain_diff.handler import explain_diff
+
+    runtime = _real_runtime()
+    structure = parse(
+        '{"objects": ['
+        '{"identity": {"id": "obj-1", "type": "Concept", "name": "A"}, "structure": {}}'
+        ']}'
+    )
+    session = await runtime.create_session(structure)
+    tx = runtime.begin_transaction(session)
+    await runtime.commit_transaction(tx)
+    base_version = session.version_history[-1].version_id
+
+    await evolve_knowledge(runtime, {
+        "session_id": session.session_id,
+        "operations": [
+            {"type": "add_object", "identity": {"id": "obj-2", "type": "Concept", "name": "B"}, "structure": {}},
+        ],
+    })
+
+    from cks_runtime.session.session import RuntimeSession
+    real_get_version_state = RuntimeSession.get_version_state
+    flaky_session_id = session.session_id
+
+    def failing_get_version_state(self, version_id, core_bridge=None):
+        if self.session_id == flaky_session_id:
+            raise ValueError("Object 'infer-rose-test-final' already exists.")
+        return real_get_version_state(self, version_id, core_bridge)
+
+    RuntimeSession.get_version_state = failing_get_version_state
+    try:
+        result = await explain_diff(
+            runtime, {"session_id": session.session_id, "target_version_id": base_version}
+        )
+    finally:
+        RuntimeSession.get_version_state = real_get_version_state
+
+    assert "error" in result
+    assert "already exists" in result["error"]
+    assert base_version in result["error"]
+
+
 async def test_explain_diff_recorded_inference_reported_as_reasoning():
     from cks import parse
 
