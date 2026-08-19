@@ -51,6 +51,7 @@ AI_CHAT_SCHEMA = {
             },
             "messages": {
                 "type": "array",
+                "items": {"type": "object"},
                 "description": (
                     "Full conversation so far, including the new user "
                     "turn, using the Anthropic Messages API content "

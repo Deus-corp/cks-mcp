@@ -23,6 +23,7 @@ EVOLVE_KNOWLEDGE_SCHEMA = {
             },
             "operations": {
                 "type": "array",
+                "items": {"type": "object"},
                 "description": (
                     "List of evolution operators to apply, in order. Each operator is an "
                     "object with a 'type' field; the other required fields depend on that "

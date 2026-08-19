@@ -3,6 +3,18 @@
 
 ---
 
+## [1.76.4] - 2026-08-19
+
+### Fixed
+- **Google Gemini tool-calling schema validation** – `ai_chat` and `evolve_knowledge` schemas no longer send array parameters with missing/empty `items` to Google. Gemini requires `items.type`; the schemas now define it explicitly.
+- **Google provider schema normalization** – added `_normalize_schema_for_google()` to recursively repair array schemas before building Gemini function declarations, preventing future schema regressions from breaking tool calling.
+
+### Tests
+- Added regression coverage for Gemini array-schema normalization and all registered tool schemas.
+- Full suite green.
+
+---
+
 ## [1.76.3] - 2026-08-19
 
 ### Fixed

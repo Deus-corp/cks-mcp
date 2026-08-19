@@ -40,16 +40,60 @@ def google_base_url() -> str:
     ).rstrip("/")
 
 
+def _normalize_schema_for_google(schema: Any) -> Any:
+    """Recursively normalize a JSON Schema fragment so it satisfies
+    Gemini's (stricter-than-JSON-Schema) function-declaration validator.
+
+    Known Gemini requirements this enforces:
+      - Every ``"type": "array"`` node must have an ``"items"`` field,
+        and that ``items`` value must itself declare a ``"type"``
+        (a bare ``{}`` is rejected). Missing/empty ``items`` are
+        defaulted to ``{"type": "object"}``, which is permissive
+        enough to accept whatever shape the array elements actually
+        have.
+      - An object node with no ``"properties"`` key is normalized to
+        ``properties: {}`` rather than left absent, since some Gemini
+        versions reject an object type with neither ``properties`` nor
+        ``additionalProperties`` set.
+
+    Only dict/list structures are walked; anything else is returned
+    unchanged. The input is not mutated -- a new structure is returned.
+    """
+    if isinstance(schema, dict):
+        result = {k: _normalize_schema_for_google(v) for k, v in schema.items()}
+        if result.get("type") == "array":
+            items = result.get("items")
+            if not isinstance(items, dict) or not items.get("type"):
+                result["items"] = {"type": "object"}
+        elif result.get("type") == "object" and "properties" not in result:
+            result["properties"] = {}
+        return result
+    if isinstance(schema, list):
+        return [_normalize_schema_for_google(v) for v in schema]
+    return schema
+
+
 def _to_google_tools(tools: list[dict]) -> list[dict]:
     """Translate Anthropic-shaped tool specs into Gemini's
-    functionDeclarations shape."""
+    functionDeclarations shape.
+
+    Schemas are run through ``_normalize_schema_for_google`` so that a
+    tool whose ``input_schema`` has an array property with missing or
+    empty ``items`` (valid JSON Schema, but rejected by Gemini's
+    function-calling validator with e.g. "parameters.properties[x].items:
+    missing field") doesn't break tool-calling for every tool in the
+    same request -- Gemini rejects the entire ``tools`` list if any one
+    function declaration is malformed.
+    """
     return [
         {
             "functionDeclarations": [
                 {
                     "name": t["name"],
                     "description": t.get("description", ""),
-                    "parameters": t.get("input_schema") or {"type": "object", "properties": {}},
+                    "parameters": _normalize_schema_for_google(
+                        t.get("input_schema") or {"type": "object", "properties": {}}
+                    ),
                 }
                 for t in tools
             ]
