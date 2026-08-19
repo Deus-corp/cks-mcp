@@ -120,8 +120,8 @@ async def test_observability_decorator_does_not_break_handler():
 
 
 async def test_setup_event_subscriptions_does_not_raise():
+    from cks_runtime.adapters.cks_core import CksCoreAdapter
     from cks_runtime.runtime import Runtime
-    from cks_runtime_plugins.cks_core import CksCoreAdapter
 
     from cks_mcp.observability import setup_event_subscriptions
 

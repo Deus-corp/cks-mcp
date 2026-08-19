@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 
 import pytest
+from cks_runtime.adapters.cks_core import CksCoreAdapter
 from cks_runtime.runtime import Runtime
-from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.tools.validate.handler import validate_knowledge
 

@@ -15,10 +15,10 @@ import json
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
+from cks_runtime.adapters.cks_core import CksCoreAdapter
 from cks_runtime.events.runtime_event import SessionCreated
 from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
-from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.transport.http_events import register_sse_routes
 

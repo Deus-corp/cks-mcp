@@ -14,9 +14,9 @@ import importlib
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
+from cks_runtime.adapters.cks_core import CksCoreAdapter
 from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
-from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 pytestmark = pytest.mark.asyncio
 

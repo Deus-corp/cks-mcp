@@ -6,8 +6,8 @@ import json
 
 import cks
 import pytest
+from cks_runtime.adapters.cks_core import CksCoreAdapter
 from cks_runtime.runtime import Runtime
-from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.tools.compare_graphs.handler import compare_graphs
 from cks_mcp.tools.register_graph.handler import register_graph

@@ -13,8 +13,8 @@ pytestmark = pytest.mark.asyncio
 
 async def test_query_subgraph_basic():
     """End-to-end test: create a session and extract a subgraph."""
+    from cks_runtime.adapters.cks_core import CksCoreAdapter
     from cks_runtime.runtime import Runtime
-    from cks_runtime_plugins.cks_core import CksCoreAdapter
 
     from cks_mcp.tools.query_subgraph.handler import query_subgraph_tool
 
@@ -46,8 +46,8 @@ async def test_query_subgraph_basic():
 
 async def test_query_subgraph_without_seed_ids_returns_whole_graph():
     """Omitting seed_ids should return every object, not an error."""
+    from cks_runtime.adapters.cks_core import CksCoreAdapter
     from cks_runtime.runtime import Runtime
-    from cks_runtime_plugins.cks_core import CksCoreAdapter
 
     from cks_mcp.tools.query_subgraph.handler import query_subgraph_tool
 
@@ -79,8 +79,8 @@ async def test_query_subgraph_without_seed_ids_compact_mode_node_shape():
     """compact_mode nodes use the canonical {identity, structure} shape
     for both the seeded and seedless code paths, so callers don't need to
     special-case where the data came from."""
+    from cks_runtime.adapters.cks_core import CksCoreAdapter
     from cks_runtime.runtime import Runtime
-    from cks_runtime_plugins.cks_core import CksCoreAdapter
 
     from cks_mcp.tools.query_subgraph.handler import query_subgraph_tool
 

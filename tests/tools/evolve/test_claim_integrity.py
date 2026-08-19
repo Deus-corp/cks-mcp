@@ -31,8 +31,8 @@ _MALFORMED_CLAIM_STRUCTURE = {
 
 
 def _real_runtime():
+    from cks_runtime.adapters.cks_core import CksCoreAdapter
     from cks_runtime.runtime import Runtime
-    from cks_runtime_plugins.cks_core import CksCoreAdapter
     return Runtime(core=CksCoreAdapter())
 
 

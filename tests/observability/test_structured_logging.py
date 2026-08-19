@@ -19,11 +19,11 @@ from __future__ import annotations
 import json
 
 import pytest
+from cks_runtime.adapters.cks_core import CksCoreAdapter
 from cks_runtime.events.runtime_event import InferenceConflictDetected
 from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime.storage.sqlite_storage import SQLiteStorage
-from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.conflict_inbox import conflict_inbox
 from cks_mcp.observability import log_tool_call, setup_event_subscriptions

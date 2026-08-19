@@ -15,8 +15,8 @@ pytestmark = pytest.mark.asyncio
 
 
 def _real_runtime():
+    from cks_runtime.adapters.cks_core import CksCoreAdapter
     from cks_runtime.runtime import Runtime
-    from cks_runtime_plugins.cks_core import CksCoreAdapter
     return Runtime(core=CksCoreAdapter())
 
 
@@ -123,8 +123,8 @@ async def test_ingest_two_long_urls_no_collision(monkeypatch):
     scheme must produce two distinct doc_ids."""
     import socket
 
+    from cks_runtime.adapters.cks_core import CksCoreAdapter
     from cks_runtime.runtime import Runtime
-    from cks_runtime_plugins.cks_core import CksCoreAdapter
 
     from cks_mcp.tools.ingest_document.handler import ingest_document
 

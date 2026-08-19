@@ -3,6 +3,18 @@
 
 ---
 
+## [1.76.3] - 2026-08-19
+
+### Fixed
+- **Imports after cks-runtime restructure** – `server.py` and the standalone agents (`critic_agent`, `enrichment_agent`, `fork_resolution_agent`, `pipeline_agent`) now import `CksCoreAdapter` from `cks_runtime.adapters.cks_core` instead of the removed `cks_runtime_plugins.cks_core` path.
+- **`clone_graph` hidden dependency** – `from cks.evolution import CanonicalRelation` is no longer relied upon. The handler now imports `CanonicalRelation` from its canonical home `cks.core`.
+- Updated test imports and mock paths to match the new module layout of `cks-runtime` and `cks-core`.
+
+### Tests
+- 1121 passed, 6 skipped.
+
+---
+
 ## [1.76.2] - 2026-08-19
 
 ### Changed

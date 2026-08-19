@@ -64,9 +64,9 @@ import traceback
 from dataclasses import dataclass, field
 from typing import Any
 
+from cks_runtime.adapters.cks_core import CksCoreAdapter
 from cks_runtime.config import RuntimeConfig
 from cks_runtime.runtime import Runtime
-from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.agents.agent_loop import (
     LivenessReporter,

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import cks
 import pytest
+from cks_runtime.adapters.cks_core import CksCoreAdapter
 from cks_runtime.runtime import Runtime
-from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.tools.link_graphs.handler import link_graphs
 from cks_mcp.tools.register_graph.handler import register_graph

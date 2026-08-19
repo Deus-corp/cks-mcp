@@ -2,9 +2,9 @@ import cks
 import pytest
 from cks.core import KnowledgeObject, ObjectIdentity
 from cks.evolution import AddObject
+from cks_runtime.adapters.cks_core import CksCoreAdapter
 from cks_runtime.operations.operation_types import EvolveOperation
 from cks_runtime.runtime import Runtime
-from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.tools.compare.handler import compare_versions
 

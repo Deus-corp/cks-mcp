@@ -730,9 +730,9 @@ async def test_end_to_end_gossip_conflict_resolution_with_real_storage(tmp_path)
     """
     import json
 
+    from cks_runtime.adapters.cks_core import CksCoreAdapter
     from cks_runtime.config import RuntimeConfig
     from cks_runtime.runtime import Runtime
-    from cks_runtime_plugins.cks_core import CksCoreAdapter
 
     from cks_mcp.tools.branch.handler import create_branch
     from cks_mcp.tools.evolve.handler import evolve_knowledge
@@ -1149,11 +1149,11 @@ async def test_end_to_end_crdt_fork_resolution_with_real_storage(tmp_path):
     """
     import json
 
+    from cks_runtime.adapters.cks_core import CksCoreAdapter
     from cks_runtime.config import RuntimeConfig
     from cks_runtime.crdt.crdt_store import SQLiteCRDTStore
     from cks_runtime.crdt.version_vector import VersionVector
     from cks_runtime.runtime import Runtime
-    from cks_runtime_plugins.cks_core import CksCoreAdapter
 
     db_path = str(tmp_path / "critic_agent_crdt_fork_test.db")
     runtime = await Runtime.create(core=CksCoreAdapter(), config=RuntimeConfig(storage_path=db_path))

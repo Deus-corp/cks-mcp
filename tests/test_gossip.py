@@ -18,6 +18,7 @@ import socket
 
 import cks
 import pytest
+from cks_runtime.adapters.cks_core import CksCoreAdapter
 from cks_runtime.events.runtime_event import (
     GossipConflictDetected,
     SessionClosed,
@@ -26,7 +27,6 @@ from cks_runtime.events.runtime_event import (
 from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime.storage.sqlite_storage import SQLiteStorage
-from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.conflict_inbox import conflict_inbox
 from cks_mcp.gossip import GossipSettings, setup_gossip

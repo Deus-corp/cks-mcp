@@ -15,10 +15,10 @@ from typing import Any
 import aiohttp_cors
 from aiohttp import web
 from aiohttp.web import Request, Response
+from cks_runtime.adapters.cks_core import CksCoreAdapter
 from cks_runtime.config import RuntimeConfig
 from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
-from cks_runtime_plugins.cks_core import CksCoreAdapter
 
 from cks_mcp.agents.embedded_agents import start_embedded_agents, stop_embedded_agents
 from cks_mcp.observability import setup_event_subscriptions

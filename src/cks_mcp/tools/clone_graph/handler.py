@@ -31,7 +31,8 @@ from __future__ import annotations
 from typing import Any
 
 import cks
-from cks.evolution import AddObject, AddRelation, CanonicalRelation
+from cks.core import CanonicalRelation
+from cks.evolution import AddObject, AddRelation
 from cks_runtime.operations.operation_types import EvolveOperation
 from cks_runtime.runtime import Runtime
 
