@@ -756,3 +756,578 @@ def test_call_openai_compatible_single_shot_records_telemetry_on_success():
     snap = llm_telemetry.snapshot()
     assert snap["total_calls"] == 1
     assert snap["success_rate"] == 1.0
+
+
+# ---------------------------------------------------------------------------
+# google_api_key helper
+# ---------------------------------------------------------------------------
+
+
+def test_google_api_key_prefers_cks_prefixed_var():
+    with patch.dict(
+        "os.environ",
+        {"CKS_GOOGLE_API_KEY": "cks-key", "GOOGLE_API_KEY": "plain-key"},
+    ):
+        assert llm_providers.google_api_key() == "cks-key"
+
+
+def test_google_api_key_falls_back_to_plain_var():
+    with patch.dict("os.environ", {"GOOGLE_API_KEY": "plain-key"}, clear=True):
+        assert llm_providers.google_api_key() == "plain-key"
+
+
+def test_google_api_key_returns_empty_when_neither_set():
+    with patch.dict("os.environ", {}, clear=True):
+        assert llm_providers.google_api_key() == ""
+
+
+# ---------------------------------------------------------------------------
+# _to_google_tools
+# ---------------------------------------------------------------------------
+
+
+def test_to_google_tools_translates_anthropic_spec():
+    tools = [
+        {
+            "name": "query_subgraph",
+            "description": "Read the graph.",
+            "input_schema": {"type": "object", "properties": {"session_id": {"type": "string"}}},
+        }
+    ]
+    result = llm_providers._to_google_tools(tools)
+    assert len(result) == 1
+    decls = result[0]["functionDeclarations"]
+    assert len(decls) == 1
+    assert decls[0]["name"] == "query_subgraph"
+    assert decls[0]["description"] == "Read the graph."
+    assert decls[0]["parameters"]["type"] == "object"
+
+
+def test_to_google_tools_empty_schema_fallback():
+    tools = [{"name": "noop"}]
+    result = llm_providers._to_google_tools(tools)
+    assert result[0]["functionDeclarations"][0]["parameters"] == {
+        "type": "object",
+        "properties": {},
+    }
+
+
+# ---------------------------------------------------------------------------
+# _to_google_contents
+# ---------------------------------------------------------------------------
+
+
+def test_to_google_contents_plain_string_user_message():
+    messages = [{"role": "user", "content": "hello"}]
+    contents, system = llm_providers._to_google_contents(messages)
+    assert system == ""
+    assert contents == [{"role": "user", "parts": [{"text": "hello"}]}]
+
+
+def test_to_google_contents_extracts_system_role():
+    messages = [
+        {"role": "system", "content": "You are helpful."},
+        {"role": "user", "content": "hi"},
+    ]
+    contents, system = llm_providers._to_google_contents(messages)
+    assert system == "You are helpful."
+    assert len(contents) == 1
+    assert contents[0]["role"] == "user"
+
+
+def test_to_google_contents_assistant_becomes_model():
+    messages = [{"role": "assistant", "content": "I can help."}]
+    contents, _ = llm_providers._to_google_contents(messages)
+    assert contents[0]["role"] == "model"
+
+
+def test_to_google_contents_tool_use_block_becomes_function_call():
+    messages = [
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "tool_use", "id": "call_1", "name": "query_subgraph", "input": {"session_id": "s1"}}
+            ],
+        }
+    ]
+    contents, _ = llm_providers._to_google_contents(messages)
+    part = contents[0]["parts"][0]
+    assert "functionCall" in part
+    assert part["functionCall"]["name"] == "query_subgraph"
+    assert part["functionCall"]["args"] == {"session_id": "s1"}
+
+
+def test_to_google_contents_thought_signature_replayed():
+    messages = [
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "call_1",
+                    "name": "query_subgraph",
+                    "input": {},
+                    "_google_thought_signature": "base64sig==",
+                }
+            ],
+        }
+    ]
+    contents, _ = llm_providers._to_google_contents(messages)
+    part = contents[0]["parts"][0]
+    assert part.get("thoughtSignature") == "base64sig=="
+
+
+def test_to_google_contents_thought_signature_absent_when_not_set():
+    messages = [
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "tool_use", "id": "call_1", "name": "query_subgraph", "input": {}}
+            ],
+        }
+    ]
+    contents, _ = llm_providers._to_google_contents(messages)
+    part = contents[0]["parts"][0]
+    assert "thoughtSignature" not in part
+
+
+def test_to_google_contents_tool_result_becomes_function_response():
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "call_1",
+                    "_google_tool_name": "query_subgraph",
+                    "content": '{"objects": []}',
+                }
+            ],
+        }
+    ]
+    contents, _ = llm_providers._to_google_contents(messages)
+    part = contents[0]["parts"][0]
+    assert "functionResponse" in part
+    assert part["functionResponse"]["name"] == "query_subgraph"
+    assert part["functionResponse"]["response"] == {"objects": []}
+
+
+# ---------------------------------------------------------------------------
+# _from_google_response
+# ---------------------------------------------------------------------------
+
+
+def test_from_google_response_text_part():
+    body = {
+        "candidates": [
+            {"content": {"parts": [{"text": "hello from gemini"}]}}
+        ]
+    }
+    result = llm_providers._from_google_response(body)
+    assert result == {"content": [{"type": "text", "text": "hello from gemini"}]}
+
+
+def test_from_google_response_function_call_part():
+    body = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "functionCall": {
+                                "name": "query_subgraph",
+                                "args": {"session_id": "s1"},
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+    result = llm_providers._from_google_response(body)
+    block = result["content"][0]
+    assert block["type"] == "tool_use"
+    assert block["name"] == "query_subgraph"
+    assert block["input"] == {"session_id": "s1"}
+    assert block["_google_tool_name"] == "query_subgraph"
+
+
+def test_from_google_response_stashes_thought_signature():
+    body = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "thoughtSignature": "aGVsbG8=",
+                            "functionCall": {"name": "foo", "args": {}},
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+    result = llm_providers._from_google_response(body)
+    block = result["content"][0]
+    assert block.get("_google_thought_signature") == "aGVsbG8="
+
+
+def test_from_google_response_empty_candidates_returns_empty_text():
+    result = llm_providers._from_google_response({"candidates": []})
+    assert result == {"content": [{"type": "text", "text": ""}]}
+
+
+def test_from_google_response_no_candidates_key_returns_empty_text():
+    result = llm_providers._from_google_response({})
+    assert result == {"content": [{"type": "text", "text": ""}]}
+
+
+# ---------------------------------------------------------------------------
+# call_google (single-shot)
+# ---------------------------------------------------------------------------
+
+
+def test_call_google_missing_api_key_raises():
+    with patch.dict("os.environ", {}, clear=True), \
+         pytest.raises(RuntimeError, match="CKS_GOOGLE_API_KEY"):
+        llm_providers.call_google(
+            "prompt", system_prompt="sys", model="gemini-2.5-flash", max_tokens=100
+        )
+
+
+def test_call_google_success():
+    body = {
+        "candidates": [
+            {"content": {"parts": [{"text": "hello from gemini"}]}}
+        ]
+    }
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        result = llm_providers.call_google(
+            "prompt", system_prompt="sys", model="gemini-2.5-flash", max_tokens=100
+        )
+    assert result == "hello from gemini"
+
+
+def test_call_google_concatenates_multiple_text_parts():
+    body = {
+        "candidates": [
+            {"content": {"parts": [{"text": "part1"}, {"text": "part2"}]}}
+        ]
+    }
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        result = llm_providers.call_google(
+            "prompt", system_prompt="sys", model="gemini-2.5-flash", max_tokens=100
+        )
+    assert result == "part1part2"
+
+
+def test_call_google_empty_response_raises():
+    body = {"candidates": [{"content": {"parts": [{"text": ""}]}}]}
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)), \
+         pytest.raises(RuntimeError, match="no text"):
+        llm_providers.call_google(
+            "prompt", system_prompt="sys", model="gemini-2.5-flash", max_tokens=100
+        )
+
+
+def test_call_google_http_error_includes_status_code():
+    err = __import__("urllib.error", fromlist=["HTTPError"]).HTTPError(
+        url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        code=403,
+        msg="Forbidden",
+        hdrs=None,
+        fp=__import__("io").BytesIO(b"API key invalid"),
+    )
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", side_effect=err), \
+         pytest.raises(RuntimeError, match="HTTP 403"):
+        llm_providers.call_google(
+            "prompt", system_prompt="sys", model="gemini-2.5-flash", max_tokens=100
+        )
+
+
+def test_call_google_url_error_raises_network_error():
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", side_effect=urllib.error.URLError("dns failure")), \
+         pytest.raises(RuntimeError, match="Network error"):
+        llm_providers.call_google(
+            "prompt", system_prompt="sys", model="gemini-2.5-flash", max_tokens=100
+        )
+
+
+def test_call_google_without_tool_name_does_not_record():
+    body = {"candidates": [{"content": {"parts": [{"text": "hi"}]}}]}
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        llm_providers.call_google(
+            "prompt", system_prompt="sys", model="gemini-2.5-flash", max_tokens=100
+        )
+    assert llm_telemetry.snapshot()["total_calls"] == 0
+
+
+def test_call_google_with_tool_name_records_success():
+    body = {
+        "candidates": [{"content": {"parts": [{"text": "hello"}]}}],
+        "usageMetadata": {"totalTokenCount": 42},
+    }
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        llm_providers.call_google(
+            "prompt",
+            system_prompt="sys",
+            model="gemini-2.5-flash",
+            max_tokens=100,
+            tool_name="construct_knowledge",
+        )
+    snap = llm_telemetry.snapshot()
+    assert snap["total_calls"] == 1
+    assert snap["calls_by_provider"] == {"google": 1}
+    assert snap["calls_by_model"] == {"gemini-2.5-flash": 1}
+    assert snap["success_rate"] == 1.0
+    assert snap["total_tokens"] == 42
+
+
+def test_call_google_with_tool_name_records_failure_on_http_error():
+    err = __import__("urllib.error", fromlist=["HTTPError"]).HTTPError(
+        url="...", code=429, msg="Too Many Requests", hdrs=None,
+        fp=__import__("io").BytesIO(b"rate limited"),
+    )
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", side_effect=err), \
+         pytest.raises(RuntimeError):
+        llm_providers.call_google(
+            "prompt",
+            system_prompt="sys",
+            model="gemini-2.5-flash",
+            max_tokens=100,
+            tool_name="construct_knowledge",
+        )
+    snap = llm_telemetry.snapshot()
+    assert snap["total_calls"] == 1
+    assert snap["success_rate"] == 0.0
+    assert snap["top_errors"] == [{"type": "HTTPError", "count": 1}]
+
+
+def test_call_google_missing_api_key_does_not_record():
+    with patch.dict("os.environ", {}, clear=True), \
+         pytest.raises(RuntimeError, match="CKS_GOOGLE_API_KEY"):
+        llm_providers.call_google(
+            "prompt",
+            system_prompt="sys",
+            model="gemini-2.5-flash",
+            max_tokens=100,
+            tool_name="construct_knowledge",
+        )
+    assert llm_telemetry.snapshot()["total_calls"] == 0
+
+
+# ---------------------------------------------------------------------------
+# call_google_with_tools
+# ---------------------------------------------------------------------------
+
+_GOOGLE_TOOL_SPECS = [
+    {
+        "name": "query_subgraph",
+        "description": "Read the graph.",
+        "input_schema": {"type": "object", "properties": {"session_id": {"type": "string"}}},
+    }
+]
+
+
+def test_call_google_with_tools_missing_api_key_raises():
+    with patch.dict("os.environ", {}, clear=True), \
+         pytest.raises(RuntimeError, match="CKS_GOOGLE_API_KEY"):
+        llm_providers.call_google_with_tools(
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_GOOGLE_TOOL_SPECS,
+        )
+
+
+def test_call_google_with_tools_text_only_reply():
+    body = {
+        "candidates": [{"content": {"parts": [{"text": "hello from gemini"}]}}]
+    }
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        result = llm_providers.call_google_with_tools(
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_GOOGLE_TOOL_SPECS,
+            model="gemini-2.5-flash",
+        )
+    assert result == {"content": [{"type": "text", "text": "hello from gemini"}]}
+
+
+def test_call_google_with_tools_function_call_reply_matches_anthropic_shape():
+    body = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "functionCall": {
+                                "name": "query_subgraph",
+                                "args": {"session_id": "s1"},
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        result = llm_providers.call_google_with_tools(
+            messages=[{"role": "user", "content": "read the graph"}],
+            tools=_GOOGLE_TOOL_SPECS,
+            model="gemini-2.5-flash",
+        )
+    block = result["content"][0]
+    assert block["type"] == "tool_use"
+    assert block["name"] == "query_subgraph"
+    assert block["input"] == {"session_id": "s1"}
+
+
+def test_call_google_with_tools_thought_signature_stashed_on_tool_use_block():
+    body = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "thoughtSignature": "aGVsbG8=",
+                            "functionCall": {"name": "query_subgraph", "args": {}},
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        result = llm_providers.call_google_with_tools(
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_GOOGLE_TOOL_SPECS,
+            model="gemini-2.5-flash",
+        )
+    block = result["content"][0]
+    assert block["_google_thought_signature"] == "aGVsbG8="
+
+
+def test_call_google_with_tools_no_candidates_raises():
+    body = {"candidates": []}
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)), \
+         pytest.raises(RuntimeError, match="no 'candidates'"):
+        llm_providers.call_google_with_tools(
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_GOOGLE_TOOL_SPECS,
+            model="gemini-2.5-flash",
+        )
+
+
+def test_call_google_with_tools_http_error_includes_status_code():
+    err = __import__("urllib.error", fromlist=["HTTPError"]).HTTPError(
+        url="...", code=401, msg="Unauthorized", hdrs=None,
+        fp=__import__("io").BytesIO(b"invalid api key"),
+    )
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", side_effect=err), \
+         pytest.raises(RuntimeError, match="HTTP 401"):
+        llm_providers.call_google_with_tools(
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_GOOGLE_TOOL_SPECS,
+            model="gemini-2.5-flash",
+        )
+
+
+def test_call_google_with_tools_url_error_raises():
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", side_effect=urllib.error.URLError("timeout")), \
+         pytest.raises(RuntimeError, match="Network error"):
+        llm_providers.call_google_with_tools(
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_GOOGLE_TOOL_SPECS,
+        )
+
+
+def test_call_google_with_tools_uses_cks_google_model_env():
+    body = {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
+    captured = {}
+
+    def _fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        return _fake_urlopen_returning(body)
+
+    with patch.dict(
+        "os.environ",
+        {"CKS_GOOGLE_API_KEY": "fake-key", "CKS_GOOGLE_MODEL": "gemini-2.5-pro"},
+    ), patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+        llm_providers.call_google_with_tools(
+            messages=[{"role": "user", "content": "hi"}], tools=_GOOGLE_TOOL_SPECS
+        )
+
+    assert "gemini-2.5-pro" in captured["url"]
+
+
+def test_call_google_with_tools_records_telemetry_on_success():
+    body = {
+        "candidates": [{"content": {"parts": [{"text": "ok"}]}}],
+        "usageMetadata": {"totalTokenCount": 77},
+    }
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning(body)):
+        llm_providers.call_google_with_tools(
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_GOOGLE_TOOL_SPECS,
+            model="gemini-2.5-flash",
+            tool_name="ai_chat",
+        )
+    snap = llm_telemetry.snapshot()
+    assert snap["total_calls"] == 1
+    assert snap["calls_by_provider"] == {"google": 1}
+    assert snap["total_tokens"] == 77
+    assert snap["success_rate"] == 1.0
+
+
+def test_call_google_with_tools_records_failure_on_no_candidates():
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", return_value=_fake_urlopen_returning({"candidates": []})), \
+         pytest.raises(RuntimeError):
+        llm_providers.call_google_with_tools(
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_GOOGLE_TOOL_SPECS,
+            model="gemini-2.5-flash",
+            tool_name="ai_chat",
+        )
+    snap = llm_telemetry.snapshot()
+    assert snap["total_calls"] == 1
+    assert snap["success_rate"] == 0.0
+    assert snap["top_errors"] == [{"type": "NoCandidates", "count": 1}]
+
+
+def test_call_google_with_tools_sends_system_instruction_when_system_message_present():
+    body = {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
+    captured = {}
+
+    def _fake_urlopen(req, timeout=None):
+        captured["payload"] = json.loads(req.data.decode())
+        return _fake_urlopen_returning(body)
+
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "hi"},
+    ]
+    with patch.dict("os.environ", {"CKS_GOOGLE_API_KEY": "fake-key"}), \
+         patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+        llm_providers.call_google_with_tools(
+            messages=messages, tools=_GOOGLE_TOOL_SPECS, model="gemini-2.5-flash"
+        )
+
+    payload = captured["payload"]
+    assert "systemInstruction" in payload
+    assert payload["systemInstruction"]["parts"][0]["text"] == "You are a helpful assistant."
+    # The system message must NOT appear in 'contents'
+    assert all(c.get("role") != "system" for c in payload["contents"])

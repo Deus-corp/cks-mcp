@@ -26,11 +26,17 @@ Requires **Python 3.12+**.
 |----------|---------|---------|
 | `CKS_EMBEDDING_PROVIDER` | `search_semantic` | `"fastembed"` (default) for local, token‑free embeddings; `"huggingface"` for the HuggingFace Inference API. |
 | `HF_TOKEN` | `search_semantic` | Required only when `CKS_EMBEDDING_PROVIDER=huggingface`. |
-| `CKS_LLM_PROVIDER` | `construct_knowledge` | `"auto"` (default — prefers a local Ollama server, falls back to Anthropic), `"ollama"`, or `"anthropic"`. |
-| `ANTHROPIC_API_KEY` | `construct_knowledge` | Required only for the `"anthropic"` provider. |
+| `CKS_LLM_PROVIDER` | `construct_knowledge`, `ai_chat` | `"auto"` (default — prefers a local Ollama server, falls back to Anthropic), `"ollama"`, `"anthropic"`, `"google"`, or `"openai_compatible"`. `"google"` and `"openai_compatible"` are never picked by `"auto"` — they must be selected explicitly. |
+| `ANTHROPIC_API_KEY` | `construct_knowledge`, `ai_chat` | Required only for the `"anthropic"` provider. |
 | `CKS_LLM_MODEL` | `construct_knowledge` | Overrides the Anthropic model (default `claude-sonnet-4-6`). |
-| `CKS_OLLAMA_MODEL` | `construct_knowledge` | Overrides the Ollama model (default `llama3.2`). |
-| `CKS_OLLAMA_HOST` | `construct_knowledge` | Ollama server URL (default `http://localhost:11434`). |
+| `CKS_ANTHROPIC_MODEL` | `ai_chat` | Overrides the Anthropic model used for tool-calling (default `claude-sonnet-4-5-20250929`). |
+| `CKS_OLLAMA_MODEL` | `construct_knowledge`, `ai_chat` | Overrides the Ollama model (default `llama3.2`). |
+| `CKS_OLLAMA_HOST` | `construct_knowledge`, `ai_chat` | Ollama server URL (default `http://localhost:11434`). |
+| `CKS_OPENAI_API_KEY` | `construct_knowledge`, `ai_chat` | Required for the `"openai_compatible"` provider (any value your endpoint accepts). |
+| `CKS_OPENAI_BASE_URL` | `construct_knowledge`, `ai_chat` | Base URL for the `"openai_compatible"` provider (default `https://api.openai.com/v1`) — point this at Groq, DeepSeek, Together, LM Studio, vLLM, etc. |
+| `CKS_OPENAI_MODEL` | `construct_knowledge`, `ai_chat` | Overrides the OpenAI-compatible model (default `gpt-4o`). |
+| `CKS_GOOGLE_API_KEY` | `construct_knowledge`, `ai_chat` | Required for the `"google"` provider (Google AI Studio API key). `GOOGLE_API_KEY` is accepted as a fallback if this isn't set. |
+| `CKS_GOOGLE_MODEL` | `construct_knowledge`, `ai_chat` | Overrides the Gemini model (default `gemini-2.5-flash`). |
 | `CKS_LLM_MAX_TOKENS` | `construct_knowledge` | Overrides max-tokens (default `4096`). |
 | `CKS_MCP_DATA_DIR` | server startup | Overrides `~/.cks-mcp` (DB + provenance secret). |
 | `CKS_MCP_SECRET` | provenance signing | Overrides the auto‑generated HMAC secret. |

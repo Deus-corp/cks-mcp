@@ -134,3 +134,110 @@ def test_model_and_max_tokens_overrides_are_forwarded(monkeypatch):
     _, kwargs = mock_ollama.call_args
     assert kwargs["model"] == "custom-model"
     assert kwargs["max_tokens"] == 555
+
+
+def test_explicit_openai_compatible_provider_used(monkeypatch):
+    _sanitized_env(monkeypatch)
+    monkeypatch.delenv("CKS_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("CKS_OPENAI_MODEL", raising=False)
+    monkeypatch.setenv("CKS_LLM_PROVIDER", "openai_compatible")
+
+    with patch(
+        "cks_mcp.llm_providers.call_openai_compatible_single_shot",
+        return_value=_VALID_CKS_JSON,
+    ) as mock_openai:
+        structure, model_used = _build_llm_structure({"title": "T"}, {})
+
+    mock_openai.assert_called_once()
+    assert model_used == "gpt-4o"
+    assert isinstance(structure, cks.KnowledgeStructure)
+
+
+def test_explicit_google_provider_used(monkeypatch):
+    _sanitized_env(monkeypatch)
+    monkeypatch.delenv("CKS_GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("CKS_GOOGLE_MODEL", raising=False)
+    monkeypatch.setenv("CKS_LLM_PROVIDER", "google")
+
+    with patch(
+        "cks_mcp.llm_providers.call_google", return_value=_VALID_CKS_JSON
+    ) as mock_google:
+        structure, model_used = _build_llm_structure({"title": "T"}, {})
+
+    mock_google.assert_called_once()
+    assert model_used == "gemini-2.5-flash"
+    assert isinstance(structure, cks.KnowledgeStructure)
+
+
+def test_google_model_env_override_is_reflected(monkeypatch):
+    _sanitized_env(monkeypatch)
+    monkeypatch.setenv("CKS_LLM_PROVIDER", "google")
+    monkeypatch.setenv("CKS_GOOGLE_MODEL", "gemini-2.5-pro")
+
+    with patch(
+        "cks_mcp.llm_providers.call_google", return_value=_VALID_CKS_JSON
+    ) as mock_google:
+        _, model_used = _build_llm_structure({"title": "T"}, {})
+
+    assert model_used == "gemini-2.5-pro"
+    _, kwargs = mock_google.call_args
+    assert kwargs["model"] == "gemini-2.5-pro"
+
+
+def test_auto_never_selects_google_when_ollama_unreachable(monkeypatch):
+    _sanitized_env(monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key")
+    monkeypatch.setenv("CKS_GOOGLE_API_KEY", "fake-google-key")
+    monkeypatch.setattr(
+        "cks_mcp.llm_providers.ollama_available", lambda *a, **kw: False
+    )
+
+    with patch(
+        "cks_mcp.llm_providers.call_anthropic", return_value=_VALID_CKS_JSON
+    ) as mock_anthropic, patch(
+        "cks_mcp.llm_providers.call_google"
+    ) as mock_google:
+        _build_llm_structure({"title": "T"}, {})
+
+    mock_anthropic.assert_called_once()
+    mock_google.assert_not_called()
+
+
+def test_auto_never_selects_openai_compatible_when_ollama_unreachable(monkeypatch):
+    _sanitized_env(monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key")
+    monkeypatch.setenv("CKS_OPENAI_API_KEY", "fake-openai-key")
+    monkeypatch.setattr(
+        "cks_mcp.llm_providers.ollama_available", lambda *a, **kw: False
+    )
+
+    with patch(
+        "cks_mcp.llm_providers.call_anthropic", return_value=_VALID_CKS_JSON
+    ) as mock_anthropic, patch(
+        "cks_mcp.llm_providers.call_openai_compatible_single_shot"
+    ) as mock_openai:
+        _build_llm_structure({"title": "T"}, {})
+
+    mock_anthropic.assert_called_once()
+    mock_openai.assert_not_called()
+
+
+def test_auto_no_provider_available_error_mentions_google_and_openai(monkeypatch):
+    _sanitized_env(monkeypatch)
+    monkeypatch.setattr(
+        "cks_mcp.llm_providers.ollama_available", lambda *a, **kw: False
+    )
+
+    with pytest.raises(RuntimeError, match="CKS_GOOGLE_API_KEY") as exc_info:
+        _build_llm_structure({"title": "T"}, {})
+    assert "openai_compatible" in str(exc_info.value)
+
+
+def test_unknown_provider_message_lists_google_and_openai_compatible(monkeypatch):
+    _sanitized_env(monkeypatch)
+    monkeypatch.setenv("CKS_LLM_PROVIDER", "not-a-real-provider")
+
+    with pytest.raises(RuntimeError, match="Unknown CKS_LLM_PROVIDER") as exc_info:
+        _build_llm_structure({"title": "T"}, {})
+    assert "google" in str(exc_info.value)
+    assert "openai_compatible" in str(exc_info.value)

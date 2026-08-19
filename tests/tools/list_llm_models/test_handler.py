@@ -128,3 +128,62 @@ async def test_explicit_anthropic_wins_over_reachable_ollama(mock_runtime):
 
     assert result["provider"] == "anthropic"
     assert {"name": "claude-sonnet-4-5-20250929"} in result["models"]
+
+
+# ---------------------------------------------------------------------------
+# google provider
+# ---------------------------------------------------------------------------
+
+
+async def test_explicit_google(mock_runtime):
+    env_patch, ollama_patch = _patched(
+        {"CKS_LLM_PROVIDER": "google", "CKS_GOOGLE_API_KEY": "fake-key"}, True
+    )
+    with env_patch, ollama_patch:
+        result = await list_llm_models(mock_runtime, {})
+
+    assert result == {
+        "provider": "google",
+        "models": [
+            {"name": "gemini-3.5-flash-lite"},
+            {"name": "gemini-2.5-pro"},
+            {"name": "gemini-2.5-flash"},
+            {"name": "gemini-2.5-flash-lite"},
+        ],
+    }
+
+
+async def test_explicit_google_without_key_still_returns_model_list(mock_runtime):
+    # Same convention as anthropic/openai_compatible: the hardcoded
+    # model list doesn't depend on whether a key is actually set --
+    # that's get_llm_status's job to report.
+    env_patch, ollama_patch = _patched({"CKS_LLM_PROVIDER": "google"}, False)
+    with env_patch, ollama_patch:
+        result = await list_llm_models(mock_runtime, {})
+
+    assert result["provider"] == "google"
+    assert {"name": "gemini-2.5-flash"} in result["models"]
+
+
+async def test_auto_never_selects_google_even_when_configured(mock_runtime):
+    env_patch, ollama_patch = _patched(
+        {"CKS_GOOGLE_API_KEY": "fake-key", "ANTHROPIC_API_KEY": "sk-test"}, False
+    )
+    with env_patch, ollama_patch:
+        result = await list_llm_models(mock_runtime, {})
+
+    assert result["provider"] == "anthropic"
+
+
+async def test_google_models_are_cached(mock_runtime):
+    env_patch, ollama_patch = _patched(
+        {"CKS_LLM_PROVIDER": "google", "CKS_GOOGLE_API_KEY": "fake-key"}, False
+    )
+    with env_patch, ollama_patch as mocked_ollama_available:
+        result1 = await list_llm_models(mock_runtime, {})
+        result2 = await list_llm_models(mock_runtime, {})
+
+    assert result1 == result2
+    # ollama_available should only be probed once if the second call
+    # hit the cache instead of recomputing.
+    assert mocked_ollama_available.call_count == 1

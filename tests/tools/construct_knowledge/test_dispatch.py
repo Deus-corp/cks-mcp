@@ -68,3 +68,48 @@ def test_no_provider_available_raises_clear_error(monkeypatch):
 
     with pytest.raises(RuntimeError, match="No LLM provider available"):
         _call_llm("test prompt", model=None, max_tokens=100)
+
+def test_explicit_google_provider_calls_google(monkeypatch):
+    _sanitized_env(monkeypatch)
+    monkeypatch.setenv("CKS_LLM_PROVIDER", "google")
+    monkeypatch.setenv("CKS_GOOGLE_API_KEY", "fake-key")
+
+    with patch(
+        "cks_mcp.tools.construct_knowledge.handler._call_google",
+        return_value='{"objects": []}',
+    ) as mock_google:
+        _call_llm("test prompt", model=None, max_tokens=100)
+
+    mock_google.assert_called_once()
+
+
+def test_auto_provider_never_selects_google_even_when_configured(monkeypatch):
+    _sanitized_env(monkeypatch)
+    monkeypatch.setattr(
+        "cks_mcp.tools.construct_knowledge.handler._ollama_available",
+        lambda host=None: False,
+    )
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key")
+    monkeypatch.setenv("CKS_GOOGLE_API_KEY", "fake-google-key")
+
+    with patch(
+        "cks_mcp.tools.construct_knowledge.handler._call_anthropic",
+        return_value='{"objects": []}',
+    ) as mock_anthropic, patch(
+        "cks_mcp.tools.construct_knowledge.handler._call_google"
+    ) as mock_google:
+        _call_llm("test prompt", model=None, max_tokens=100)
+
+    mock_anthropic.assert_called_once()
+    mock_google.assert_not_called()
+
+
+def test_no_provider_available_error_mentions_google(monkeypatch):
+    _sanitized_env(monkeypatch)
+    monkeypatch.setattr(
+        "cks_mcp.tools.construct_knowledge.handler._ollama_available",
+        lambda host=None: False,
+    )
+
+    with pytest.raises(RuntimeError, match="CKS_GOOGLE_API_KEY"):
+        _call_llm("test prompt", model=None, max_tokens=100)

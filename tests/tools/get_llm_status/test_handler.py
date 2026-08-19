@@ -242,3 +242,94 @@ async def test_empty_openai_api_key_counts_as_not_configured(mock_runtime):
         result = await get_llm_status(mock_runtime, {})
 
     assert result["openai_compatible_configured"] is False
+
+
+# ---------------------------------------------------------------------------
+# google provider
+# ---------------------------------------------------------------------------
+
+
+async def test_explicit_google_wins_even_when_ollama_reachable(mock_runtime):
+    env_patch, ollama_patch = _patched(
+        {"CKS_LLM_PROVIDER": "google", "CKS_GOOGLE_API_KEY": "fake-key"}, True
+    )
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result == {
+        "provider": "google",
+        "ollama_available": True,
+        "anthropic_configured": False,
+        "openai_compatible_configured": False,
+        "google_configured": True,
+        "model": "gemini-2.5-flash",
+    }
+
+
+async def test_explicit_google_without_key_still_reports_google(mock_runtime):
+    env_patch, ollama_patch = _patched({"CKS_LLM_PROVIDER": "google"}, False)
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result["provider"] == "google"
+    assert result["google_configured"] is False
+
+
+async def test_google_model_env_override_is_reflected(mock_runtime):
+    env_patch, ollama_patch = _patched(
+        {
+            "CKS_LLM_PROVIDER": "google",
+            "CKS_GOOGLE_API_KEY": "fake-key",
+            "CKS_GOOGLE_MODEL": "gemini-2.5-pro",
+        },
+        False,
+    )
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result["model"] == "gemini-2.5-pro"
+
+
+async def test_auto_never_selects_google_even_when_configured(mock_runtime):
+    # auto-detection must never pick google on its own, even if
+    # CKS_GOOGLE_API_KEY happens to be set -- it requires an explicit
+    # CKS_LLM_PROVIDER=google, same as openai_compatible.
+    env_patch, ollama_patch = _patched(
+        {"CKS_GOOGLE_API_KEY": "fake-key", "ANTHROPIC_API_KEY": "sk-test"}, False
+    )
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result["provider"] == "anthropic"
+    assert result["google_configured"] is True
+
+
+async def test_empty_google_api_key_counts_as_not_configured(mock_runtime):
+    env_patch, ollama_patch = _patched(
+        {"CKS_LLM_PROVIDER": "google", "CKS_GOOGLE_API_KEY": "   "}, False
+    )
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result["google_configured"] is False
+
+
+async def test_google_api_key_fallback_to_plain_google_api_key_env(mock_runtime):
+    # get_llm_status uses llm_providers.google_api_key(), which accepts
+    # the unprefixed GOOGLE_API_KEY as a fallback -- verify that
+    # fallback is honored end-to-end through this handler too.
+    env_patch, ollama_patch = _patched(
+        {"CKS_LLM_PROVIDER": "google", "GOOGLE_API_KEY": "plain-key"}, False
+    )
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result["google_configured"] is True
+
+
+async def test_google_provider_case_insensitive(mock_runtime):
+    env_patch, ollama_patch = _patched({"CKS_LLM_PROVIDER": "GOOGLE"}, False)
+    with env_patch, ollama_patch:
+        result = await get_llm_status(mock_runtime, {})
+
+    assert result["provider"] == "google"

@@ -171,10 +171,13 @@ def _build_llm_structure(
 
     # Provider dispatch: mirrors construct_knowledge.handler._call_llm, but
     # bound to our own system prompt. Only the low-level HTTP primitives
-    # (call_ollama/call_anthropic/ollama_available) are shared via
-    # llm_providers -- this branching is a separate copy. See
-    # test_llm_dispatch.py for coverage of these branches; keep both copies
-    # in sync if the fallback logic changes.
+    # (call_ollama/call_anthropic/call_openai_compatible_single_shot/
+    # call_google/ollama_available) are shared via llm_providers -- this
+    # branching is a separate copy. See test_llm_dispatch.py for coverage
+    # of these branches; keep both copies in sync if the fallback logic
+    # changes. 'auto' never picks 'openai_compatible' or 'google' -- same
+    # convention as every other provider router in cks-mcp -- they must be
+    # selected explicitly via CKS_LLM_PROVIDER.
     provider = os.environ.get("CKS_LLM_PROVIDER", "auto").lower()
 
     def call_ollama(prompt: str, model: str, max_tokens: int) -> str:
@@ -195,6 +198,24 @@ def _build_llm_structure(
             tool_name=tool_name,
         )
 
+    def call_openai_compatible(prompt: str, model: str, max_tokens: int) -> str:
+        return llm_providers.call_openai_compatible_single_shot(
+            prompt,
+            system_prompt=_SYSTEM_PROMPT_INGEST,
+            model=model,
+            max_tokens=max_tokens,
+            tool_name=tool_name,
+        )
+
+    def call_google(prompt: str, model: str, max_tokens: int) -> str:
+        return llm_providers.call_google(
+            prompt,
+            system_prompt=_SYSTEM_PROMPT_INGEST,
+            model=model,
+            max_tokens=max_tokens,
+            tool_name=tool_name,
+        )
+
     if provider == "ollama":
         m = model or os.environ.get("CKS_OLLAMA_MODEL", "llama3.2")
         raw_output = call_ollama(user_prompt, model=m, max_tokens=max_tokens)
@@ -202,6 +223,14 @@ def _build_llm_structure(
     elif provider == "anthropic":
         m = model or os.environ.get("CKS_LLM_MODEL", "claude-sonnet-4-6")
         raw_output = call_anthropic(user_prompt, model=m, max_tokens=max_tokens)
+        model_used = m
+    elif provider == "openai_compatible":
+        m = model or os.environ.get("CKS_OPENAI_MODEL", "gpt-4o")
+        raw_output = call_openai_compatible(user_prompt, model=m, max_tokens=max_tokens)
+        model_used = m
+    elif provider == "google":
+        m = model or os.environ.get("CKS_GOOGLE_MODEL", "gemini-2.5-flash")
+        raw_output = call_google(user_prompt, model=m, max_tokens=max_tokens)
         model_used = m
     elif provider == "auto":
         if llm_providers.ollama_available():
@@ -220,11 +249,16 @@ def _build_llm_structure(
                     "No LLM provider available. Options: "
                     "(1) run a local model — `ollama serve` + `ollama pull llama3.2`; "
                     "(2) set ANTHROPIC_API_KEY and CKS_LLM_PROVIDER=anthropic; "
-                    "(3) retry without use_llm to get a baseline structure."
+                    "(3) set CKS_OPENAI_API_KEY and CKS_LLM_PROVIDER=openai_compatible "
+                    "to use OpenAI or any OpenAI-compatible endpoint; "
+                    "(4) set CKS_GOOGLE_API_KEY and CKS_LLM_PROVIDER=google to use "
+                    "Google Gemini; "
+                    "(5) retry without use_llm to get a baseline structure."
                 ) from exc
     else:
         raise RuntimeError(
-            f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', or 'anthropic'."
+            f"Unknown CKS_LLM_PROVIDER={provider!r}. Use 'auto', 'ollama', 'anthropic', "
+            "'google', or 'openai_compatible'."
         )
 
     # Extract JSON from LLM output

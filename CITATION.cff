@@ -18,9 +18,9 @@ url: "https://github.com/PunctumActus/cks-mcp"
 
 license: "MIT"
 
-version: "1.76.0"
+version: "1.76.1"
 
-date-released: "2026-08-18"
+date-released: "2026-08-19"
 
 abstract: >
   CKS MCP Server is a fully asynchronous Model Context Protocol server

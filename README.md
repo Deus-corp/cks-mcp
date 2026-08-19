@@ -4,7 +4,7 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-1068%20passed%2C%206%20skipped-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1127%20passed%2C%206%20skipped-brightgreen)
 [![PyPI](https://img.shields.io/pypi/v/cks-mcp)](https://pypi.org/project/cks-mcp/)
 
 > 🚀 **[Live demo →](https://punctumactus.github.io/cks-website/demo/demo.html)** — explore the CKS ecosystem graph directly in your browser, no server required.
@@ -82,7 +82,7 @@ traceable to its origin.
 - **Contradiction detection** — `detect_contradictions` flags mutual exclusions (e.g., both `supports` and `contradicts` between the same pair) and functional relation violations (e.g., a planet orbiting two different stars).
 - **Hypothesis sandboxing** — `fork_sandbox` creates an isolated branch, optionally applies a hypothesis, and reports the diff from the fork point — all without touching the parent session. Safe to discard or promote.
 - **Content ingestion** — `ingest_document` fetches a public URL, extracts structured content (sections, tables, lists, JSON‑LD/OpenGraph metadata) and builds a Knowledge Structure with Document, Section, Table, List, Metadata, and Topic objects. An optional `use_llm` parameter sends the extracted data to an LLM (same provider auto‑selection as `construct_knowledge`) for a richer, model‑generated graph.
-- **LLM-assisted knowledge construction** — `construct_knowledge` converts free-form text into a validated Knowledge Structure using a local Ollama model (no API key needed) or the Anthropic API, auto-selected via `CKS_LLM_PROVIDER`.
+- **LLM-assisted knowledge construction** — `construct_knowledge` converts free-form text into a validated Knowledge Structure using a local Ollama model (no API key needed), the Anthropic API, Google Gemini, or any OpenAI-compatible endpoint, selected via `CKS_LLM_PROVIDER` (`auto` picks Ollama or Anthropic; `google`/`openai_compatible` must be selected explicitly).
 - **Session portability** — `export_session` packages a full session bundle (structure + version history) for migration or archival.
 - **Telemetry dashboard** — `get_metrics` now returns per‑tool latency percentiles (p50/p95/p99), success rates, and top error types since server start.
 - **Multi‑agent pipelines** — the `CKSAgentOrchestrator` (ADR‑007) chains
@@ -386,7 +386,7 @@ and how this interacts with `verify_source`'s provenance signing.
 python -m pytest -v
 ```
 
-1068+ tests: 1062 passing, 6 skipped (require Postgres or optional providers not configured in a default environment).
+1127+ tests: 1121 passing, 6 skipped (require Postgres or optional providers not configured in a default environment).
 
 ---
 

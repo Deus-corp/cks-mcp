@@ -13,6 +13,10 @@ Provider selection (CKS_LLM_PROVIDER):
                         back to Anthropic if ANTHROPIC_API_KEY is set.
     "ollama"          — force local Ollama. No API key required.
     "anthropic"       — force the Anthropic API. Requires ANTHROPIC_API_KEY.
+    "google"          — force Google Gemini (native generateContent).
+                        Requires CKS_GOOGLE_API_KEY (or GOOGLE_API_KEY as a
+                        fallback). Never picked by "auto" -- must be
+                        selected explicitly.
     "openai_compatible" — force an OpenAI-compatible endpoint (OpenAI, Groq,
                         DeepSeek, Together, LM Studio, vLLM, ...). Requires
                         CKS_OPENAI_API_KEY. Never picked by "auto" -- must be
@@ -31,13 +35,17 @@ is intentionally not used here.)
 
 Environment variables:
     CKS_LLM_PROVIDER    — "auto" (default) | "ollama" | "anthropic" |
-                          "openai_compatible".
+                          "google" | "openai_compatible".
     ANTHROPIC_API_KEY   — required only for the "anthropic" provider.
     CKS_LLM_MODEL       — model override for the "anthropic" provider
                           (default: claude-sonnet-4-6).
     CKS_OLLAMA_MODEL    — model override for the "ollama" provider
                           (default: llama3.2).
     CKS_OLLAMA_HOST     — Ollama server URL (default: http://localhost:11434).
+    CKS_GOOGLE_API_KEY  — required only for the "google" provider (GOOGLE_API_KEY
+                          is accepted as a fallback).
+    CKS_GOOGLE_MODEL    — model override for the "google" provider
+                          (default: gemini-2.5-flash).
     CKS_OPENAI_API_KEY  — required only for the "openai_compatible" provider.
     CKS_OPENAI_BASE_URL — base URL for the "openai_compatible" provider
                           (default: https://api.openai.com/v1).
@@ -146,6 +154,16 @@ def _call_openai_compatible(prompt: str, model: str, max_tokens: int, tool_name:
     )
 
 
+def _call_google(prompt: str, model: str, max_tokens: int, tool_name: str | None) -> str:
+    return llm_providers.call_google(
+        prompt,
+        system_prompt=_SYSTEM_PROMPT,
+        model=model,
+        max_tokens=max_tokens,
+        tool_name=tool_name,
+    )
+
+
 # ---------------------------------------------------------------------------
 # LLMClient adapters -- call_single_shot's generic single-shot signature is
 # (prompt, *, system_prompt, model, max_tokens, tool_name=None); these
@@ -177,6 +195,12 @@ def _single_shot_openai_compatible_adapter(
     return _call_openai_compatible(prompt, model=model, max_tokens=max_tokens, tool_name=tool_name)
 
 
+def _single_shot_google_adapter(
+    prompt: str, *, system_prompt: str, model: str, max_tokens: int, tool_name: str | None = None
+) -> str:
+    return _call_google(prompt, model=model, max_tokens=max_tokens, tool_name=tool_name)
+
+
 # ---------------------------------------------------------------------------
 # Provider dispatch
 # ---------------------------------------------------------------------------
@@ -202,6 +226,7 @@ def _call_llm(
         single_shot_ollama_fn=_single_shot_ollama_adapter,
         single_shot_anthropic_fn=_single_shot_anthropic_adapter,
         single_shot_openai_compatible_fn=_single_shot_openai_compatible_adapter,
+        single_shot_google_fn=_single_shot_google_adapter,
         ollama_available_fn=_ollama_available,
     )
     try:
@@ -216,7 +241,9 @@ def _call_llm(
             "(2) set ANTHROPIC_API_KEY and CKS_LLM_PROVIDER=anthropic; "
             "(3) set CKS_OPENAI_API_KEY and CKS_LLM_PROVIDER=openai_compatible "
             "to use OpenAI or any OpenAI-compatible endpoint; "
-            "(4) skip this tool: ask your LLM client to build the CKS JSON directly "
+            "(4) set CKS_GOOGLE_API_KEY and CKS_LLM_PROVIDER=google to use "
+            "Google Gemini; "
+            "(5) skip this tool: ask your LLM client to build the CKS JSON directly "
             "(same format as this tool's own system prompt) and pass it straight "
             "to evolve_knowledge or validate_knowledge — no server-side LLM call needed."
         ) from exc

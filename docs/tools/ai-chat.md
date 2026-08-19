@@ -1,7 +1,8 @@
 # AI Chat (`ai_chat`)
 
-Send a chat turn to an LLM (Ollama or Anthropic) that has access
-to a restricted set of cks-mcp tools, scoped to a single session.
+Send a chat turn to an LLM (Ollama, Anthropic, Google Gemini, or any
+OpenAI-compatible endpoint) that has access to a restricted set of
+cks-mcp tools, scoped to a single session.
 
 The LLM can call tools (`query_subgraph`, `evolve_knowledge`, …); the
 handler executes them server‑side and feeds results back to the LLM
@@ -59,10 +60,19 @@ turn — the tool is stateless between calls.
 
 ## Limitations
 
-- Supports both **Ollama** (local, no API key) and **Anthropic** for
-  tool-calling. `construct_knowledge` additionally supports any
-  OpenAI-compatible endpoint for single-shot calls via the shared
-  `LLMClient` — `ai_chat` does not yet route through `LLMClient` and so
-  does not support `openai_compatible` tool-calling.
-- Provider is selected via `CKS_LLM_PROVIDER` (auto/ollama/anthropic).
+- Supports tool-calling against **Ollama** (local, no API key),
+  **Anthropic**, **Google Gemini** (native `generateContent`, so
+  `thoughtSignature` round-trips correctly on function-calling turns),
+  and any **OpenAI-compatible** endpoint (OpenAI, Groq, DeepSeek,
+  Together, LM Studio, vLLM, …), all routed through the shared
+  `LLMClient`.
+- Provider is selected via `CKS_LLM_PROVIDER`
+  (`auto`/`ollama`/`anthropic`/`google`/`openai_compatible`). `auto`
+  only ever picks Ollama (if reachable) or Anthropic (if
+  `ANTHROPIC_API_KEY` is set) — `google` and `openai_compatible` must
+  be selected explicitly, since their model/key/base-URL combination
+  can't be guessed safely.
+- Google requires `CKS_GOOGLE_API_KEY` (or `GOOGLE_API_KEY` as a
+  fallback) and reads the model from `CKS_GOOGLE_MODEL` (default
+  `gemini-2.5-flash`).
 - Maximum 8 tool‑calling iterations per turn.

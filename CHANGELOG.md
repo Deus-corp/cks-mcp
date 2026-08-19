@@ -3,6 +3,21 @@
 
 ---
 
+## [1.76.1] - 2026-08-19
+
+### Fixed
+- **Google provider gaps** – `ingest_document` with `use_llm=true` now routes through the native Google provider when `CKS_LLM_PROVIDER=google`, instead of raising `Unknown CKS_LLM_PROVIDER`.
+- **`construct_knowledge` Google adapter** – added an explicit local `_call_google` / `_single_shot_google_adapter` wrapper, making Google dispatch consistent with other providers and testable.
+
+### Added
+- Tests for Google provider HTTP layer, tool-call round-tripping including `thought_signature`, `get_llm_status`, `list_llm_models`, `construct_knowledge`, and `ingest_document` LLM mode.
+- Docs updated to include Google Gemini in README, getting-started, `ai-chat.md`, and `list-llm-models.md`.
+
+### Changed
+- `auto` provider selection never picks `google` or `openai_compatible` implicitly; both must be selected explicitly, matching existing convention.
+
+---
+
 ## [1.76.0] - 2026-08-18
 
 ### Added
