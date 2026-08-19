@@ -19,7 +19,7 @@ import json
 from typing import Any
 
 from cks_mcp.llm.client import LLMClient, LLMProviderUnavailable
-from cks_mcp.llm_providers import (
+from cks_mcp.llm.providers import (
     call_anthropic,
     call_ollama,
     call_openai_compatible_single_shot,
@@ -70,7 +70,7 @@ async def refresh_session(runtime: Any, session: Any) -> Any:
 
     Root cause of the ``Outbox task ... failed: Object '...' already
     exists`` failures seen from ``ResearcherStep``/``ReviewerStep``:
-    each standalone agent process (``cks_mcp.pipeline_agent`` et al.,
+    each standalone agent process (``cks_mcp.agents.pipeline_agent.pipeline_agent`` et al.,
     see ``cks_mcp.session_refresh``'s module docstring) keeps its own
     in-memory session cache that ``Runtime.get_session`` never
     refreshes on its own. A step that reads a stale copy of
@@ -102,7 +102,7 @@ def is_duplicate_object_error(evolve_result: dict[str, Any], object_id: str) -> 
     -- already exists in the session?
 
     This is the failure mode left over even after ``refresh_session``:
-    two writers (e.g. two ``cks_mcp.pipeline_agent`` processes, or a
+    two writers (e.g. two ``cks_mcp.agents.pipeline_agent.pipeline_agent`` processes, or a
     retried outbox task racing the run that already completed it) both
     pass the pre-``evolve_knowledge`` idempotency check on a stale-but
     equally-fresh read, then both attempt to ``add_object`` the same

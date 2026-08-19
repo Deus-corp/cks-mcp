@@ -1,6 +1,6 @@
 # ADR-012: Embedded Agents
 
-**Status:** Implemented (`cks_mcp.embedded_agents`, opt-in)
+**Status:** Implemented (`cks_mcp.agents.embedded_agents`, opt-in)
 **Related:** cks-runtime ADR-016 (Standalone Agent Process Control),
 cks-mcp ADR-008 (Standalone Agent Process Visibility), cks-mcp ADR-010
 (Process Control Tool)
@@ -50,7 +50,7 @@ await more coroutines.
   needed in the agents themselves; everything else about how they run
   (own `Runtime`, own `LivenessReporter`, own claim/heartbeat/
   complete-fail-dead-letter loop) is untouched.
-- `cks_mcp.embedded_agents.start_embedded_agents(storage_path)` reads
+- `cks_mcp.agents.embedded_agents.start_embedded_agents(storage_path)` reads
   the env vars, constructs each enabled agent's settings, creates its
   `stop_event`, and schedules `asyncio.create_task(...)`. Returns a
   list of handles (`process_kind`, `task`, `stop_event`).

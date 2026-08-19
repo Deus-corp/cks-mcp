@@ -8,7 +8,7 @@ only ever returns a process-local in-memory cache
 (``SessionManager``'s dict, populated once at startup via
 ``Runtime._restore_from_storage`` and otherwise never refreshed on its
 own). Several standalone agent processes -- ``cks-pipeline-agent``
-(``cks_mcp.pipeline_agent``), the Critic/Enrichment agents, etc. -- run
+(``cks_mcp.agents.pipeline_agent.pipeline_agent``), the Critic/Enrichment agents, etc. -- run
 in their *own* OS process with their *own* ``Runtime``/in-memory
 session cache, sharing only the on-disk SQLite/Postgres backend with
 the main cks-mcp server that services cks-studio's tool calls. A

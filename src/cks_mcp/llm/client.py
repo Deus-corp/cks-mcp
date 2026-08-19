@@ -21,8 +21,6 @@ import os
 from collections.abc import Callable
 from typing import Any
 
-from cks_mcp import llm_providers
-
 # Signature shared by both providers' tool-calling entry points:
 # keyword-only messages/tools/tool_name in, {'content': [...]} out.
 _ProviderFn = Callable[..., dict[str, Any]]
@@ -68,15 +66,16 @@ class LLMClient:
         single_shot_openai_compatible_fn: _SingleShotFn | None = None,
         single_shot_google_fn: _SingleShotFn | None = None,
     ) -> None:
-        # Resolve lazy defaults here instead of in the signature. We
-        # import `llm_providers` at module top, but `llm_providers`
-        # imports `llm.redact`, which triggers `llm.__init__`, which
-        # imports `llm.client`. If these defaults referenced
-        # `llm_providers` at class definition time, that circular chain
-        # would leave `llm_providers` only partially initialised when
-        # this class body ran -- and produce AttributeError before any
-        # instance was ever created. Deferring to __init__ avoids that
-        # cycle completely.
+        # Resolve lazy defaults here instead of in the signature, and
+        # import `cks_mcp.llm.providers` here rather than at module
+        # top: `cks_mcp.llm.providers` submodules import `llm.redact`/
+        # `llm.retry`, which triggers `llm.__init__`, which imports
+        # `llm.client` (this module). A module-top import here would
+        # therefore run while `cks_mcp.llm.providers` is only
+        # partially initialised. Deferring to __init__ (called well
+        # after import time) avoids that cycle completely.
+        from cks_mcp.llm import providers as llm_providers
+
         if anthropic_fn is None:
             anthropic_fn = llm_providers.call_anthropic_with_tools
         if ollama_fn is None:

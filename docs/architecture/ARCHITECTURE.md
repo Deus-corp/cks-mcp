@@ -162,12 +162,12 @@ Resolves `~/.cks-mcp` (or `CKS_MCP_DATA_DIR`) once, cwd-independent — the
 one place the SQLite database, the persisted provenance secret, and the
 optional `.env` file all live.
 
-### `llm/` and `llm_providers.py` — LLM Abstraction
+### `llm/` and `llm/providers/` — LLM Abstraction
 
 `llm/client.py`'s `LLMClient` is the single entry point every LLM-backed
 tool (`ai_chat`, `construct_knowledge`, `arbitrate_inference_conflict`,
 `resolve_gossip_conflict`) calls through, whether the configured provider
-is Ollama, Anthropic, or any OpenAI-compatible endpoint. `llm_providers.py`
+is Ollama, Anthropic, or any OpenAI-compatible endpoint. `llm/providers/`
 holds the per-provider request/response translation (e.g. Ollama's
 `/api/chat` tool-calling shape normalised into the Anthropic content-block
 envelope), and `llm_telemetry.py` records token/cost usage for

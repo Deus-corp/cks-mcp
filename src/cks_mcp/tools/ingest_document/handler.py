@@ -20,8 +20,8 @@ from typing import Any
 import cks
 from cks_runtime.runtime import Runtime
 
-from cks_mcp import llm_providers
 from cks_mcp.errors import internal_error
+from cks_mcp.llm import providers as llm_providers
 from cks_mcp.tools.ingest_document.html_extract import parse_document_structure
 from cks_mcp.tools.verify_source.handler import UnsafeURLError, _safe_request
 

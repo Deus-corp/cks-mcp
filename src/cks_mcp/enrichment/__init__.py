@@ -2,9 +2,9 @@
 Enrichment Agent support modules: candidate discovery, scoring, and
 filtering for growing the knowledge graph from external sources.
 
-See ROADMAP.md's "Enrichment Agent" section and ``cks_mcp.enrichment_agent``
+See ROADMAP.md's "Enrichment Agent" section and ``cks_mcp.agents.enrichment_agent.enrichment_agent``
 (the claim -> resolve -> complete/fail/dead-letter loop itself, mirroring
-``cks_mcp.critic_agent``) for the pieces that use these.
+``cks_mcp.agents.critic_agent.critic_agent``) for the pieces that use these.
 
 Some of the deterministic, no-network-I/O logic here (URL scoring
 heuristics, low-value-URL filtering) is adapted from patterns used in an

@@ -33,7 +33,7 @@ from cks_mcp.tools.resolve_temporal_conflict.handler import (
 
 # Which resolution tool is legitimate for which dead-lettered
 # task_type -- mirrors review_dead_letter's own _PROPOSERS mapping and
-# cks_mcp.critic_agent's _RESOLVERS, so a resolution built by hand (or
+# cks_mcp.agents.critic_agent.critic_agent's _RESOLVERS, so a resolution built by hand (or
 # edited from review_dead_letter's proposal) can never be applied to
 # the wrong kind of conflict.
 _TASK_TYPE_TO_TOOL = {
@@ -55,7 +55,7 @@ _RESOLUTION_HANDLERS = {
 
 def _resolution_succeeded(tool_name: str, result: dict[str, Any]) -> bool:
     """
-    Mechanical success check, mirroring how cks_mcp.critic_agent's own
+    Mechanical success check, mirroring how cks_mcp.agents.critic_agent.critic_agent's own
     per-type resolvers decide whether a call actually resolved a
     conflict.
 

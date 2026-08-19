@@ -58,7 +58,7 @@ of 'winner_id') is applied, and 'commit' applies the whole batch as
 ONE evolve_knowledge call/version instead of one per conclusion_id.
 
 Environment variables (auto_resolve only; same names/semantics as
-construct_knowledge's, see llm_providers.py):
+construct_knowledge's, see llm/providers/):
     CKS_LLM_PROVIDER      -- "auto" (default) | "ollama" | "anthropic".
     ANTHROPIC_API_KEY     -- required only for the "anthropic" provider.
     CKS_ARBITER_MODEL     -- model override (falls back to CKS_LLM_MODEL,
@@ -79,13 +79,13 @@ from typing import Any
 from cks_runtime.operations.operation_types import ExplainInferenceOperation
 from cks_runtime.runtime import Runtime
 
-from cks_mcp import llm_providers
 from cks_mcp.errors import (
     internal_error,
     invalid_parameter,
     missing_parameter,
     session_not_found,
 )
+from cks_mcp.llm import providers as llm_providers
 from cks_mcp.tools.evolve.handler import evolve_knowledge
 
 # ---------------------------------------------------------------------------
@@ -190,7 +190,7 @@ _ARBITER_BATCH_SYSTEM_PROMPT = _ARBITER_BATCH_POLICY
 
 
 # ---------------------------------------------------------------------------
-# LLM call -- thin wrappers around cks_mcp.llm_providers, binding in this
+# LLM call -- thin wrappers around cks_mcp.llm.providers, binding in this
 # tool's own _ARBITER_SYSTEM_PROMPT. Same shape as construct_knowledge's
 # _call_ollama/_call_anthropic/_call_llm so provider-selection behavior
 # (and how tests patch it) stays consistent across tools that call an LLM.

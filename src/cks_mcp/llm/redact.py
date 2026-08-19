@@ -1,5 +1,5 @@
 """
-Secret-redaction helpers for ``cks_mcp.llm_providers``.
+Secret-redaction helpers for ``cks_mcp.llm.providers``.
 
 Nothing in ``llm_providers`` intentionally logs a raw API key -- error
 messages are built from static strings like "ANTHROPIC_API_KEY is not

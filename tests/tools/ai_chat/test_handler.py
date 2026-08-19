@@ -155,7 +155,7 @@ def _ollama_tool_use_response(tool_name: str, tool_args: dict, call_id: str = "c
     """As returned by call_ollama_with_tools -- already normalized into
     the same {'content': [...]} envelope call_anthropic_with_tools
     returns, since that normalization is call_ollama_with_tools's own
-    job (tested separately in test_llm_providers.py)."""
+    job (tested separately in test_llm/providers/)."""
     return {
         "content": [
             {"type": "tool_use", "id": call_id, "name": tool_name, "input": tool_args}

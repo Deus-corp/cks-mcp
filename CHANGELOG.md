@@ -3,6 +3,23 @@
 
 ---
 
+## [1.76.2] - 2026-08-19
+
+### Changed
+- **Internal package restructuring** – LLM providers moved into `cks_mcp.llm.providers` (one module per provider), HTTP transport modules into `cks_mcp.transport`, telemetry/observability into `cks_mcp.observability`, and standalone agents into `cks_mcp.agents`.
+- `middleware.py` left in place because it is transport-agnostic and used by both stdio and HTTP paths.
+- Updated console script entry points in `pyproject.toml` to the new module paths.
+- Made provider imports in `LLMClient` lazy, resolving a latent circular import after the providers package was introduced.
+
+### Fixed
+- All internal imports and test mock paths updated to the new module layout.
+- `ruff` and full test suite remain green.
+
+### Tests
+- 1121 passed, 6 skipped.
+
+---
+
 ## [1.76.1] - 2026-08-19
 
 ### Fixed
@@ -605,10 +622,10 @@
 ## [1.49.0] - 2026-08-06
 
 ### Added
-- **`ForkResolutionAgent` (Stage 3)** – new `src/cks_mcp/fork_resolution_agent.py`, a standalone autonomous process (console script `cks-fork-agent`) that claims and resolves `crdt_fork` outbox tasks on its own, following the same claim → resolve → complete/fail/dead-letter pattern as `critic_agent.py`/`enrichment_agent.py` (`cks_mcp.agent_loop`). Resolution policy: (1) prefer the causally-newest object per `VersionVector`/`causality_check` when one candidate strictly dominates the others; (2) otherwise fall back to the most recent `created_at` on the live MV-Register pointer row; (3) otherwise a deterministic alphabetically-first `object_id` tie-break. Purely mechanical — no LLM involved.
+- **`ForkResolutionAgent` (Stage 3)** – new `src/cks_mcp/fork_resolution_agent.py`, a standalone autonomous process (console script `cks-fork-agent`) that claims and resolves `crdt_fork` outbox tasks on its own, following the same claim → resolve → complete/fail/dead-letter pattern as `critic_agent.py`/`enrichment_agent.py` (`cks_mcp.agents.agent_loop`). Resolution policy: (1) prefer the causally-newest object per `VersionVector`/`causality_check` when one candidate strictly dominates the others; (2) otherwise fall back to the most recent `created_at` on the live MV-Register pointer row; (3) otherwise a deterministic alphabetically-first `object_id` tie-break. Purely mechanical — no LLM involved.
 - `ForkResolutionAgentSettings.from_env()` reads `CKS_FORK_AGENT_POLL_INTERVAL` (default 30s), `CKS_FORK_AGENT_MAX_RETRIES` (default 3), `CKS_FORK_AGENT_HEARTBEAT_INTERVAL` (default 60s), and shares `CKS_MCP_DB_PATH` with the other agents.
 - New tests in `tests/test_fork_resolution_agent.py`.
-- `cks-fork-agent = "cks_mcp.fork_resolution_agent:main_sync"` entry point in `pyproject.toml`.
+- `cks-fork-agent = "cks_mcp.agents.fork_resolution_agent.fork_resolution_agent:main_sync"` entry point in `pyproject.toml`.
 
 ### Note
 - `critic_agent.py`'s own `resolve_crdt_fork` (added in 1.48.0) still claims from the same `crdt_fork` outbox queue with a different (simpler, lexicographically-last) policy. Running both `cks-critic-agent` and `cks-fork-agent` at once means whichever claims a given fork first decides its outcome. Treat `cks-fork-agent` as the intended replacement for crdt_fork handling going forward — see README.md's "Fork Resolution Agent" section.
@@ -871,11 +888,11 @@
 ## [1.30.0] - 2026-08-03
 
 ### Added
-- **Critic Agent runtime loop** (`cks_mcp.critic_agent`) — the autonomous, unattended process ROADMAP.md's "Next Up" section described as the last missing piece of the Critic-agent design. Runs as its own OS process with its own `Runtime` sharing storage with the main `cks-mcp` server (same SQLite file or Postgres DSN, via `CKS_MCP_DB_PATH`), and loops: `claim_conflict_task` → resolve → `complete_conflict_task`/`fail_conflict_task`/`dead_letter_conflict_task`, for both `gossip_conflict` and `inference_conflict` task types.
+- **Critic Agent runtime loop** (`cks_mcp.agents.critic_agent.critic_agent`) — the autonomous, unattended process ROADMAP.md's "Next Up" section described as the last missing piece of the Critic-agent design. Runs as its own OS process with its own `Runtime` sharing storage with the main `cks-mcp` server (same SQLite file or Postgres DSN, via `CKS_MCP_DB_PATH`), and loops: `claim_conflict_task` → resolve → `complete_conflict_task`/`fail_conflict_task`/`dead_letter_conflict_task`, for both `gossip_conflict` and `inference_conflict` task types.
   - `gossip_conflict` resolution: `merge_branch(target_session_id=<task's session>, source_session_id=<payload's source_session_id>)`. A clean merge completes the task; a structural conflict (incompatible edits to the same object) is dead-lettered rather than guessed at.
   - `inference_conflict` resolution: a single batch `arbitrate_inference_conflict(auto_resolve=True, commit=True)` call covering every `CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT` diagnostic in the task's payload. `CKS-EXT-STALE-PREMISE` findings have no arbitration primitive yet and are dead-lettered for human review.
   - A task is dead-lettered once its retry count would reach `CKS_CRITIC_MAX_RETRIES` (default 5) instead of being retried forever.
-  - New console script: `cks-critic-agent` (entry point `cks_mcp.critic_agent:main_sync`).
+  - New console script: `cks-critic-agent` (entry point `cks_mcp.agents.critic_agent.critic_agent:main_sync`).
   - Env vars: `CKS_MCP_DB_PATH` (shared storage path, defaults to the same path `cks-mcp` itself uses), `CKS_CRITIC_POLL_INTERVAL` (default 5s), `CKS_CRITIC_MAX_RETRIES` (default 5).
   - New tests: `tests/test_critic_agent.py` (16 tests, including one end-to-end test against a real SQLite-backed `Runtime` and a real `merge_branch` call, not just mocks).
 

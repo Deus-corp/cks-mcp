@@ -62,8 +62,8 @@ from typing import Any
 import cks
 from cks_runtime.runtime import Runtime
 
-from cks_mcp import llm_providers
 from cks_mcp.errors import internal_error, missing_parameter
+from cks_mcp.llm import providers as llm_providers
 from cks_mcp.llm.client import LLMClient, LLMProviderUnavailable
 
 # ---------------------------------------------------------------------------
@@ -106,7 +106,7 @@ Example output:
 """
 
 # ---------------------------------------------------------------------------
-# LLM call -- thin wrappers around cks_mcp.llm_providers, binding in this
+# LLM call -- thin wrappers around cks_mcp.llm.providers, binding in this
 # tool's own _SYSTEM_PROMPT. Kept as module-level functions (rather than
 # calling llm_providers directly from _call_llm/construct_knowledge) so
 # existing tests can keep patching e.g.

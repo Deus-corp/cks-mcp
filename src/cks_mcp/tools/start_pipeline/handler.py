@@ -8,7 +8,7 @@ path of its own.
 
 This is deliberately *only* an enqueue. Actually running the pipeline
 against those tasks is the job of a standalone 'cks-pipeline-agent'
-process (cks_mcp.pipeline_agent, wrapping CKSAgentOrchestrator) already
+process (cks_mcp.agents.pipeline_agent.pipeline_agent, wrapping CKSAgentOrchestrator) already
 polling the same outbox -- see that module's docstring. A thin client
 like cks-studio calling this tool gets an immediate response with what
 was enqueued; it does not get "the pipeline is done" back, because

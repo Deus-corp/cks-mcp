@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cks_mcp.llm_telemetry import llm_telemetry
+from cks_mcp.observability.llm_telemetry import llm_telemetry
 from cks_mcp.tools.get_metrics.handler import get_metrics
 
 pytestmark = pytest.mark.asyncio

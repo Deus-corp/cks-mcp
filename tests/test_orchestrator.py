@@ -9,7 +9,7 @@ from cks_runtime.events.event_bus import EventBus
 from cks_runtime.events.runtime_event import AgentStepCompleted, AgentStepStarted
 
 from cks_mcp import orchestrator as orchestrator_module
-from cks_mcp.agent_loop import Resolution
+from cks_mcp.agents.agent_loop import Resolution
 from cks_mcp.orchestrator import CKSAgentOrchestrator
 from cks_mcp.pipeline.token_budget import TokenBudget
 

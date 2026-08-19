@@ -12,7 +12,7 @@ validation for the two session ids is likewise left to the downstream
 merge_branch() call, which already reports it the same way.
 
 Environment variables (auto_resolve only; same names/semantics as
-arbitrate_inference_conflict's, see llm_providers.py):
+arbitrate_inference_conflict's, see llm/providers/):
     CKS_LLM_PROVIDER   -- "auto" (default) | "ollama" | "anthropic".
     ANTHROPIC_API_KEY  -- required only for the "anthropic" provider.
     CKS_LLM_MODEL       -- model override (default: "claude-sonnet-4-6").
@@ -30,8 +30,8 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 
-from cks_mcp import llm_providers
 from cks_mcp.errors import internal_error
+from cks_mcp.llm import providers as llm_providers
 from cks_mcp.tools.merge.handler import merge_branch
 
 _POLICY = """\

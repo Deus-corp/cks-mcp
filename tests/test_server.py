@@ -200,8 +200,10 @@ class TestResolveDbPath:
         path for the main server and for each companion agent -- this
         is the actual invariant the whole fix exists to guarantee.
         """
-        from cks_mcp.critic_agent import CriticAgentSettings
-        from cks_mcp.fork_resolution_agent import ForkResolutionAgentSettings
+        from cks_mcp.agents.critic_agent.critic_agent import CriticAgentSettings
+        from cks_mcp.agents.fork_resolution_agent.fork_resolution_agent import (
+            ForkResolutionAgentSettings,
+        )
         from cks_mcp.server import _resolve_db_path
 
         target = tmp_path / "shared.db"

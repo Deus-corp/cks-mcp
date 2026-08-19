@@ -28,7 +28,7 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 
-from cks_mcp.agent_loop import Resolution
+from cks_mcp.agents.agent_loop import Resolution
 from cks_mcp.paths import data_dir
 from cks_mcp.pipeline.common import call_llm, find_object
 from cks_mcp.pipeline.schema import (

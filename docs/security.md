@@ -123,15 +123,15 @@ Alongside `POST /mcp` (JSON-RPC), the HTTP transport also exposes
 `VersionCreated`, `TransactionCommitted`, `GossipConflictDetected`,
 `CRDTForkDetected`, and others — so a thin client like `cks-studio` can
 react to changes made by other users or agents without polling. See
-`src/cks_mcp/sse.py` (the EventBus-to-subscriber broadcaster) and
-`src/cks_mcp/http_events.py` (the aiohttp route). Same trust boundary as
+`src/cks_mcp/transport/sse.py` (the EventBus-to-subscriber broadcaster) and
+`src/cks_mcp/transport/http_events.py` (the aiohttp route). Same trust boundary as
 `/mcp`.
 
 ### Token authentication
 
 Setting `CKS_MCP_HTTP_TOKEN` turns on bearer-token auth for both
 `/mcp` and `/events*`, enforced by an `aiohttp` middleware
-(`_auth_middleware` in `server.py`, backed by `src/cks_mcp/http_auth.py`)
+(`_auth_middleware` in `server.py`, backed by `src/cks_mcp/transport/http_auth.py`)
 that runs before any route handler and rejects unauthenticated
 requests with `401` before the JSON-RPC dispatcher or SSE stream ever
 starts. The token can be supplied two ways:

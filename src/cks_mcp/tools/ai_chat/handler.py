@@ -25,7 +25,7 @@ from typing import Any
 from cks_runtime.runtime import Runtime
 
 from cks_mcp.llm.client import LLMClient, LLMProviderUnavailable
-from cks_mcp.llm_providers import (
+from cks_mcp.llm.providers import (
     call_anthropic_with_tools,
     call_ollama_with_tools,
     ollama_available,

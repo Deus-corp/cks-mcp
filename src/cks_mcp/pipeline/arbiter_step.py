@@ -6,7 +6,7 @@ Unlike the other three steps, Arbiter is not driven off a
 ``pipeline_*_request`` task this pipeline itself enqueues -- it
 consumes ``contradiction_detected`` tasks, the same outbox queue
 ``cks_runtime.reasoning.contradiction_sweeper.ContradictionSweeper``
-already writes to and ``cks_mcp.critic_agent``'s
+already writes to and ``cks_mcp.agents.critic_agent.critic_agent``'s
 ``resolve_contradiction_conflict`` already drains mechanically (see
 that function's docstring: alphabetically-first-relation-id wins, no
 LLM). ``ArbiterStep`` is a second, *informed* consumer of the same
@@ -42,7 +42,7 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 
-from cks_mcp.agent_loop import Resolution
+from cks_mcp.agents.agent_loop import Resolution
 from cks_mcp.paths import data_dir
 from cks_mcp.pipeline.common import call_llm, find_object
 from cks_mcp.pipeline.schema import (

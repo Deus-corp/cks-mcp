@@ -6,9 +6,9 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 
-from cks_mcp.critic_agent import get_critic_metrics
-from cks_mcp.llm_telemetry import llm_telemetry
-from cks_mcp.telemetry import tool_telemetry
+from cks_mcp.agents.critic_agent.critic_agent import get_critic_metrics
+from cks_mcp.observability.llm_telemetry import llm_telemetry
+from cks_mcp.observability.tool_telemetry import tool_telemetry
 
 
 async def get_metrics(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -17,7 +17,7 @@ async def get_metrics(runtime: Runtime, arguments: dict[str, Any]) -> dict[str, 
     provider call telemetry (tokens/cost).
 
     ``critic_agent_metrics`` is process-local: the Critic Agent is a
-    separate OS process by design (see ``cks_mcp.critic_agent``'s
+    separate OS process by design (see ``cks_mcp.agents.critic_agent.critic_agent``'s
     module docstring), so calling this tool against the main server
     process reports all-zero Critic Agent counters even while a
     Critic Agent worker is actively processing tasks elsewhere against

@@ -1,6 +1,6 @@
 """
 Shared retry/backoff helper for LLM provider HTTP calls
-(``cks_mcp.llm_providers``).
+(``cks_mcp.llm.providers``).
 
 All of ``call_anthropic``/``call_ollama``/``call_openai_compatible_*``
 are synchronous, blocking ``urllib`` calls (see ``llm_providers``'

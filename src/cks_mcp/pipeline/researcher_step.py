@@ -3,13 +3,13 @@ ResearcherAgent step (ADR-007 Milestone 1): claims objects sitting at
 ``current_status == "awaiting_research"``, produces a research finding
 against the object (an LLM call, same provider-dispatch shape as
 ``arbitrate_inference_conflict``/``construct_knowledge`` -- see
-``cks_mcp.llm_providers``), commits that finding as its own graph node
+``cks_mcp.llm.providers``), commits that finding as its own graph node
 linked to the object via a ``supports``-semantic edge, appends a
 ``transition_log`` entry moving the object to
 ``"awaiting_review"``, and enqueues a ``pipeline_review_request`` task
 for the Reviewer step.
 
-Same overall shape as ``cks_mcp.enrichment_agent``: claim via the
+Same overall shape as ``cks_mcp.agents.enrichment_agent.enrichment_agent``: claim via the
 generic outbox tools, one atomic ``evolve_knowledge`` call per object
 so there is no window where the finding exists unlinked or the status
 transition is un-recorded.
@@ -24,7 +24,7 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 
-from cks_mcp.agent_loop import Resolution
+from cks_mcp.agents.agent_loop import Resolution
 from cks_mcp.paths import data_dir
 from cks_mcp.pipeline.common import (
     call_llm,

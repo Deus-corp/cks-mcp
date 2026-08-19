@@ -48,7 +48,7 @@ def test_explicit_ollama_provider_used(monkeypatch):
     monkeypatch.setenv("CKS_LLM_PROVIDER", "ollama")
 
     with patch(
-        "cks_mcp.llm_providers.call_ollama", return_value=_VALID_CKS_JSON
+        "cks_mcp.llm.providers.call_ollama", return_value=_VALID_CKS_JSON
     ) as mock_ollama:
         structure, model_used = _build_llm_structure({"title": "T"}, {})
 
@@ -62,7 +62,7 @@ def test_explicit_anthropic_provider_used(monkeypatch):
     monkeypatch.setenv("CKS_LLM_PROVIDER", "anthropic")
 
     with patch(
-        "cks_mcp.llm_providers.call_anthropic", return_value=_VALID_CKS_JSON
+        "cks_mcp.llm.providers.call_anthropic", return_value=_VALID_CKS_JSON
     ) as mock_anthropic:
         structure, model_used = _build_llm_structure({"title": "T"}, {})
 
@@ -74,11 +74,11 @@ def test_explicit_anthropic_provider_used(monkeypatch):
 def test_auto_prefers_ollama_when_reachable(monkeypatch):
     _sanitized_env(monkeypatch)
     monkeypatch.setattr(
-        "cks_mcp.llm_providers.ollama_available", lambda *a, **kw: True
+        "cks_mcp.llm.providers.ollama_available", lambda *a, **kw: True
     )
 
     with patch(
-        "cks_mcp.llm_providers.call_ollama", return_value=_VALID_CKS_JSON
+        "cks_mcp.llm.providers.call_ollama", return_value=_VALID_CKS_JSON
     ) as mock_ollama:
         _build_llm_structure({"title": "T"}, {})
 
@@ -89,11 +89,11 @@ def test_auto_falls_back_to_anthropic_when_ollama_unreachable(monkeypatch):
     _sanitized_env(monkeypatch)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key")
     monkeypatch.setattr(
-        "cks_mcp.llm_providers.ollama_available", lambda *a, **kw: False
+        "cks_mcp.llm.providers.ollama_available", lambda *a, **kw: False
     )
 
     with patch(
-        "cks_mcp.llm_providers.call_anthropic", return_value=_VALID_CKS_JSON
+        "cks_mcp.llm.providers.call_anthropic", return_value=_VALID_CKS_JSON
     ) as mock_anthropic:
         _build_llm_structure({"title": "T"}, {})
 
@@ -103,7 +103,7 @@ def test_auto_falls_back_to_anthropic_when_ollama_unreachable(monkeypatch):
 def test_auto_no_provider_available_raises_descriptive_error(monkeypatch):
     _sanitized_env(monkeypatch)
     monkeypatch.setattr(
-        "cks_mcp.llm_providers.ollama_available", lambda *a, **kw: False
+        "cks_mcp.llm.providers.ollama_available", lambda *a, **kw: False
     )
     # ANTHROPIC_API_KEY intentionally left unset.
 
@@ -124,7 +124,7 @@ def test_model_and_max_tokens_overrides_are_forwarded(monkeypatch):
     monkeypatch.setenv("CKS_LLM_PROVIDER", "ollama")
 
     with patch(
-        "cks_mcp.llm_providers.call_ollama", return_value=_VALID_CKS_JSON
+        "cks_mcp.llm.providers.call_ollama", return_value=_VALID_CKS_JSON
     ) as mock_ollama:
         _, model_used = _build_llm_structure(
             {"title": "T"}, {"model": "custom-model", "max_tokens": 555}
@@ -143,7 +143,7 @@ def test_explicit_openai_compatible_provider_used(monkeypatch):
     monkeypatch.setenv("CKS_LLM_PROVIDER", "openai_compatible")
 
     with patch(
-        "cks_mcp.llm_providers.call_openai_compatible_single_shot",
+        "cks_mcp.llm.providers.call_openai_compatible_single_shot",
         return_value=_VALID_CKS_JSON,
     ) as mock_openai:
         structure, model_used = _build_llm_structure({"title": "T"}, {})
@@ -160,7 +160,7 @@ def test_explicit_google_provider_used(monkeypatch):
     monkeypatch.setenv("CKS_LLM_PROVIDER", "google")
 
     with patch(
-        "cks_mcp.llm_providers.call_google", return_value=_VALID_CKS_JSON
+        "cks_mcp.llm.providers.call_google", return_value=_VALID_CKS_JSON
     ) as mock_google:
         structure, model_used = _build_llm_structure({"title": "T"}, {})
 
@@ -175,7 +175,7 @@ def test_google_model_env_override_is_reflected(monkeypatch):
     monkeypatch.setenv("CKS_GOOGLE_MODEL", "gemini-2.5-pro")
 
     with patch(
-        "cks_mcp.llm_providers.call_google", return_value=_VALID_CKS_JSON
+        "cks_mcp.llm.providers.call_google", return_value=_VALID_CKS_JSON
     ) as mock_google:
         _, model_used = _build_llm_structure({"title": "T"}, {})
 
@@ -189,13 +189,13 @@ def test_auto_never_selects_google_when_ollama_unreachable(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key")
     monkeypatch.setenv("CKS_GOOGLE_API_KEY", "fake-google-key")
     monkeypatch.setattr(
-        "cks_mcp.llm_providers.ollama_available", lambda *a, **kw: False
+        "cks_mcp.llm.providers.ollama_available", lambda *a, **kw: False
     )
 
     with patch(
-        "cks_mcp.llm_providers.call_anthropic", return_value=_VALID_CKS_JSON
+        "cks_mcp.llm.providers.call_anthropic", return_value=_VALID_CKS_JSON
     ) as mock_anthropic, patch(
-        "cks_mcp.llm_providers.call_google"
+        "cks_mcp.llm.providers.call_google"
     ) as mock_google:
         _build_llm_structure({"title": "T"}, {})
 
@@ -208,13 +208,13 @@ def test_auto_never_selects_openai_compatible_when_ollama_unreachable(monkeypatc
     monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-key")
     monkeypatch.setenv("CKS_OPENAI_API_KEY", "fake-openai-key")
     monkeypatch.setattr(
-        "cks_mcp.llm_providers.ollama_available", lambda *a, **kw: False
+        "cks_mcp.llm.providers.ollama_available", lambda *a, **kw: False
     )
 
     with patch(
-        "cks_mcp.llm_providers.call_anthropic", return_value=_VALID_CKS_JSON
+        "cks_mcp.llm.providers.call_anthropic", return_value=_VALID_CKS_JSON
     ) as mock_anthropic, patch(
-        "cks_mcp.llm_providers.call_openai_compatible_single_shot"
+        "cks_mcp.llm.providers.call_openai_compatible_single_shot"
     ) as mock_openai:
         _build_llm_structure({"title": "T"}, {})
 
@@ -225,7 +225,7 @@ def test_auto_never_selects_openai_compatible_when_ollama_unreachable(monkeypatc
 def test_auto_no_provider_available_error_mentions_google_and_openai(monkeypatch):
     _sanitized_env(monkeypatch)
     monkeypatch.setattr(
-        "cks_mcp.llm_providers.ollama_available", lambda *a, **kw: False
+        "cks_mcp.llm.providers.ollama_available", lambda *a, **kw: False
     )
 
     with pytest.raises(RuntimeError, match="CKS_GOOGLE_API_KEY") as exc_info:

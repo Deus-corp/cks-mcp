@@ -1,7 +1,7 @@
 """
 ReviewerAgent step (ADR-007 Milestone 1) -- the role named "Critic" in
 early planning notes, renamed to avoid colliding with
-``cks_mcp.critic_agent`` (the gossip/inference/provenance/contradiction
+``cks_mcp.agents.critic_agent.critic_agent`` (the gossip/inference/provenance/contradiction
 conflict resolver, an unrelated agent that predates this pipeline).
 
 Claims objects at ``current_status == "awaiting_review"``, reads the
@@ -29,7 +29,7 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 
-from cks_mcp.agent_loop import Resolution
+from cks_mcp.agents.agent_loop import Resolution
 from cks_mcp.paths import data_dir
 from cks_mcp.pipeline.common import (
     call_llm,

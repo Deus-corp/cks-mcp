@@ -25,7 +25,7 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 
-from cks_mcp import llm_providers
+from cks_mcp.llm import providers as llm_providers
 from cks_mcp.tools.list_llm_models.cache import list_llm_models_cache
 
 _logger = logging.getLogger(__name__)

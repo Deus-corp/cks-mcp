@@ -17,7 +17,7 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 
-from cks_mcp import llm_providers
+from cks_mcp.llm import providers as llm_providers
 
 # Recognized explicit values for CKS_LLM_PROVIDER; anything else (unset,
 # empty, "auto", or a typo) falls through to availability-based

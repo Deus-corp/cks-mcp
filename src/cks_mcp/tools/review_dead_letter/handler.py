@@ -15,7 +15,7 @@ verbatim (or with manual edits, e.g. a different ``winner_id``):
     temporal_conflict      -> resolve_temporal_conflict
     contradiction_detected -> resolve_contradiction
 
-The mapping mirrors ``cks_mcp.critic_agent``'s own ``_RESOLVERS`` /
+The mapping mirrors ``cks_mcp.agents.critic_agent.critic_agent``'s own ``_RESOLVERS`` /
 per-type resolver functions -- this tool proposes exactly the same
 call an unattended Critic Agent would have made automatically, just
 surfaced for a human to review, edit, and approve instead of applying
@@ -34,7 +34,7 @@ from typing import Any
 
 from cks_runtime.runtime import Runtime
 
-# Kept in sync with cks_mcp.critic_agent's own private constants of the
+# Kept in sync with cks_mcp.agents.critic_agent.critic_agent's own private constants of the
 # same names -- see this module's docstring for why they're duplicated
 # rather than imported.
 _ARBITRABLE_DIAGNOSTIC_CODE = "CKS-EXT-INFERENCE-CONFIDENCE-CONFLICT"

@@ -4,7 +4,7 @@ Provider functions are injected as plain fakes here (not patched via
 ``unittest.mock.patch`` against ``llm_providers``) since ``LLMClient``
 takes them as constructor args -- this file tests the *routing* logic
 in isolation from the HTTP plumbing, which is covered separately in
-test_llm_providers.py.
+test_llm/providers/.
 """
 
 from __future__ import annotations
@@ -170,7 +170,7 @@ def test_default_construction_uses_real_llm_providers_functions():
     # point at llm_providers' real functions, not e.g. None -- a
     # regression here would only be caught by a wiring test like this
     # one, since every other test in this file injects fakes.
-    from cks_mcp import llm_providers
+    from cks_mcp.llm import providers as llm_providers
 
     client = LLMClient()
     assert client._anthropic_fn is llm_providers.call_anthropic_with_tools

@@ -5,9 +5,9 @@ Researcher + Reviewer only) -- against a shared Knowledge Structure.
 
 This is Milestone 1's shape from ADR-007's Implementation Plan: the
 claim-before-run and wake-up disciplines (Decisions 2/3) are provided
-by the same persistent-outbox machinery ``cks_mcp.critic_agent``/
-``cks_mcp.enrichment_agent`` already use (``claim_conflict_task`` and
-friends, generic over ``task_type`` -- see ``cks_mcp.agent_loop``),
+by the same persistent-outbox machinery ``cks_mcp.agents.critic_agent.critic_agent``/
+``cks_mcp.agents.enrichment_agent.enrichment_agent`` already use (``claim_conflict_task`` and
+friends, generic over ``task_type`` -- see ``cks_mcp.agents.agent_loop``),
 rather than new infrastructure. Each pipeline step is registered under
 its own ``task_type`` (``pipeline_research_request``,
 ``pipeline_review_request``, ...); the outbox row *is* the claim, so
@@ -36,7 +36,7 @@ from cks_runtime.events.event_bus import EventBus
 from cks_runtime.events.runtime_event import AgentStepCompleted, AgentStepStarted
 from cks_runtime.runtime import Runtime
 
-from cks_mcp.agent_loop import Resolution, run_resolver_with_heartbeat
+from cks_mcp.agents.agent_loop import Resolution, run_resolver_with_heartbeat
 from cks_mcp.pipeline.schema import read_transition_log
 from cks_mcp.pipeline.token_budget import TokenBudget
 from cks_mcp.tools.claim_conflict_task.handler import claim_conflict_task
@@ -151,7 +151,7 @@ class AgentStep(Protocol):
         ``task`` is the claimed outbox task dict (``task_id``,
         ``task_type``, ``session_id``, ``payload``, ``retry_count``) --
         the same shape ``claim_conflict_task`` returns and
-        ``cks_mcp.critic_agent``/``cks_mcp.enrichment_agent`` resolvers
+        ``cks_mcp.agents.critic_agent.critic_agent``/``cks_mcp.agents.enrichment_agent.enrichment_agent`` resolvers
         already consume.
         """
         ...
@@ -215,7 +215,7 @@ class CKSAgentOrchestrator:
     """Owns lifecycle for a set of ``AgentStep``s over one ``Runtime``
     (ADR-007 Decision 5). Milestone 1 drives each step's queue to
     exhaustion via the same claim/heartbeat/lease-renewal loop
-    ``cks_mcp.agent_loop.run_resolver_with_heartbeat`` already
+    ``cks_mcp.agents.agent_loop.run_resolver_with_heartbeat`` already
     provides -- long-lived per-step ``asyncio`` tasks subscribed to
     ``LISTEN``/``NOTIFY`` wake-ups are Milestone 3 scope (ADR-007);
     this class's public shape does not need to change to add that."""
@@ -369,8 +369,8 @@ class CKSAgentOrchestrator:
     async def _drain_step(self, step: AgentStep, ctx: PipelineContext) -> StepResult:
         """Claim -> run -> complete/fail/dead-letter, one task_type,
         until its queue reports empty. Mirrors
-        ``cks_mcp.critic_agent._process_one``/
-        ``cks_mcp.enrichment_agent._process_one`` exactly, generalized
+        ``cks_mcp.agents.critic_agent.critic_agent._process_one``/
+        ``cks_mcp.agents.enrichment_agent.enrichment_agent._process_one`` exactly, generalized
         over ``AgentStep`` instead of a fixed resolver map.
 
         Never raises: an infrastructure failure (``claim_conflict_task``/

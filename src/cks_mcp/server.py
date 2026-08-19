@@ -20,9 +20,7 @@ from cks_runtime.runtime import Runtime
 from cks_runtime.storage.memory_storage import InMemoryStorage
 from cks_runtime_plugins.cks_core import CksCoreAdapter
 
-from cks_mcp.embedded_agents import start_embedded_agents, stop_embedded_agents
-from cks_mcp.http_auth import is_request_authorized
-from cks_mcp.http_events import register_sse_routes
+from cks_mcp.agents.embedded_agents import start_embedded_agents, stop_embedded_agents
 from cks_mcp.observability import setup_event_subscriptions
 from cks_mcp.paths import data_dir
 from cks_mcp.plugin import PluginRegistry
@@ -31,6 +29,8 @@ from cks_mcp.prompts import PROMPTS, get_prompt, list_prompts
 from cks_mcp.registry import TOOLS
 from cks_mcp.resources import list_resources, read_resource
 from cks_mcp.tools.list_plugins.handler import set_plugin_registry
+from cks_mcp.transport.http_auth import is_request_authorized
+from cks_mcp.transport.http_events import register_sse_routes
 
 # ---------------------------------------------------------------------------
 # Server metadata
@@ -434,8 +434,8 @@ async def main() -> None:
             app = web.Application(middlewares=[_auth_middleware])
             app['runtime'] = runtime
             app.router.add_post('/mcp', _http_handler)
-            # Real-time session event streaming (SSE) -- see http_events.py
-            # and sse.py. Only available when the HTTP transport itself is
+            # Real-time session event streaming (SSE) -- see transport/http_events.py
+            # and transport/sse.py. Only available when the HTTP transport itself is
             # enabled; there is no stdio equivalent.
             sse_broadcaster = register_sse_routes(app, runtime)
 
