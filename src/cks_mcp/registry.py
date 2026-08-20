@@ -140,6 +140,8 @@ from cks_mcp.tools.resolve_temporal_conflict import resolve_temporal_conflict
 from cks_mcp.tools.resolve_temporal_conflict.schema import (
     RESOLVE_TEMPORAL_CONFLICT_SCHEMA,
 )
+from cks_mcp.tools.retry_dead_letter import retry_dead_letter
+from cks_mcp.tools.retry_dead_letter.schema import RETRY_DEAD_LETTER_SCHEMA
 from cks_mcp.tools.revert import list_versions, revert_version
 from cks_mcp.tools.revert.schema import LIST_VERSIONS_SCHEMA, REVERT_VERSION_SCHEMA
 from cks_mcp.tools.review_dead_letter import review_dead_letter
@@ -429,6 +431,10 @@ TOOLS = {
     "list_dead_lettered_conflicts": {
         **LIST_DEAD_LETTERED_CONFLICTS_SCHEMA,
         "handler": _wrap("list_dead_lettered_conflicts")(list_dead_lettered_conflicts),
+    },
+    "retry_dead_letter": {
+        **RETRY_DEAD_LETTER_SCHEMA,
+        "handler": _wrap("retry_dead_letter", "task_id")(retry_dead_letter),
     },
     "review_dead_letter": {
         **REVIEW_DEAD_LETTER_SCHEMA,

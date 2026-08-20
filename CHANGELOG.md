@@ -3,6 +3,23 @@
 
 ---
 
+## [1.77.0] - 2026-08-20
+
+### Added
+- **`retry_dead_letter` tool** – moves a DEAD-lettered conflict task back to PENDING so it can be claimed and processed again after the root cause has been fixed.
+- The new tool returns `{"retried": true, "task_id": ...}` on success and structured errors for missing/non-DEAD tasks or unsupported storage backends.
+- Tool count increased from 71 to 72.
+
+### Changed
+- Registered `retry_dead_letter` in the `Gossip & Conflict Resolution` group.
+- Updated `README.md` and `docs/tools/gossip-and-conflicts.md`.
+- `test_server.py` now expects 72 tools.
+
+### Requirements
+- Requires `cks-runtime >= 1.58.0` for the `retry_dead_letter_task` storage capability.
+
+---
+
 ## [1.76.8] - 2026-08-20
 
 ### Added

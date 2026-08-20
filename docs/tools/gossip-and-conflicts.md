@@ -225,8 +225,9 @@ the persistent outbox directly through the shared `cks_outbox_tasks` table.
 | `fail_conflict_task` | Reschedules a task as `PENDING` with exponential backoff for a later retry |
 | `dead_letter_conflict_task` | Moves a task to `DEAD` status after the retry limit is exhausted |
 | `list_dead_lettered_conflicts` | Lists every dead-lettered task for manual audit |
+| `retry_dead_letter` | Returns a `DEAD` task to `PENDING` so it can be claimed again, once the root cause has been fixed |
 
-All five return `"supported": false` on storage backends that do not
+All six return `"supported": false` on storage backends that do not
 implement the outbox (e.g. the default `InMemoryStorage`).
 
 ---
