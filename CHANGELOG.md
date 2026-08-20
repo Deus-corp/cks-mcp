@@ -3,6 +3,17 @@
 
 ---
 
+## [1.76.8] - 2026-08-20
+
+### Added
+- **Ecosystem integration smoke test** – new `.github/workflows/ecosystem-integration.yml` manual/nightly workflow and `tests/ecosystem_smoke.py` script. Tests the latest `main` branches of `cks-core`, `cks-runtime`, `cks-mcp`, and `cks-studio` using editable installs, so version bump lag never causes false failures.
+- Smoke script verifies key public imports, tool registry size, end-to-end knowledge lifecycle, and a real `compare_versions` handler call.
+
+### Changed
+- No production code changes; CI/test infrastructure only.
+
+---
+
 ## [1.76.7] - 2026-08-19
 
 ### Added

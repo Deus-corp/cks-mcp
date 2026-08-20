@@ -1,0 +1,82 @@
+name: Ecosystem Integration Smoke
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Nightly at 03:00 UTC. This always tests the `main` branches of every
+    # CKS repo (never published PyPI versions), so it is safe to run
+    # unattended -- a lagging version bump in one repo can never cause a
+    # false failure here. Remove or comment out this `schedule:` block (or
+    # disable the workflow from the Actions tab) if nightly runs are not
+    # wanted; `workflow_dispatch` above is independent of it and always
+    # stays available for manual runs.
+    - cron: "0 3 * * *"
+
+jobs:
+  integration:
+    name: Python ecosystem smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout cks-mcp (this repo)
+        uses: actions/checkout@v4
+
+      - name: Checkout cks-core (main)
+        uses: actions/checkout@v4
+        with:
+          repository: punctumactus/cks-core
+          ref: main
+          path: cks-core
+
+      - name: Checkout cks-runtime (main)
+        uses: actions/checkout@v4
+        with:
+          repository: punctumactus/cks-runtime
+          ref: main
+          path: cks-runtime
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ecosystem packages (editable, from main)
+        # Dependency order matters: cks-runtime imports cks-core at import
+        # time, and cks-mcp (installed from ".", the current checkout)
+        # imports both. Installed editable and from source checkouts of
+        # `main`, never from PyPI, so a version bump lagging in one repo's
+        # metadata never causes a false failure here.
+        run: |
+          pip install -e ./cks-core
+          pip install -e ./cks-runtime
+          pip install -e .
+
+      - name: Run ecosystem smoke test
+        run: python tests/ecosystem_smoke.py
+
+  studio-typecheck:
+    name: cks-studio TypeScript check (optional)
+    runs-on: ubuntu-latest
+    # Optional and non-blocking: a cks-studio TS regression should not fail
+    # the Python ecosystem smoke test above. Flip continue-on-error to
+    # false once this job has proven stable enough to gate on.
+    continue-on-error: true
+    steps:
+      - name: Checkout cks-studio (main)
+        uses: actions/checkout@v4
+        with:
+          repository: punctumactus/cks-studio
+          ref: main
+          path: cks-studio
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: cks-studio
+        run: npm ci
+
+      - name: Type check
+        working-directory: cks-studio
+        run: npx tsc --noEmit
